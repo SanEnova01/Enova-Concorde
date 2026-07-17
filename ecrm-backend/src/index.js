@@ -375,12 +375,8 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     const tieneErrorBD = htmlHeader.toLowerCase().includes('error estableciendo') || htmlHeader.toLowerCase().includes('database error');
     const tieneErrorCritico = htmlHeader.toLowerCase().includes('error crítico') || htmlHeader.toLowerCase().includes('critical error');
 
-    // Estructuramos los componentes simulados basados en respuestas reales del servidor externo
+    // 🌟 Estructuramos los componentes SIMULADOS sin "Conectividad Web (Uptime)"
     const components = [
-      {
-        name: 'Conectividad Web (Uptime)',
-        status: response.ok ? 'operational' : 'major_outage'
-      },
       {
         name: 'Resolución de DNS y SSL',
         status: response.status !== 0 ? 'operational' : 'major_outage'
@@ -402,8 +398,9 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     res.json({
       success: true,
       global: {
-        status: response.ok && !tieneErrorBD && !tieneErrorCritico ? 'All Systems Operational' : 'Systems Disruption',
-        indicator: response.ok && !tieneErrorBD && !tieneErrorCritico ? 'none' : 'major'
+        // 🌟 Ahora el estado global ignora el response.ok para no alertar falsos positivos por bloqueos WAF
+        status: !tieneErrorBD && !tieneErrorCritico ? 'All Systems Operational' : 'Systems Disruption',
+        indicator: !tieneErrorBD && !tieneErrorCritico ? 'none' : 'major'
       },
       components: components,
       performance: {
@@ -412,14 +409,10 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     });
 
   } catch (error) {
-    let causa = 'No se pudo conectar con el servidor de la tienda.';
-    if (error.name === 'AbortError') causa = 'Timeout excedido (>10s). Servidor lento o colgado.';
-
     res.json({
-      success: true, // Devolvemos true para que el front pinte el cuadro con el estado de alerta
+      success: true, 
       global: { status: 'Sitio fuera de línea o inaccesible', indicator: 'critical' },
       components: [
-        { name: 'Conectividad Web (Uptime)', status: 'major_outage' },
         { name: 'Resolución de DNS y SSL', status: 'major_outage' },
         { name: 'Tiempo de Respuesta (TTFB)', status: 'major_outage' },
         { name: 'Estabilidad de Base de Datos', status: 'major_outage' },
@@ -428,7 +421,6 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     });
   }
 });
-
 // ==========================================
 // SERVIR FRONTEND REAL
 // ==========================================

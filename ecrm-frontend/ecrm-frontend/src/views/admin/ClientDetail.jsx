@@ -305,7 +305,7 @@ function ClientDetail() {
 
   const showExternalMonitor = showShopifyWidget || showVtexWidget || showWooWidget;
 
-  // Si aún está cargando la respuesta del proxy, pintamos el esqueleto con las nuevas métricas externas
+// Si aún está cargando la respuesta del proxy, pintamos el esqueleto con las nuevas métricas externas
   const activeMonitor = showShopifyWidget 
     ? shopifyStatus 
     : showVtexWidget 
@@ -313,7 +313,6 @@ function ClientDetail() {
       : (wooStatus || {
           global: { status: 'Analizando conexión con la tienda...', indicator: 'minor' },
           components: [
-            { name: 'Conectividad Web (Uptime)', status: 'under_maintenance' },
             { name: 'Resolución de DNS y SSL', status: 'under_maintenance' },
             { name: 'Tiempo de Respuesta (TTFB)', status: 'under_maintenance' },
             { name: 'Estabilidad de Base de Datos', status: 'under_maintenance' },
