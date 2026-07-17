@@ -1,0 +1,77 @@
+const db = require('../config/db');
+
+class MetricsRepository {
+  static async create(metricData) {
+    try {
+      const {
+        store_id,
+        date,
+        redirect_ms,
+        dns_ms,
+        tcp_ms,
+        ttfb_ms,
+        dom_interactive_ms,
+        dom_ms,
+        load_ms,
+        total_weight_mb,
+        total_requests,
+        ram_core_mb,
+        ram_total_mb,
+        // Parámetros heredados del formulario manual del frontend
+        ram_usage,
+        load_s,
+        dom_s
+      } = metricData;
+
+      // Insertamos mapeando los campos existentes de tu PostgreSQL
+      const [newMetric] = await db('daily_metrics').insert({
+        store_id,
+        date: date ? new Date(date).toISOString() : db.fn.now(),
+        redirect_ms: parseInt(redirect_ms) || 0,
+        dns_ms: parseInt(dns_ms) || 0,
+        tcp_ms: parseInt(tcp_ms) || 0,
+        ttfb_ms: parseInt(ttfb_ms) || 0,
+        dom_interactive_ms: parseInt(dom_interactive_ms) || 0,
+        // Si vienen del formulario manual (en segundos), convertimos a ms. Si vienen del bot, directo en ms.
+        dom_ms: dom_ms ? parseInt(dom_ms) : (dom_s ? Math.round(parseFloat(dom_s) * 1000) : 0),
+        load_ms: load_ms ? parseInt(load_ms) : (load_s ? Math.round(parseFloat(load_s) * 1000) : 0),
+        total_weight_mb: parseFloat(total_weight_mb) || 0,
+        total_requests: parseInt(total_requests) || 0,
+        ram_core_mb: parseFloat(ram_core_mb || 0),
+        ram_total_mb: parseFloat(ram_total_mb || ram_usage || 0) 
+      }).returning('*');
+
+      return newMetric;
+    } catch (error) {
+      throw new Error('Error al guardar la métrica en la base de datos: ' + error.message);
+    }
+  }
+
+  static async getAll() {
+    try {
+      return await db('daily_metrics').orderBy('date', 'desc');
+    } catch (error) {
+      throw new Error('Error al obtener todas las métricas: ' + error.message);
+    }
+  }
+
+  static async getAllByStore(storeId) {
+    try {
+      return await db('daily_metrics')
+        .where({ store_id: storeId })
+        .orderBy('date', 'desc');
+    } catch (error) {
+      throw new Error('Error al obtener las métricas de la tienda: ' + error.message);
+    }
+  }
+
+  static async createBulk(metricsArray) {
+    try {
+      return await db('daily_metrics').insert(metricsArray);
+    } catch (error) {
+      throw new Error('Error en inserción masiva: ' + error.message);
+    }
+  }
+}
+
+module.exports = MetricsRepository;
