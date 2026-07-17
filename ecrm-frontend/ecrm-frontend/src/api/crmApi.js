@@ -1,12 +1,15 @@
 import axios from 'axios';
 
 const crmApi = axios.create({
-  // Lee la variable de Railway en producción, o usa /api en local
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api', 
+  // Esto obliga a usar la URL del backend en producción
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// ... el resto de tus interceptores se quedan igual
+export default crmApi;
 
 // 🔒 INYECTOR MAESTRO: Adjunta el Token JWT en cada llamada de forma automática
 crmApi.interceptors.request.use(
