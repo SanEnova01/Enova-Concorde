@@ -1,0 +1,13 @@
+# Ignorar carpetas pesadas de dependencias
+node_modules/
+
+# Ignorar compilaciones locales
+dist/
+.cache/
+
+# Ignorar archivos de configuración local/secreta
+.env
+
+# Ignorar respaldos pesados de bases de datos en el git
+*.sql
+*.csv

@@ -1,12 +1,8 @@
 import axios from 'axios';
 
-// Detecta automáticamente el entorno de ejecución
-const API_BASE_URL = import.meta.env.DEV 
-  ? 'http://ecrm.alwaysdata.net/api'  // Desarrollo local: Apunta a tu API en AlwaysData
-  : '/api';                           // Producción: Usa rutas relativas
-
 const crmApi = axios.create({
-  baseURL: API_BASE_URL,
+  // Lee la variable de Railway en producción, o usa /api en local
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api', 
   headers: {
     'Content-Type': 'application/json',
   },
