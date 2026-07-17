@@ -345,29 +345,6 @@ app.get('/api/external/vtex-status', async (req, res) => {
 }); 
 
 // ==========================================
-// SERVIR FRONTEND REAL
-// ==========================================
-const reactBuildPath = path.join(__dirname, 'dist');  
-
-// 1. Esto le da permiso a Express de entregar los archivos de la carpeta dist
-app.use(express.static(reactBuildPath));
-
-// 2. Esto soluciona los errores 404 del navegador buscando los assets de Vite
-app.use('/assets', express.static(path.join(reactBuildPath, 'assets')));
-
-// 3. Esto atrapa cualquier otra ruta y le entrega el HTML limpio a React
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(reactBuildPath, 'index.html'));
-});
-
-const PORT = process.env.PORT || 8080;
-const HOST = '0.0.0.0'; // <-- Red tradicional IPv4 para que Railway nos encuentre
-
-app.listen(PORT, HOST, () => {
-  console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
-});
-
-// ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: MONITOR AUTÓNOMO WOOCOMMERCE (SIN PLUGINS)
 // ==========================================
 app.get('/api/external/woocommerce-status', async (req, res) => {
@@ -450,4 +427,27 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
       ]
     });
   }
+});
+
+// ==========================================
+// SERVIR FRONTEND REAL
+// ==========================================
+const reactBuildPath = path.join(__dirname, 'dist');  
+
+// 1. Esto le da permiso a Express de entregar los archivos de la carpeta dist
+app.use(express.static(reactBuildPath));
+
+// 2. Esto soluciona los errores 404 del navegador buscando los assets de Vite
+app.use('/assets', express.static(path.join(reactBuildPath, 'assets')));
+
+// 3. Esto atrapa cualquier otra ruta y le entrega el HTML limpio a React
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(reactBuildPath, 'index.html'));
+});
+
+const PORT = process.env.PORT || 8080;
+const HOST = '0.0.0.0'; // <-- Red tradicional IPv4 para que Railway nos encuentre
+
+app.listen(PORT, HOST, () => {
+  console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
 });
