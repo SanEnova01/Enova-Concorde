@@ -360,8 +360,8 @@ app.get(/.*/, (req, res) => {
   res.sendFile(path.join(reactBuildPath, 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.IP || '::'; // <-- Captura la IPv6 obligatoria del servidor
+const PORT = process.env.PORT || 8080;
+const HOST = '0.0.0.0'; // <-- Red tradicional IPv4 para que Railway nos encuentre
 
 app.listen(PORT, HOST, () => {
   console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
