@@ -334,34 +334,34 @@ function ClientDetail() {
         <span className="crm-badge">Plan: {client.plan_type}</span>
         
         {/* 🌟 LÓGICA AUTO-DETECTABLE DEL ÍCONO DE TECNOLOGÍA (SOLO EL LOGO LIMPIO) */}
-            {(() => {
-              const tech = String(client.tecnologia || '').toLowerCase();
-              
-              if (tech.includes('shopify')) {
-                return (
-                  <img src="https://ecrm.alwaysdata.net/assets/shopify-icon.png" alt="Shopify" title="Shopify" style={{ height: '40px', width: 'auto', objectFit: 'contain', marginTop: '4px' }} />
-                );
-              }
-              if (tech.includes('woo')) {
-                return (
-                  <img src="https://ecrm.alwaysdata.net/assets/woo-icon.png" alt="WooCommerce" title="WooCommerce" style={{ height: '60px', width: 'auto', objectFit: 'contain', marginTop: '4px' }} />
-                );
-              }
-              if (tech.includes('vtex')) {
-                return (
-                  <img src="https://ecrm.alwaysdata.net/assets/vtex-icon.png" alt="VTEX" title="VTEX" style={{ height: '70px', width: 'auto', objectFit: 'contain', marginTop: '4px' }} />
-                );
-              }
-              if (client.tecnologia) {
-                // Fallback: Si es una tecnología distinta que no tiene ícono, mostramos el texto en gris
-                return (
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666666', textTransform: 'uppercase', marginTop: '4px' }} title={client.tecnologia}>
-                    {client.tecnologia}
-                  </span>
-                );
-              }
-              return null;
-            })()}
+{(() => {
+  const tech = String(client.tecnologia || '').toLowerCase();
+  
+  if (tech.includes('shopify')) {
+    return (
+      <img src="/assets/shopify-icon.png" alt="Shopify" title="Shopify" style={{ height: '40px', width: 'auto', objectFit: 'contain', marginTop: '4px' }} />
+    );
+  }
+  if (tech.includes('woo')) {
+    return (
+      <img src="/assets/woo-icon.png" alt="WooCommerce" title="WooCommerce" style={{ height: '60px', width: 'auto', objectFit: 'contain', marginTop: '4px' }} />
+    );
+  }
+  if (tech.includes('vtex')) {
+    return (
+      <img src="/assets/vtex-icon.png" alt="VTEX" title="VTEX" style={{ height: '70px', width: 'auto', objectFit: 'contain', marginTop: '4px' }} />
+    );
+  }
+  if (client.tecnologia) {
+    // Fallback: Si es una tecnología distinta que no tiene ícono, mostramos el texto en gris
+    return (
+      <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666666', textTransform: 'uppercase', marginTop: '4px' }} title={client.tecnologia}>
+        {client.tecnologia}
+      </span>
+    );
+  }
+  return null;
+})()}
 
       </div>
         </div>
