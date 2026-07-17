@@ -25,9 +25,10 @@ function ClientDetail() {
   const [ticketCurrentPage, setTicketCurrentPage] = useState(1);
   const [metricCurrentPage, setMetricCurrentPage] = useState(1);
   
-  // 🌟 ESTADOS PARA MONITORES EXTERNOS
+ // 🌟 ESTADOS PARA MONITORES EXTERNOS
   const [shopifyStatus, setShopifyStatus] = useState(null);
   const [vtexStatus, setVtexStatus] = useState(null);
+  const [wooStatus, setWooStatus] = useState(null);
   
   const itemsPerPage = 5;
 
@@ -114,21 +115,27 @@ function ClientDetail() {
           console.error('Error secundario al cargar métricas:', metricError);
         }
 
-        // 🌟 🛍️ NUEVO BLOQUE: INTERCEPTAR ESTADO DE SHOPIFY O VTEX
+        // 🌟 🛍️ NUEVO BLOQUE: INTERCEPTAR ESTADO DE SHOPIFY, VTEX O WOOCOMMERCE
         if (clientData) {
           const techDetectada = String(clientData.tecnologia).toLowerCase();
           
-          if (techDetectada === 'shopify') {
+          if (techDetectada.includes('shopify')) {
             try {
               const shopifyRes = await crmApi.get('/external/shopify-status');
               if (shopifyRes.data?.success) setShopifyStatus(shopifyRes.data);
             } catch (err) { console.error('Error Shopify:', err); }
           } 
-          else if (techDetectada === 'vtex') {
+          else if (techDetectada.includes('vtex')) {
             try {
               const vtexRes = await crmApi.get('/external/vtex-status');
               if (vtexRes.data?.success) setVtexStatus(vtexRes.data);
             } catch (err) { console.error('Error VTEX:', err); }
+          }
+          else if (techDetectada.includes('woo')) {
+            try {
+              const wooRes = await crmApi.get(`/external/woocommerce-status?url=${encodeURIComponent(clientData.web)}`);
+              if (wooRes.data?.success) setWooStatus(wooRes.data);
+            } catch (err) { console.error('Error WooCommerce Status:', err); }
           }
         }
         
@@ -292,11 +299,23 @@ function ClientDetail() {
 
   // 🌟 CONTROLADOR DEL MONITOR EXTERNO
   const techStr = client ? String(client.tecnologia).toLowerCase() : '';
-  const showShopifyWidget = techStr === 'shopify' && shopifyStatus;
-  const showVtexWidget = techStr === 'vtex' && vtexStatus;
-  const showExternalMonitor = showShopifyWidget || showVtexWidget;
-  const activeMonitor = showShopifyWidget ? shopifyStatus : (showVtexWidget ? vtexStatus : null);
-  const activeMonitorName = showShopifyWidget ? 'Ecosistema Shopify Inc.' : 'Plataforma VTEX Global';
+  const showShopifyWidget = techStr.includes('shopify') && shopifyStatus;
+  const showVtexWidget = techStr.includes('vtex') && vtexStatus;
+  const showWooWidget = techStr.includes('woo') && wooStatus;
+
+  const showExternalMonitor = showShopifyWidget || showVtexWidget || showWooWidget;
+
+  const activeMonitor = showShopifyWidget 
+    ? shopifyStatus 
+    : showVtexWidget 
+      ? vtexStatus 
+      : wooStatus;
+      
+  const activeMonitorName = showShopifyWidget 
+    ? 'Ecosistema Shopify Inc.' 
+    : showVtexWidget 
+      ? 'Plataforma VTEX Global' 
+      : 'Servidor Autónomo WooCommerce';
 
   return (
     <div>

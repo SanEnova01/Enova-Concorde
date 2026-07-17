@@ -366,3 +366,63 @@ const HOST = '0.0.0.0'; // <-- Red tradicional IPv4 para que Railway nos encuent
 app.listen(PORT, HOST, () => {
   console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
 });
+
+// ==========================================
+// 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE WOOCOMMERCE
+// ==========================================
+app.get('/api/external/woocommerce-status', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ success: false, error: 'Falta la URL de la tienda objetivo.' });
+    }
+
+    // Construimos la ruta hacia el plugin que instalamos en la tienda
+    const healthUrl = `${url.replace(/\/$/, '')}/wp-json/wc-monitor/v1/health`;
+    const token = process.env.WOO_BEARER_TOKEN || 'CONCORDE_SECURE_HEALTH_TOKEN_2026';
+
+    const response = await fetch(healthUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    // Mapeamos los datos internos a "Componentes" idénticos al formato de Shopify/VTEX
+    const components = [
+      {
+        name: 'Base de Datos SQL',
+        status: data.database_status === 'ONLINE' ? 'operational' : 'major_outage'
+      },
+      {
+        name: 'WooCommerce Core Engine',
+        status: data.woocommerce_status === 'ACTIVE' ? 'operational' : 'major_outage'
+      },
+      {
+        name: 'Entorno de Rendimiento PHP',
+        status: (data.load_average_1m < 4.0) ? 'operational' : 'degraded_performance'
+      },
+      {
+        name: 'Pasarela REST API',
+        status: data.status === 'OK' ? 'operational' : 'partial_outage'
+      }
+    ];
+
+    res.json({
+      success: true,
+      global: {
+        status: data.status === 'OK' ? 'All Systems Operational' : 'Degraded Performance',
+        indicator: data.status === 'OK' ? 'none' : 'minor'
+      },
+      components: components,
+      php_version: data.php_version
+    });
+
+  } catch (error) {
+    console.error("Error en proxy WooCommerce:", error);
+    res.status(500).json({ success: false, error: 'No se pudo conectar con el nodo de la tienda.' });
+  }
+});
