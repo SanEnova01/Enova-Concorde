@@ -297,19 +297,28 @@ function ClientDetail() {
   const vuTotalMax = Math.max(500, ...chartMetrics.map(m => Number(m.ram_total_mb) || 0)); 
   const needleTotalAngle = Math.min((latestRamTotal / vuTotalMax) * 180, 180) - 90; 
 
-  // 🌟 CONTROLADOR DEL MONITOR EXTERNO
+ // 🌟 CONTROLADOR DEL MONITOR EXTERNO (CORREGIDO PARA ENTORNOS DESCENTRALIZADOS)
   const techStr = client ? String(client.tecnologia).toLowerCase() : '';
   const showShopifyWidget = techStr.includes('shopify') && shopifyStatus;
   const showVtexWidget = techStr.includes('vtex') && vtexStatus;
-  const showWooWidget = techStr.includes('woo') && wooStatus;
+  const showWooWidget = techStr.includes('woo'); // 🌟 Forzamos a que aparezca siempre si la tienda es WooCommerce
 
   const showExternalMonitor = showShopifyWidget || showVtexWidget || showWooWidget;
 
+  // Si es WooCommerce y aún no conecta al plugin externo, le inyectamos un estado de carga simétrico
   const activeMonitor = showShopifyWidget 
     ? shopifyStatus 
     : showVtexWidget 
       ? vtexStatus 
-      : wooStatus;
+      : (wooStatus || {
+          global: { status: 'Intentando conectar con el plugin...', indicator: 'minor' },
+          components: [
+            { name: 'Base de Datos SQL', status: 'under_maintenance' },
+            { name: 'WooCommerce Core Engine', status: 'under_maintenance' },
+            { name: 'Entorno de Rendimiento PHP', status: 'under_maintenance' },
+            { name: 'Pasarela REST API', status: 'under_maintenance' }
+          ]
+        });
       
   const activeMonitorName = showShopifyWidget 
     ? 'Ecosistema Shopify Inc.' 
