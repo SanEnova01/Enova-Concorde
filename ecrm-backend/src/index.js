@@ -12,6 +12,15 @@ const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
 const app = express();
 
 // ==========================================
+// 0.1 CORS: DEBE IR ANTES QUE CUALQUIER OTRO MIDDLEWARE
+// ==========================================
+app.use(cors({
+  origin: '*', // Permite que tu frontend de Railway se conecte sin bloqueos
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+}));
+
+// ==========================================
 // CIBERSEGURIDAD CENTRAL (MIDDLEWARES)
 // ==========================================
 app.use(helmet({
