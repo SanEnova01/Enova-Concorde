@@ -8,9 +8,6 @@ const crmApi = axios.create({
   },
 });
 
-// ... el resto de tus interceptores se quedan igual
-export default crmApi;
-
 // 🔒 INYECTOR MAESTRO: Adjunta el Token JWT en cada llamada de forma automática
 crmApi.interceptors.request.use(
   (config) => {
@@ -37,4 +34,5 @@ crmApi.interceptors.response.use(
   }
 );
 
+// EL ÚNICO EXPORT QUE DEBE EXISTIR 👇
 export default crmApi;
