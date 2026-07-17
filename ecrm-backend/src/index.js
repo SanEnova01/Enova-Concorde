@@ -368,61 +368,86 @@ app.listen(PORT, HOST, () => {
 });
 
 // ==========================================
-// 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE WOOCOMMERCE
+// 🛍️ PROXY EN TIEMPO REAL: MONITOR AUTÓNOMO WOOCOMMERCE (SIN PLUGINS)
 // ==========================================
 app.get('/api/external/woocommerce-status', async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) {
-      return res.status(400).json({ success: false, error: 'Falta la URL de la tienda objetivo.' });
+      return res.status(400).json({ success: false, error: 'Falta la URL de la tienda.' });
     }
 
-    // Construimos la ruta hacia el plugin que instalamos en la tienda
-    const healthUrl = `${url.replace(/\/$/, '')}/wp-json/wc-monitor/v1/health`;
-    const token = process.env.WOO_BEARER_TOKEN || 'CONCORDE_SECURE_HEALTH_TOKEN_2026';
+    const startTime = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s Timeout
 
-    const response = await fetch(healthUrl, {
+    // Hacemos una petición directa a la URL pública que guardó el usuario
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+        'User-Agent': 'ConcordeAnalyzerEngine/2.0 (Automated Health Check)'
+      },
+      signal: controller.signal
     });
 
-    const data = await response.json();
+    clearTimeout(timeoutId);
+    const responseTime = Date.now() - startTime;
+    const htmlHeader = await response.text().catch(() => '');
 
-    // Mapeamos los datos internos a "Componentes" idénticos al formato de Shopify/VTEX
+    // Analizamos el cuerpo del HTML público en busca de patrones de error de WordPress
+    const tieneErrorBD = htmlHeader.toLowerCase().includes('error estableciendo') || htmlHeader.toLowerCase().includes('database error');
+    const tieneErrorCritico = htmlHeader.toLowerCase().includes('error crítico') || htmlHeader.toLowerCase().includes('critical error');
+
+    // Estructuramos los componentes simulados basados en respuestas reales del servidor externo
     const components = [
       {
-        name: 'Base de Datos SQL',
-        status: data.database_status === 'ONLINE' ? 'operational' : 'major_outage'
+        name: 'Conectividad Web (Uptime)',
+        status: response.ok ? 'operational' : 'major_outage'
       },
       {
-        name: 'WooCommerce Core Engine',
-        status: data.woocommerce_status === 'ACTIVE' ? 'operational' : 'major_outage'
+        name: 'Resolución de DNS y SSL',
+        status: response.status !== 0 ? 'operational' : 'major_outage'
       },
       {
-        name: 'Entorno de Rendimiento PHP',
-        status: (data.load_average_1m < 4.0) ? 'operational' : 'degraded_performance'
+        name: 'Tiempo de Respuesta (TTFB)',
+        status: responseTime < 1200 ? 'operational' : 'degraded_performance'
       },
       {
-        name: 'Pasarela REST API',
-        status: data.status === 'OK' ? 'operational' : 'partial_outage'
+        name: 'Estabilidad de Base de Datos',
+        status: !tieneErrorBD ? 'operational' : 'major_outage'
+      },
+      {
+        name: 'Núcleo de Aplicación (PHP)',
+        status: (!tieneErrorCritico && response.status !== 500) ? 'operational' : 'major_outage'
       }
     ];
 
     res.json({
       success: true,
       global: {
-        status: data.status === 'OK' ? 'All Systems Operational' : 'Degraded Performance',
-        indicator: data.status === 'OK' ? 'none' : 'minor'
+        status: response.ok && !tieneErrorBD && !tieneErrorCritico ? 'All Systems Operational' : 'Systems Disruption',
+        indicator: response.ok && !tieneErrorBD && !tieneErrorCritico ? 'none' : 'major'
       },
       components: components,
-      php_version: data.php_version
+      performance: {
+        ttfb_ms: responseTime
+      }
     });
 
   } catch (error) {
-    console.error("Error en proxy WooCommerce:", error);
-    res.status(500).json({ success: false, error: 'No se pudo conectar con el nodo de la tienda.' });
+    let causa = 'No se pudo conectar con el servidor de la tienda.';
+    if (error.name === 'AbortError') causa = 'Timeout excedido (>10s). Servidor lento o colgado.';
+
+    res.json({
+      success: true, // Devolvemos true para que el front pinte el cuadro con el estado de alerta
+      global: { status: 'Sitio fuera de línea o inaccesible', indicator: 'critical' },
+      components: [
+        { name: 'Conectividad Web (Uptime)', status: 'major_outage' },
+        { name: 'Resolución de DNS y SSL', status: 'major_outage' },
+        { name: 'Tiempo de Respuesta (TTFB)', status: 'major_outage' },
+        { name: 'Estabilidad de Base de Datos', status: 'major_outage' },
+        { name: 'Núcleo de Aplicación (PHP)', status: 'major_outage' }
+      ]
+    });
   }
 });
