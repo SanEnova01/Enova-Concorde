@@ -11,8 +11,16 @@ const openai = new OpenAI({
 router.get('/config/:store_id', async (req, res) => {
   try {
     const { store_id } = req.params;
-    const store = await db('stores').where({ id: store_id }).first();
+    let store = await db('stores').where({ id: store_id }).first();
     
+    // Si buscan 'enova.agency' o una tienda inactiva sin parámetro, buscar la primera tienda que SÍ tenga CoopPilot activo
+    if ((!store || !store.has_cooppilot) && store_id === 'enova.agency') {
+      const activeStore = await db('stores').where({ has_cooppilot: true }).first();
+      if (activeStore) {
+        store = activeStore;
+      }
+    }
+
     if (!store) {
       return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
     }

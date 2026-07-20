@@ -409,19 +409,29 @@ function ClientDetail() {
           {client.has_cooppilot && (
   <p className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
     <strong>CoopPilot (IA):</strong>
-    <span style={{ 
-      backgroundColor: '#111111', 
-      color: '#FFD700', 
-      padding: '2px 8px', 
-      borderRadius: '4px', 
-      fontWeight: 'bold', 
-      fontSize: '11px',
-      letterSpacing: '0.5px',
-      border: '1px solid #FFD700',
-      display: 'inline-block'
-    }}>
-      ✨ CoopPilot Activo
-    </span>
+    <a 
+      href={`/cooppilot?store=${client.id}`}
+      target="_blank"
+      rel="noreferrer"
+      title="Abrir Hub público de esta tienda"
+      style={{ 
+        backgroundColor: '#111111', 
+        color: '#FFD700', 
+        padding: '4px 10px', 
+        borderRadius: '4px', 
+        fontWeight: 'bold', 
+        fontSize: '11px',
+        letterSpacing: '0.5px',
+        border: '1px solid #FFD700',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        textDecoration: 'none',
+        cursor: 'pointer'
+      }}
+    >
+      ✨ CoopPilot Activo ↗ (Probar Hub)
+    </a>
   </p>
 )}
         </div>
