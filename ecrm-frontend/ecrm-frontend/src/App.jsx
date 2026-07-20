@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 
 // Componentes Core y Vistas Administrativas
@@ -25,8 +25,15 @@ function AdminLayout({ children }) {
 
   if (token) {
     try {
-      const payload = JSON.parse(window.atob(token.split('.')[1]));
-      userRole = payload.role;
+      // 🌟 DECODIFICADOR ROBUSTO (Soporta acentos y eñes)
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      
+      const payload = JSON.parse(jsonPayload);
+      userRole = payload.role || 'client';
       userName = payload.name || 'Desconocido';
       userEmail = payload.email || 'sin-correo@sistema.local';
     } catch (e) {

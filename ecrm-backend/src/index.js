@@ -421,14 +421,17 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
 // ==========================================
 // NUEVAS RUTAS: GESTIÓN COMPLETA DE USUARIOS
 // ==========================================
+// Obtener todos los usuarios
 app.get('/api/users', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
       return res.status(403).json({ success: false, error: 'Permiso denegado.' });
     }
-    const users = await db('users').select('id', 'name', 'email', 'role', 'created_at').orderBy('created_at', 'desc');
+    // 🌟 Consulta simplificada para evitar errores de columnas de fecha
+    const users = await db('users').select('id', 'name', 'email', 'role');
     res.json({ success: true, data: users });
   } catch (error) {
+    console.error("Error obteniendo usuarios:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
