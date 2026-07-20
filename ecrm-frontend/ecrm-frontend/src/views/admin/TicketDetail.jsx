@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
@@ -12,8 +12,10 @@ function TicketDetail() {
   const [loading, setLoading] = useState(true);
   const [ticketError, setTicketError] = useState(false);
 
-  // Estado para el buscador de tiendas (+50 tiendas)
+  // Estados para el buscador desplegable único de Tiendas (Combobox)
   const [storeSearch, setStoreSearch] = useState('');
+  const [isStoreDropdownOpen, setIsStoreDropdownOpen] = useState(false);
+  const storeDropdownRef = useRef(null);
 
   // Estados para el modo de edición
   const [isEditing, setIsEditing] = useState(false);
@@ -28,7 +30,6 @@ function TicketDetail() {
 
   const statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
   
-  // Valores de prioridad alineados con los constraints de PostgreSQL (MEDIUM, HIGH, etc.)
   const priorityOptions = [
     { label: 'BAJA', value: 'LOW' },
     { label: 'MEDIA', value: 'MEDIUM' },
@@ -50,6 +51,17 @@ function TicketDetail() {
   useEffect(() => {
     fetchTicketData();
   }, [ticketId]);
+
+  // Cerrar el desplegable de tiendas al hacer clic fuera del control
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (storeDropdownRef.current && !storeDropdownRef.current.contains(event.target)) {
+        setIsStoreDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchTicketData = async () => {
     try {
@@ -111,7 +123,6 @@ function TicketDetail() {
     }
   };
 
-  // Guardar cambios generales (Resuelve el 404)
   const handleSaveTicketDetails = async (e) => {
     e.preventDefault();
     try {
@@ -123,11 +134,10 @@ function TicketDetail() {
       }
     } catch (error) {
       console.error('Error al actualizar ticket:', error);
-      alert('Error al guardar los cambios del ticket. Verifica las rutas del backend.');
+      alert('Error al guardar los cambios del ticket.');
     }
   };
 
-  // Eliminar ticket de la DB
   const handleDeleteTicket = async () => {
     const confirmDelete = window.confirm(`¿Estás seguro de eliminar el ticket ${ticket.serial_number}? Esta acción no se puede deshacer.`);
     if (!confirmDelete) return;
@@ -144,10 +154,13 @@ function TicketDetail() {
     }
   };
 
-  // Filtro dinámico para el dropdown de tiendas
+  // Filtrado de tiendas según el texto ingresado
   const filteredStores = storesList.filter(st => 
     (st.name || '').toLowerCase().includes(storeSearch.toLowerCase())
   );
+
+  // Nombre de la tienda actualmente seleccionada
+  const selectedStoreObj = storesList.find(s => String(s.id) === String(editForm.store_id));
 
   if (loading) return <div className="crm-text-loading">Cargando detalles del ticket...</div>;
   
@@ -175,7 +188,6 @@ function TicketDetail() {
             {isEditing ? 'Cancelar Edición' : 'Editar / Clasificar Ticket'}
           </button>
           
-          {/* Botón de eliminación */}
           <button 
             onClick={handleDeleteTicket} 
             className="crm-btn-border"
@@ -188,7 +200,7 @@ function TicketDetail() {
         </div>
       </div>
 
-      {/* FORMULARIO DE EDICIÓN CON BUSCADOR DE TIENDAS */}
+      {/* FORMULARIO DE EDICIÓN */}
       {isEditing ? (
         <form onSubmit={handleSaveTicketDetails} className="crm-card-paper" style={{ marginBottom: '24px' }}>
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Editar / Clasificar Datos del Ticket</h3>
@@ -206,28 +218,84 @@ function TicketDetail() {
               />
             </div>
 
-            {/* SELECCIÓN DE TIENDA CON FILTRO BUSCADOR */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>Tienda / Cliente</label>
+            {/* COMBOBOX TODO EN 1: INPUT CON BUSCADOR Y DROPDOWN FLOTANTE */}
+            <div ref={storeDropdownRef} style={{ position: 'relative' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Tienda / Cliente</label>
               <input 
                 type="text" 
-                placeholder="🔍 Buscar tienda..." 
-                className="crm-select-dropdown"
-                style={{ width: '100%', marginBottom: '6px', fontSize: '12px' }}
-                value={storeSearch}
-                onChange={(e) => setStoreSearch(e.target.value)}
-              />
-              <select 
                 className="crm-select-dropdown" 
-                style={{ width: '100%' }}
-                value={editForm.store_id}
-                onChange={(e) => setEditForm({ ...editForm, store_id: e.target.value })}
-              >
-                <option value="">-- Seleccionar Tienda ({filteredStores.length} encontradas) --</option>
-                {filteredStores.map(st => (
-                  <option key={st.id} value={st.id}>{st.name}</option>
-                ))}
-              </select>
+                style={{ width: '100%', cursor: 'pointer' }}
+                placeholder="🔍 Escribe para buscar tienda..."
+                value={isStoreDropdownOpen ? storeSearch : (selectedStoreObj ? selectedStoreObj.name : storeSearch)}
+                onFocus={() => {
+                  setIsStoreDropdownOpen(true);
+                  setStoreSearch('');
+                }}
+                onChange={(e) => {
+                  setStoreSearch(e.target.value);
+                  setIsStoreDropdownOpen(true);
+                }}
+              />
+
+              {/* LISTA DESPLEGABLE FLOTANTE */}
+              {isStoreDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  maxHeight: '220px',
+                  overflowY: 'auto',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #d0d0d0',
+                  borderRadius: '6px',
+                  boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
+                  zIndex: 1000,
+                  marginTop: '4px'
+                }}>
+                  <div 
+                    style={{
+                      padding: '10px 14px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#777',
+                      borderBottom: '1px solid #eee'
+                    }}
+                    onMouseDown={() => {
+                      setEditForm({ ...editForm, store_id: '' });
+                      setIsStoreDropdownOpen(false);
+                      setStoreSearch('');
+                    }}
+                  >
+                    -- Sin Tienda / Limpiar Selección --
+                  </div>
+                  {filteredStores.length > 0 ? (
+                    filteredStores.map(st => (
+                      <div 
+                        key={st.id}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          backgroundColor: String(st.id) === String(editForm.store_id) ? '#f0f0f0' : '#ffffff',
+                          fontWeight: String(st.id) === String(editForm.store_id) ? 'bold' : 'normal'
+                        }}
+                        onMouseDown={() => {
+                          setEditForm({ ...editForm, store_id: st.id });
+                          setIsStoreDropdownOpen(false);
+                          setStoreSearch('');
+                        }}
+                      >
+                        {st.name}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '12px 14px', fontSize: '13px', color: '#888' }}>
+                      No se encontraron tiendas
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
