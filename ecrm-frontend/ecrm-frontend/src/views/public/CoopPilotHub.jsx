@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 function CoopPilotHub() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  
-  // ID de tienda desde la URL (?store=id)
-  const storeId = searchParams.get('store') || 'enova-digital';
+  const { storeId } = useParams(); // 👈 Toma el ID directo de la URL limpia
 
   const [loading, setLoading] = useState(true);
   const [storeInfo, setStoreInfo] = useState(null);
@@ -149,7 +146,7 @@ function CoopPilotHub() {
           }}>
             {storeInfo.has_tracking && (
               <button 
-                onClick={() => navigate(`/cooppilot/rastreo?store=${storeId}`)}
+                onClick={() => navigate(`/cooppilot/${storeId}/rastreo`)}
                 style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}
@@ -162,7 +159,7 @@ function CoopPilotHub() {
 
             {storeInfo.has_returns && (
               <button 
-                onClick={() => navigate(`/cooppilot/devoluciones?store=${storeId}`)}
+                onClick={() => navigate(`/cooppilot/${storeId}/devoluciones`)}
                 style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}

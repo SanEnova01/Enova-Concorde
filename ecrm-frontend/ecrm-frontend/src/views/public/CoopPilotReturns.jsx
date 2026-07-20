@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 function CoopPilotReturns() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const storeId = searchParams.get('store') || 'enova-digital';
+  const { storeId } = useParams();
 
   const [loading, setLoading] = useState(true);
   const [storeInfo, setStoreInfo] = useState(null);
@@ -71,7 +70,7 @@ function CoopPilotReturns() {
             El portal de <strong>Cambios y Devoluciones</strong> no se encuentra activo para la tienda <strong>{storeInfo?.name || storeId}</strong>.
           </p>
           <button 
-            onClick={() => navigate(`/cooppilot?store=${storeId}`)}
+            onClick={() => navigate(`/cooppilot/${storeId}`)}
             style={{ backgroundColor: '#FFD700', color: '#111', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
           >
             Volver al Centro de Ayuda

@@ -412,7 +412,7 @@ function ClientDetail() {
   <p className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
     <strong>CoopPilot (IA):</strong>
     <a 
-      href={`/cooppilot?store=${client.id}`}
+      href={`/cooppilot/${client.id}`}
       target="_blank"
       rel="noreferrer"
       title="Abrir Hub público de esta tienda"

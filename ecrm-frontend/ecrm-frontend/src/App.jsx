@@ -238,9 +238,10 @@ function App() {
         <Route path="/login" element={<Login />} />
         
         {/* RUTAS PÚBLICAS DE COOPPILOT (B2B2C) */}
-        <Route path="/cooppilot" element={<CoopPilotHub />} />
-        <Route path="/cooppilot/devoluciones" element={<CoopPilotReturns />} />
-        <Route path="/cooppilot/rastreo" element={<CoopPilotTracking />} />
+        <Route path="/cooppilot" element={<Navigate to="/login" replace />} />
+        <Route path="/cooppilot/:storeId" element={<CoopPilotHub />} />
+        <Route path="/cooppilot/:storeId/devoluciones" element={<CoopPilotReturns />} />
+        <Route path="/cooppilot/:storeId/rastreo" element={<CoopPilotTracking />} />
 
         {/* RUTAS PROTEGIDAS DEL DASHBOARD */}
         <Route path="/admin" element={
