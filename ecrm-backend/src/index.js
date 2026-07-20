@@ -455,3 +455,61 @@ app.listen(8080, '0.0.0.0', () => {
 app.listen(PORT, HOST, () => {
   console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
 });
+
+// ==========================================
+// NUEVAS RUTAS: GESTIÓN COMPLETA DE USUARIOS
+// ==========================================
+
+// Obtener todos los usuarios
+app.get('/api/users', verificarToken, async (req, res) => {
+  try {
+    if (req.adminUser.role !== 'super admin') {
+      return res.status(403).json({ success: false, error: 'Permiso denegado.' });
+    }
+    const users = await db('users').select('id', 'name', 'email', 'role', 'created_at').orderBy('created_at', 'desc');
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Editar un usuario (incluyendo reseteo de contraseña si la escriben)
+app.put('/api/users/:id', verificarToken, async (req, res) => {
+  try {
+    if (req.adminUser.role !== 'super admin') {
+      return res.status(403).json({ success: false, error: 'Permiso denegado.' });
+    }
+    const { id } = req.params;
+    const { name, email, role, password } = req.body;
+    
+    const updateData = { 
+      name: String(name).trim(), 
+      email: String(email).toLowerCase().trim(), 
+      role 
+    };
+
+    // Si el super admin escribió una contraseña nueva, la encriptamos y la actualizamos
+    if (password && password.trim() !== '') {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    await db('users').where({ id }).update(updateData);
+    res.json({ success: true, message: 'Usuario actualizado exitosamente' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Eliminar un usuario
+app.delete('/api/users/:id', verificarToken, async (req, res) => {
+  try {
+    if (req.adminUser.role !== 'super admin') {
+      return res.status(403).json({ success: false, error: 'Permiso denegado.' });
+    }
+    const { id } = req.params;
+    await db('users').where({ id }).del();
+    res.json({ success: true, message: 'Usuario eliminado del sistema' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
