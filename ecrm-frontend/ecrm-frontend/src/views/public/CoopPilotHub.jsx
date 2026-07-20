@@ -10,6 +10,24 @@ function CoopPilotHub() {
   const [storeInfo, setStoreInfo] = useState(null);
   const [logoError, setLogoError] = useState(false);
   
+  // Estados para Escalación a Soporte
+  const [showSupportForm, setShowSupportForm] = useState(false);
+  const [supportData, setSupportData] = useState({ name: '', email: '', subject: '', message: '' });
+  const [supportStatus, setSupportStatus] = useState('');
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault();
+    setSupportStatus('Enviando...');
+    try {
+      const res = await crmApi.post('/cooppilot/ticket', { ...supportData, store_id: storeId });
+      if (res.data.success) {
+        setSupportStatus('✅ Solicitud enviada con éxito. Nuestro equipo te contactará pronto.');
+        setSupportData({ name: '', email: '', subject: '', message: '' });
+        setTimeout(() => { setShowSupportForm(false); setSupportStatus(''); }, 3000);
+      }
+    } catch (err) {
+      setSupportStatus('❌ Error al enviar la solicitud.');
+    }
+  };
   // Estados para el Chatbot de IA
   const [query, setQuery] = useState('');
   const [chatResponse, setChatResponse] = useState('');
@@ -204,7 +222,31 @@ function CoopPilotHub() {
               </button>
             ))}
           </div>
+         {/* BOTÓN DE ESCALACIÓN A SOPORTE HUMANO */}
+        <div style={{ textAlign: 'center', marginTop: '30px' }}>
+          <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '10px' }}>¿La inteligencia artificial no pudo resolver tu duda?</p>
+          <button 
+            onClick={() => setShowSupportForm(!showSupportForm)}
+            style={{ backgroundColor: 'transparent', color: '#FFD700', border: '1px solid #FFD700', padding: '10px 24px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.3s' }}
+          >
+            {showSupportForm ? 'Cerrar Formulario' : 'Contactar Soporte Humano'}
+          </button>
+        </div>
 
+        {/* FORMULARIO DE SOPORTE */}
+        {showSupportForm && (
+          <div style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '24px', borderRadius: '12px', marginTop: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: '#fff', fontSize: '18px' }}>Envíanos un mensaje</h3>
+            <form onSubmit={handleSupportSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <input type="text" placeholder="Tu Nombre" required value={supportData.name} onChange={e => setSupportData({...supportData, name: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#fff' }} />
+              <input type="email" placeholder="Tu Correo" required value={supportData.email} onChange={e => setSupportData({...supportData, email: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#fff' }} />
+              <input type="text" placeholder="Asunto (Ej: Ayuda con mi pedido)" required value={supportData.subject} onChange={e => setSupportData({...supportData, subject: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#fff' }} />
+              <textarea placeholder="Detalla tu problema aquí..." required value={supportData.message} onChange={e => setSupportData({...supportData, message: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#fff', minHeight: '100px' }} />
+              <button type="submit" style={{ backgroundColor: '#FFD700', color: '#111', padding: '12px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Enviar Solicitud</button>
+            </form>
+            {supportStatus && <p style={{ color: supportStatus.includes('✅') ? '#10b981' : '#f87171', marginTop: '12px', fontSize: '13px', textAlign: 'center' }}>{supportStatus}</p>}
+          </div>
+        )}
           <form onSubmit={(e) => { e.preventDefault(); handleSendChat(); }} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
             <input 
               type="text" 

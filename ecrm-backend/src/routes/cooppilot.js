@@ -149,5 +149,30 @@ router.post('/chat', async (req, res) => {
     res.status(500).json({ success: false, error: 'Error procesando tu consulta.' });
   }
 });
+const TicketRepository = require('../repositories/TicketRepository');
 
+// POST: Crear un ticket de soporte directamente desde el Hub Público
+router.post('/ticket', async (req, res) => {
+  try {
+    const { store_id, name, email, subject, message } = req.body;
+
+    if (!name || !email || !message) {
+      return res.status(400).json({ success: false, error: 'Nombre, correo y mensaje son obligatorios.' });
+    }
+
+    // Usamos el repositorio para inyectarlo directo al Kanban de la agencia
+    const newTicket = await TicketRepository.create({
+      name: `[HUB] ${subject || 'Soporte'} - ${name}`,
+      description: `Cliente: ${name} (${email})\n\nMensaje:\n${message}`,
+      store_id: store_id || 'enova.agency',
+      priority: 'MEDIUM',
+      task_type: 'CONSULTA'
+    });
+
+    res.json({ success: true, data: newTicket });
+  } catch (error) {
+    console.error("Error creando ticket desde Hub:", error);
+    res.status(500).json({ success: false, error: 'Error al enviar tu solicitud de soporte.' });
+  }
+});
 module.exports = router;
