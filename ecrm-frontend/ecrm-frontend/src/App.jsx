@@ -25,7 +25,7 @@ function AdminLayout({ children }) {
 
   if (token) {
     try {
-      // 🌟 DECODIFICADOR ROBUSTO (Soporta acentos y eñes)
+      // 🌟 DECODIFICADOR ROBUSTO
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
@@ -34,8 +34,14 @@ function AdminLayout({ children }) {
       
       const payload = JSON.parse(jsonPayload);
       userRole = payload.role || 'client';
-      userName = payload.name || 'Desconocido';
       userEmail = payload.email || 'sin-correo@sistema.local';
+      
+      // 🌟 EL TRUCO DEFINITIVO: Si el nombre está vacío en la BD, usa tu correo
+      const emailName = userEmail.split('@')[0];
+      const capitalizedEmailName = emailName.charAt(0).toUpperCase() + emailName.slice(1);
+      
+      userName = (payload.name && payload.name.trim() !== '') ? payload.name : capitalizedEmailName;
+
     } catch (e) {
       console.error("Error al decodificar credenciales:", e);
     }
