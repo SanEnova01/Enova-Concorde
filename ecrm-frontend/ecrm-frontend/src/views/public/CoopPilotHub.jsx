@@ -11,13 +11,26 @@ function CoopPilotHub() {
   const [isTyping, setIsTyping] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
 
+ // 🌟 Multitenancy Dinámico: Lee la tienda desde la URL
   useEffect(() => {
-    setStoreBranding({
-      name: 'RUMAH',
-      logo_url: '' 
-    });
-  }, []);
+    // Busca si en la URL hay un parámetro "?store=nombre"
+    const urlParams = new URLSearchParams(window.location.search);
+    const storeQuery = urlParams.get('store');
 
+    if (storeQuery) {
+      // Si la URL tiene tienda, pinta esa tienda
+      setStoreBranding({
+        name: storeQuery.toUpperCase(),
+        logo_url: '' 
+      });
+    } else {
+      // Si entra a la ruta base sin tienda, muestra el nombre genérico del SaaS
+      setStoreBranding({
+        name: 'CENTRO DE AYUDA',
+        logo_url: '' 
+      });
+    }
+  }, []);
   const handleAISearch = async (e) => {
     e.preventDefault();
     if (!chatQuery.trim()) return;
@@ -52,7 +65,7 @@ function CoopPilotHub() {
             {storeBranding.name} <span style={{ color: '#d9534f' }}>SUPPORT</span>
           </h1>
         )}
-        <p style={{ color: '#666', fontSize: '14px', letterSpacing: '1px' }}>POWERED BY COOPPILOT (ENOVA)</p>
+        <p style={{ color: '#666', fontSize: '14px', letterSpacing: '1px' }}>POWERED BY Enova Concorde:CoopPilot </p>
       </div>
 
       {/* 2. EL BUSCADOR IA (EL PRIMER FILTRO) */}
