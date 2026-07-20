@@ -36,10 +36,10 @@ class HubspotService {
       const data = await response.json();
       const hubspotTickets = data.results || [];
 
-      // Buscar la primera tienda de la DB para cumplir la restricción NOT NULL de store_id
+      // Obtener la tienda por defecto (Resuelve not-null constraint de store_id)
       const defaultStore = await db('stores').first();
       if (!defaultStore) {
-        console.error('[HubSpot Sync Error]: No existen tiendas registradas en la BD para vincular el ticket.');
+        console.error('[HubSpot Sync Error]: No existen tiendas en la BD para vincular.');
         return;
       }
 
@@ -55,13 +55,13 @@ class HubspotService {
           await TicketRepository.create({
             name: props.subject || 'Ticket de HubSpot (Sin Asunto)',
             description: `[HUBSPOT_ID: ${hsId}]\nFecha origen: ${props.createdate}\n\n${props.content || 'Sin descripción.'}`,
-            store_id: defaultStore.id, // Asignación de la tienda comodín requerida por la BD
+            store_id: defaultStore.id, // Válido
             assigned_to: null,
-            priority: 'MEDIA',
-            task_type: 'CONSULTA'
+            priority: 'MEDIUM',        // Válido (Pasa tickets_priority_check)
+            task_type: 'CONSULTA'      // Válido (Pasa tickets_task_type_check)
           });
 
-          console.log(`[HubSpot -> Concorde] ¡EXITO! Ticket ${hsId} importado e inyectado en la BD.`);
+          console.log(`[HubSpot -> Concorde] ¡TICKET INSERTADO EXITOSAMENTE! ID ${hsId}`);
         }
       }
     } catch (error) {
