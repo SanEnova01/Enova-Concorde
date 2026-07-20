@@ -208,17 +208,17 @@ function TicketDetail() {
       {/* INYECCIÓN DE ESTILOS PARA LA ANIMACIÓN DEL AVIÓN CONCORDE */}
       <style>{`
         @keyframes flyConcorde {
-          0% { transform: translate(-50px, 40px) rotate(15deg) scale(0.6); opacity: 0; }
+          0% { transform: translateX(-40px) rotate(90deg) scale(0.8); opacity: 0; }
           15% { opacity: 1; }
           85% { opacity: 1; }
-          100% { transform: translate(350px, -40px) rotate(15deg) scale(1.2); opacity: 0; }
+          100% { transform: translateX(380px) rotate(90deg) scale(0.8); opacity: 0; }
         }
         .concorde-plane {
           position: absolute;
-          top: -10px;
-          left: -20px;
+          top: 26px; /* Altura exacta de los puntos rojo y celeste en tu imagen */
+          left: 0;
           color: #000;
-          animation: flyConcorde 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          animation: flyConcorde 2s ease-in-out forwards;
           pointer-events: none;
           z-index: 10;
         }
