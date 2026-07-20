@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 
 // Componentes Core y Vistas Administrativas
@@ -19,6 +19,7 @@ import CoopPilotTracking from "./views/public/CoopPilotTracking";
 // Autenticación y Protección
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
+import crmApi from './api/crmApi';
 
 function AdminLayout({ children }) {
   const location = useLocation();
@@ -28,6 +29,7 @@ function AdminLayout({ children }) {
   let userRole = 'client';
   let userName = 'Desconocido';
   let userEmail = 'sin-correo@sistema.local';
+  const [hasCoopPilot, setHasCoopPilot] = useState(false);
 
   if (token) {
     try {
@@ -51,13 +53,33 @@ function AdminLayout({ children }) {
     }
   }
 
+  // Verificar si el cliente tiene CoopPilot activo para mostrar/ocultar el menú
+  useEffect(() => {
+    if (userRole === 'client') {
+      crmApi.get('/stores/cuentacliente')
+        .then(res => {
+          const store = res.data.data || res.data;
+          if (store && store.has_cooppilot) {
+            setHasCoopPilot(true);
+          }
+        })
+        .catch(err => console.error("Error al verificar licencia CoopPilot:", err));
+    }
+  }, [userRole]);
+
   // Definición de menú lateral por roles
   const allNavItems = [
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
-    { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin', 'client'] },
+    
+    // RUTA DE IA PARA LA AGENCIA
+    { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
+    
+    // RUTA DE IA PARA EL CLIENTE (Solo visible si pagó el adicional)
+    { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
+    
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
     { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
   ];
@@ -84,7 +106,6 @@ function AdminLayout({ children }) {
             </div>
           </div>
 
-          {/* NERV ID CARD STYLING */}
           <div style={{
             backgroundColor: '#ffffff',
             border: '2px solid #111',
@@ -175,6 +196,32 @@ function AdminLayout({ children }) {
   );
 }
 
+// Guardián para verificar la licencia de CoopPilot del cliente en la URL /client/knowledge
+function ClientKnowledgeGuard() {
+  const [loading, setLoading] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
+
+  useEffect(() => {
+    crmApi.get('/stores/cuentacliente')
+      .then(res => {
+        const store = res.data.data || res.data;
+        if (store && store.has_cooppilot) {
+          setHasAccess(true);
+        }
+      })
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ padding: '20px' }}>Verificando suscripción CoopPilot...</div>;
+
+  if (!hasAccess) {
+    return <Navigate to="/admin/clientes/cuentacliente" replace />;
+  }
+
+  return <KnowledgeBase />;
+}
+
 function App() {
   const token = localStorage.getItem('crm_token');
   let isClient = false;
@@ -202,9 +249,17 @@ function App() {
           </ProtectedRoute>
         } />
         
+        {/* RUTA DE IA SOLO PARA SUPER ADMIN Y ADMIN */}
         <Route path="/admin/knowledge" element={
-          <ProtectedRoute allowedRoles={['super admin', 'admin', 'client']}>
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><KnowledgeBase /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* RUTA DE IA PARA CLIENTES (SOLO SI TIENEN LICENCIA ACTIVA) */}
+        <Route path="/client/knowledge" element={
+          <ProtectedRoute allowedRoles={['client']}>
+            <AdminLayout><ClientKnowledgeGuard /></AdminLayout>
           </ProtectedRoute>
         } />
 
@@ -246,7 +301,7 @@ function App() {
 
         {/* REDIRECCIÓN DE RUTA DESCONOCIDA */}
         <Route path="*" element={
-          isClient ? <Navigate to="/admin/knowledge" replace /> : <Navigate to="/login" replace />
+          isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
         } />
       </Routes>
     </BrowserRouter>

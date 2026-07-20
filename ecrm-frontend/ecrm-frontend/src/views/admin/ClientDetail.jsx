@@ -406,7 +406,24 @@ function ClientDetail() {
           <p className="crm-text-muted"><strong>Correos:</strong> {client.emails || 'No registrados'}</p>
           <p className="crm-text-muted"><strong>Teléfono:</strong> {client.phone || 'No registrado'}</p>
           <p className="crm-text-muted"><strong>Contador de Soportes:</strong> {client.ticket_count || 0} creados en total</p>
-          <p className="crm-text-muted"><strong>CoopPilot (IA):</strong> {client.has_cooppilot ? '✅ Habilitado' : '🔒 Deshabilitado'}</p>
+          {client.has_cooppilot && (
+  <p className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+    <strong>CoopPilot (IA):</strong>
+    <span style={{ 
+      backgroundColor: '#111111', 
+      color: '#FFD700', 
+      padding: '2px 8px', 
+      borderRadius: '4px', 
+      fontWeight: 'bold', 
+      fontSize: '11px',
+      letterSpacing: '0.5px',
+      border: '1px solid #FFD700',
+      display: 'inline-block'
+    }}>
+      ✨ CoopPilot Activo
+    </span>
+  </p>
+)}
         </div>
 
         {showExternalMonitor && (
