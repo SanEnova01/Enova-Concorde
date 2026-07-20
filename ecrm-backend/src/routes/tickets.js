@@ -124,5 +124,41 @@ router.delete('/:id', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
+// GET: Obtener todos los mensajes de un ticket específico
+router.get('/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const messages = await db('ticket_messages')
+      .where({ ticket_id: id })
+      .orderBy('created_at', 'asc');
+    
+    res.json({ success: true, data: messages });
+  } catch (error) {
+    console.error('Error al obtener mensajes:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
+// POST: Enviar un nuevo mensaje al hilo del ticket
+router.post('/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sender, body } = req.body;
+    
+    if (!body) {
+      return res.status(400).json({ success: false, error: 'El cuerpo del mensaje es requerido' });
+    }
+
+    const [newMessage] = await db('ticket_messages').insert({
+      ticket_id: id,
+      sender: sender || 'Usuario Desconocido',
+      body: body
+    }).returning('*');
+
+    res.json({ success: true, data: newMessage });
+  } catch (error) {
+    console.error('Error al guardar mensaje:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 module.exports = router;

@@ -6,24 +6,32 @@ function TicketDetail() {
   const { ticketId } = useParams();
   const navigate = useNavigate();
   
+  // Estados de Usuario / Autenticación
+  const [userRole, setUserRole] = useState('client');
+  const [userName, setUserName] = useState('');
+
   const [ticket, setTicket] = useState(null);
   const [storesList, setStoresList] = useState([]);
   const [associatedStore, setAssociatedStore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [ticketError, setTicketError] = useState(false);
 
+  // Estados para el Chat
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+
   // Estados para el buscador desplegable de Tiendas
   const [storeSearch, setStoreSearch] = useState('');
   const [isStoreDropdownOpen, setIsStoreDropdownOpen] = useState(false);
   const storeDropdownRef = useRef(null);
 
-  // ESTADO PARA EL MODAL PERSONALIZADO (Reemplaza a los alerts nativos)
+  // ESTADO PARA EL MODAL PERSONALIZADO
   const [modalConfig, setModalConfig] = useState({
     isOpen: false,
-    type: 'alert', // 'alert' o 'confirm'
-    status: 'success', // 'success' o 'error'
+    type: 'alert',
+    status: 'success',
     message: '',
-    onConfirm: null // Función a ejecutar al aceptar (útil para el confirm o para redirigir tras borrar)
+    onConfirm: null
   });
 
   // Estados para el modo de edición
@@ -62,7 +70,18 @@ function TicketDetail() {
   };
 
   useEffect(() => {
+    // 1. Obtener la identidad y el rol del usuario conectado
+    const token = localStorage.getItem('crm_token');
+    if (token) {
+      try {
+        const payload = JSON.parse(window.atob(token.split('.')[1]));
+        setUserRole(payload.role);
+        setUserName(payload.name || payload.email); // Usar nombre si existe, sino email
+      } catch(e) { console.error(e); }
+    }
+
     fetchTicketData();
+    fetchMessages();
   }, [ticketId]);
 
   useEffect(() => {
@@ -116,7 +135,36 @@ function TicketDetail() {
     }
   };
 
-  // --- FUNCIONES DEL MODAL CONCORDE ---
+  const fetchMessages = async () => {
+    try {
+      const response = await crmApi.get(`/tickets/${ticketId}/messages`);
+      if (response.data && response.data.success) {
+        setMessages(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error al cargar mensajes:', error);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    try {
+      const response = await crmApi.post(`/tickets/${ticketId}/messages`, {
+        sender: userName,
+        body: newMessage
+      });
+      if (response.data && response.data.success) {
+        setMessages([...messages, response.data.data]);
+        setNewMessage('');
+      }
+    } catch (error) {
+      console.error('Error al enviar mensaje:', error);
+      showAlert('Hubo un error al enviar tu comentario.', 'error');
+    }
+  };
+
   const showAlert = (message, status = 'success', onConfirm = null) => {
     setModalConfig({ isOpen: true, type: 'alert', status, message, onConfirm });
   };
@@ -136,7 +184,6 @@ function TicketDetail() {
     if (modalConfig.onConfirm) modalConfig.onConfirm();
     setModalConfig({ ...modalConfig, isOpen: false });
   };
-  // ------------------------------------
 
   const handleUpdateStatus = async (newStatus) => {
     try {
@@ -175,7 +222,6 @@ function TicketDetail() {
       try {
         const response = await crmApi.delete(`/tickets/${ticketId}`);
         if (response.status === 200 || response.data?.success) {
-          // Si se elimina correctamente, mostramos alerta y al cerrar navegamos
           showAlert('Ticket eliminado exitosamente del sistema.', 'success', () => {
             navigate('/admin/tickets');
           });
@@ -214,13 +260,8 @@ function TicketDetail() {
           100% { transform: translateX(380px) rotate(90deg) scale(0.8); opacity: 0; }
         }
         .concorde-plane {
-          position: absolute;
-          top: 26px;
-          left: 0;
-          color: #e0e0e0; /* Gris claro para que sea una marca de agua de fondo */
-          animation: flyConcorde 2s ease-in-out forwards;
-          pointer-events: none;
-          z-index: 0; /* ¡Bajamos la capa del avión! */
+          position: absolute; top: 26px; left: 0; color: #e0e0e0;
+          animation: flyConcorde 2s ease-in-out forwards; pointer-events: none; z-index: 0;
         }
         .crm-modal-overlay {
           position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -232,30 +273,24 @@ function TicketDetail() {
           text-align: center; border: 2px solid #000; box-shadow: 0 15px 35px rgba(0,0,0,0.2);
           position: relative; overflow: hidden;
         }
-      `}</style>c
+      `}</style>
 
       {/* RENDERIZADO DEL MODAL PERSONALIZADO */}
       {modalConfig.isOpen && (
         <div className="crm-modal-overlay">
           <div className="crm-modal-box">
-            
-            {/* Animación del Avión (Capa inferior z-index: 0) */}
             {(modalConfig.status === 'success' || modalConfig.type === 'confirm') && (
               <svg className="concorde-plane" viewBox="0 0 24 24" width="48" height="48" fill="currentColor">
                 <path d="M21,16v-2l-8-5V3.5C13,2.67,12.33,2,11.5,2S10,2.67,10,3.5V9l-8,5v2l8-2.5V19l-2,1.5V22l3.5-1l3.5,1v-1.5L13,19v-5.5L21,16z"/>
               </svg>
             )}
-            
-            {/* CONTENEDOR DE TEXTOS FRONTALES (Capa superior z-index: 10) */}
             <div style={{ position: 'relative', zIndex: 10 }}>
               <h3 style={{ marginTop: 0, fontSize: '18px', fontWeight: 'bold' }}>
                 {modalConfig.type === 'confirm' ? 'Confirmar Acción' : (modalConfig.status === 'error' ? 'Aviso' : 'Concorde System')}
               </h3>
-              
               <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5', margin: '16px 0 24px' }}>
                 {modalConfig.message}
               </p>
-              
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                 {modalConfig.type === 'confirm' && (
                   <button onClick={closeModal} className="crm-btn-border" style={{ flex: 1 }}>Cancelar</button>
@@ -265,26 +300,32 @@ function TicketDetail() {
                 </button>
               </div>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* INTERFAZ DEL DETALLE (No ha cambiado nada de lógica, solo se renderiza igual) */}
+      {/* INTERFAZ DEL DETALLE */}
       <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Ticket: {ticket.serial_number}</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => setIsEditing(!isEditing)} className="crm-btn-black">
-            {isEditing ? 'Cancelar Edición' : 'Editar / Clasificar Ticket'}
-          </button>
-          <button onClick={handleDeleteTicket} className="crm-btn-border" style={{ color: '#d9534f', borderColor: '#d9534f', fontWeight: 'bold' }}>
-            Eliminar Ticket
-          </button>
+          
+          {/* CINTURÓN DE SEGURIDAD: Solo Admin / Super Admin ven estos botones */}
+          {userRole !== 'client' && (
+            <>
+              <button onClick={() => setIsEditing(!isEditing)} className="crm-btn-black">
+                {isEditing ? 'Cancelar Edición' : 'Editar / Clasificar Ticket'}
+              </button>
+              <button onClick={handleDeleteTicket} className="crm-btn-border" style={{ color: '#d9534f', borderColor: '#d9534f', fontWeight: 'bold' }}>
+                Eliminar Ticket
+              </button>
+            </>
+          )}
+
           <button onClick={() => navigate(-1)} className="crm-btn-border">Volver</button>
         </div>
       </div>
 
-      {isEditing ? (
+      {isEditing && userRole !== 'client' ? (
         <form onSubmit={handleSaveTicketDetails} className="crm-card-paper" style={{ marginBottom: '24px' }}>
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Editar / Clasificar Datos del Ticket</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -316,18 +357,11 @@ function TicketDetail() {
             </div>
 
             <div>
-  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Tipo de Tarea</label>
-  <select 
-    className="crm-select-dropdown" 
-    style={{ width: '100%' }}
-    value={editForm.task_type}
-    onChange={(e) => setEditForm({ ...editForm, task_type: e.target.value })}
-  >
-    {taskTypes.map(t => (
-      <option key={t.value} value={t.value}>{t.label}</option>
-    ))}
-  </select>
-</div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Tipo de Tarea</label>
+              <select className="crm-select-dropdown" style={{ width: '100%' }} value={editForm.task_type} onChange={(e) => setEditForm({ ...editForm, task_type: e.target.value })}>
+                {taskTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
 
             <div style={{ gridColumn: 'span 2' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Responsable (Opcional)</label>
@@ -356,25 +390,83 @@ function TicketDetail() {
           <p className="crm-text-muted"><strong>Prioridad Operativa:</strong> <span className="crm-badge">{ticket.priority}</span></p>
           <p className="crm-text-muted"><strong>Tipo de Tarea:</strong> {ticket.task_type || 'No especificado'}</p>
           <p className="crm-text-muted"><strong>Responsable:</strong> {ticket.assigned_to || 'Sin asignar'}</p>
-          <div style={{ marginTop: '20px', borderTop: '1px dotted #cccccc', paddingTop: '16px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>Cambiar Estado Actual:</label>
-            <select value={ticket.status} onChange={(e) => handleUpdateStatus(e.target.value)} className="crm-select-dropdown" style={{ width: '100%' }}>
-              {statuses.map(st => <option key={st} value={st}>{st}</option>)}
-            </select>
-          </div>
+          
+          {/* CINTURÓN DE SEGURIDAD: Solo Admin puede cambiar estados aquí */}
+          {userRole !== 'client' && (
+            <div style={{ marginTop: '20px', borderTop: '1px dotted #cccccc', paddingTop: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>Cambiar Estado Actual:</label>
+              <select value={ticket.status} onChange={(e) => handleUpdateStatus(e.target.value)} className="crm-select-dropdown" style={{ width: '100%' }}>
+                {statuses.map(st => <option key={st} value={st}>{st}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="crm-card-paper">
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Auditoría de Tiempos</h3>
           <p className="crm-text-muted"><strong>Fecha y Hora de Apertura:</strong> {new Date(ticket.created_at).toLocaleString()}</p>
           <p className="crm-text-muted"><strong>Fecha y Hora de Cierre:</strong> {ticket.closed_at ? new Date(ticket.closed_at).toLocaleString() : 'Abierto / En resolución'}</p>
+          <p className="crm-text-muted"><strong>Estado Actual:</strong> <span className="crm-badge">{ticket.status}</span></p>
         </div>
       </div>
 
       <div className="crm-card-paper" style={{ marginTop: '24px' }}>
         <h3 className="crm-section-title" style={{ marginTop: 0 }}>Descripción Detallada del Problema</h3>
-        <p style={{ margin: 0, fontSize: '15px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{ticket.description || 'No se han ingresado notas adicionales en la descripción de este soporte.'}</p>
+        {/* Utilizamos dangerouslySetInnerHTML para renderizar el HTML proveniente del scraper o notas normales */}
+        <div style={{ margin: 0, fontSize: '15px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: ticket.description || 'No se han ingresado notas adicionales.' }} />
       </div>
+
+      {/* ÁREA DE COMENTARIOS (Pseudo-Chat) */}
+      <div className="crm-card-paper" style={{ marginTop: '24px' }}>
+        <h3 className="crm-section-title" style={{ marginTop: 0 }}>Historial de Conversación</h3>
+        
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '12px', 
+          maxHeight: '400px', 
+          overflowY: 'auto', 
+          padding: '10px 0', 
+          borderBottom: '1px dotted #ccc', 
+          marginBottom: '16px' 
+        }}>
+          {messages.length === 0 ? (
+            <p className="crm-text-muted">No hay mensajes aún. ¡Inicia la conversación!</p>
+          ) : (
+            messages.map(msg => {
+              const isMe = msg.sender === userName;
+              return (
+                <div key={msg.id} style={{ 
+                  alignSelf: isMe ? 'flex-end' : 'flex-start', 
+                  backgroundColor: isMe ? '#f5f4f0' : '#ffffff', 
+                  border: '1px solid #d0d0d0', 
+                  padding: '10px 14px', 
+                  borderRadius: '8px', 
+                  maxWidth: '80%' 
+                }}>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#111111', display: 'block', marginBottom: '6px' }}>
+                    {msg.sender} <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#666' }}>• {new Date(msg.created_at).toLocaleString()}</span>
+                  </span>
+                  <p style={{ margin: 0, fontSize: '14px', whiteSpace: 'pre-wrap', color: '#333' }}>{msg.body}</p>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px' }}>
+          <textarea 
+            value={newMessage} 
+            onChange={e => setNewMessage(e.target.value)} 
+            placeholder="Escribe un comentario o actualización..." 
+            className="crm-select-dropdown" 
+            style={{ flex: 1, minHeight: '40px', resize: 'vertical' }} 
+            required 
+          />
+          <button type="submit" className="crm-btn-black" style={{ alignSelf: 'flex-end' }}>Enviar</button>
+        </form>
+      </div>
+
     </div>
   );
 }
