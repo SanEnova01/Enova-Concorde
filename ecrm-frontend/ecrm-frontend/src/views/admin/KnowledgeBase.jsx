@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import crmApi from '../../api/crmApi';
 
-// Helper ultra-seguro para decodificar JWT sin romper la app
+// Helper ultra-seguro para decodificar JWT
 const getUserFromToken = () => {
   const token = localStorage.getItem('crm_token');
-  if (!token) return { role: 'client', store_id: '' };
+  if (!token) return { role: 'client' };
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -16,8 +16,7 @@ const getUserFromToken = () => {
     );
     return JSON.parse(jsonPayload);
   } catch (e) {
-    console.error("Error decodificando token:", e);
-    return { role: 'client', store_id: '' };
+    return { role: 'client' };
   }
 };
 
@@ -26,7 +25,7 @@ function KnowledgeBase() {
   const isClient = currentUser.role === 'client';
 
   const [stores, setStores] = useState([]);
-  const [selectedStore, setSelectedStore] = useState('');
+  const [selectedStore, setSelectedStore] = useState(isClient ? 'cuentacliente' : '');
   const [knowledgeList, setKnowledgeList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,11 +39,11 @@ function KnowledgeBase() {
 
   useEffect(() => {
     if (isClient) {
-      setSelectedStore(currentUser.store_id || '');
+      setSelectedStore('cuentacliente');
     } else {
       fetchStores();
     }
-  }, []);
+  }, [isClient]);
 
   useEffect(() => {
     if (selectedStore) {
@@ -54,7 +53,6 @@ function KnowledgeBase() {
     }
   }, [selectedStore]);
 
-  // Garantiza que la respuesta siempre se convierta en Arreglo (evita pantalla blanca)
   const fetchStores = async () => {
     try {
       const res = await crmApi.get('/stores');
@@ -105,13 +103,13 @@ function KnowledgeBase() {
       const res = await crmApi.post('/knowledge', payload);
       
       if (res.data && (res.data.success || res.status === 200)) {
-        setSuccessMsg('✅ Regla procesada e inyectada correctamente en PostgreSQL.');
+        setSuccessMsg('✅ Regla guardada e inyectada correctamente en la memoria de la IA.');
         setFormData({ category: 'FAQ', question: '', answer: '' });
         fetchKnowledge();
         setTimeout(() => setSuccessMsg(''), 4000);
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al procesar e inyectar la regla.');
+      setError(err.response?.data?.error || 'Error al guardar la regla.');
     }
   };
 
@@ -131,35 +129,49 @@ function KnowledgeBase() {
   return (
     <div style={{ padding: '20px', maxWidth: '1100px', margin: '0 auto' }}>
       
-      {/* CABECERA */}
       <h1 style={{ fontSize: '24px', fontWeight: 'bold', borderBottom: '2px solid #111', paddingBottom: '10px', marginBottom: '15px' }}>
-        🧠 Entrenamiento y Auditoría de IA
+        🧠 {isClient ? "Entrenamiento de tu Asistente IA" : "Entrenamiento y Auditoría de IA"}
       </h1>
 
-      {/* BARRA DE ESTADO Y AUDITORÍA DE PROCESAMIENTO */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
-        
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
-          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>ESTADO DEL SERVIDOR</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
-            <span style={{ fontWeight: 'bold', fontSize: '14px' }}>BD Conectada</span>
+      {/* BARRA SUPERIOR ADAPTADA SEGÚN EL ROL */}
+      {!isClient ? (
+        /* VISTA DE AGENCIA / ADMIN (AUDITORÍA TÉCNICA) */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>ESTADO DEL SERVIDOR</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
+              <span style={{ fontWeight: 'bold', fontSize: '14px' }}>BD Conectada</span>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>REGLAS PROCESADAS</span>
+            <p style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: '900' }}>{safeKnowledgeList.length}</p>
+          </div>
+
+          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>TIENDA ACTIVA</span>
+            <p style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {selectedStore || 'Ninguna'}
+            </p>
           </div>
         </div>
-
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
-          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>REGLAS PROCESADAS</span>
-          <p style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: '900' }}>{safeKnowledgeList.length}</p>
+      ) : (
+        /* VISTA DE CLIENTE (LIMPIA Y CENTRADA EN SU MARCA) */
+        <div style={{ display: 'flex', gap: '15px', marginBottom: '25px' }}>
+          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 20px', borderRadius: '6px', boxShadow: '3px 3px 0px #111', display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div>
+              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase', display: 'block' }}>REGLAS EN MEMORIA</span>
+              <span style={{ fontSize: '22px', fontWeight: '900', color: '#111' }}>{safeKnowledgeList.length}</span>
+            </div>
+            <div style={{ borderLeft: '1px solid #ccc', paddingLeft: '20px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase', display: 'block' }}>ESTADO DE TU IA</span>
+              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#15803d' }}>✨ Activa y Respondiendo</span>
+            </div>
+          </div>
         </div>
-
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
-          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>TIENDA ACTIVA</span>
-          <p style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selectedStore || 'Ninguna'}
-          </p>
-        </div>
-
-      </div>
+      )}
 
       {/* SELECTOR DE TIENDAS PARA LA AGENCIA */}
       {!isClient && (
@@ -179,7 +191,7 @@ function KnowledgeBase() {
         </div>
       )}
 
-      {/* MENSAJES DE ESTADO DE PROCESAMIENTO */}
+      {/* MENSAJES DE ESTADO */}
       {successMsg && (
         <div style={{ padding: '12px', backgroundColor: '#dcfce7', color: '#15803d', border: '2px solid #15803d', borderRadius: '6px', marginBottom: '20px', fontWeight: 'bold' }}>
           {successMsg}
@@ -193,7 +205,7 @@ function KnowledgeBase() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
         
-        {/* FORMULARIO DE INYECCIÓN */}
+        {/* FORMULARIO */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '4px 4px 0px #111', height: 'fit-content' }}>
           <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Nueva Regla</h2>
           
@@ -240,9 +252,11 @@ function KnowledgeBase() {
           </form>
         </div>
 
-        {/* REGISTRO DE LO APRENDIDO (AUDITORÍA) */}
+        {/* LISTADO DE REGLAS */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Memoria Procesada en Sistema</h2>
+          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>
+            {isClient ? "Conocimiento Guardado para tu IA" : "Memoria Procesada en Sistema"}
+          </h2>
           
           {loading ? (
             <p style={{ fontStyle: 'italic', color: '#666' }}>Consultando base de conocimiento...</p>
