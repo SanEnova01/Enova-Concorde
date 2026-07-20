@@ -2,25 +2,34 @@ import React, { useState, useEffect } from 'react';
 import crmApi from '../../api/crmApi';
 
 function KnowledgeBase() {
+  // 1. Detectar quién es el usuario logueado
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isClient = user.role === 'client';
+
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState('');
   const [knowledgeList, setKnowledgeList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Estado del formulario
   const [formData, setFormData] = useState({
     category: 'FAQ',
     question: '',
     answer: ''
   });
 
-  // Cargar tiendas al montar
+  // 2. Lógica de inicio dependiendo del ROL
   useEffect(() => {
-    fetchStores();
+    if (isClient) {
+      // Si es la marca, fijamos su tienda automáticamente y no buscamos otras
+      setSelectedStore(user.store_id);
+    } else {
+      // Si es la agencia (Enova), cargamos el selector de tiendas (El Hub)
+      fetchStores();
+    }
   }, []);
 
-  // Cargar conocimiento cada vez que cambie la tienda seleccionada
+  // 3. Cuando cambia la tienda seleccionada (o se autoselecciona), traemos sus reglas
   useEffect(() => {
     if (selectedStore) {
       fetchKnowledge();
@@ -34,7 +43,7 @@ function KnowledgeBase() {
       const res = await crmApi.get('/stores');
       setStores(res.data);
       if (res.data.length > 0) {
-        setSelectedStore(res.data[0].id); // Seleccionar la primera por defecto
+        setSelectedStore(res.data[0].id);
       }
     } catch (err) {
       console.error('Error cargando tiendas:', err);
@@ -60,7 +69,7 @@ function KnowledgeBase() {
     setError('');
     
     if (!selectedStore) {
-      setError('Debes seleccionar una tienda primero.');
+      setError('Error: No hay una tienda seleccionada.');
       return;
     }
 
@@ -69,7 +78,6 @@ function KnowledgeBase() {
       const res = await crmApi.post('/knowledge', payload);
       
       if (res.data.success) {
-        // Limpiar formulario y recargar lista
         setFormData({ category: 'FAQ', question: '', answer: '' });
         fetchKnowledge();
       }
@@ -80,7 +88,6 @@ function KnowledgeBase() {
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Seguro que deseas eliminar esta regla? La IA dejará de saber esto.')) return;
-    
     try {
       await crmApi.delete(`/knowledge/${id}`);
       fetchKnowledge();
@@ -96,28 +103,32 @@ function KnowledgeBase() {
       </h1>
       
       <p style={{ color: '#666', marginBottom: '20px' }}>
-        Añade políticas y preguntas frecuentes. La IA de CoopPilot leerá estas reglas antes de responder a los clientes.
+        {isClient 
+          ? "Añade políticas y preguntas frecuentes de tu marca. Nuestro asistente virtual leerá estas reglas antes de responder a tus clientes."
+          : "HUB DE AGENCIA: Audita y gestiona las reglas de inteligencia artificial de todos tus clientes."}
       </p>
 
-      {/* Selector de Tienda */}
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Seleccionar Tienda:</label>
-        <select 
-          value={selectedStore} 
-          onChange={(e) => setSelectedStore(e.target.value)} 
-          className="crm-select-dropdown"
-          style={{ width: '300px' }}
-        >
-          <option value="">-- Elige una tienda --</option>
-          {stores.map(s => (
-            <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
-          ))}
-        </select>
-      </div>
+      {/* 4. SÓLO MOSTRAR EL SELECTOR SI ES LA AGENCIA (ADMIN) */}
+      {!isClient && (
+        <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e5e7eb', borderRadius: '8px', border: '1px dashed #111' }}>
+          <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Viendo la IA de:</label>
+          <select 
+            value={selectedStore} 
+            onChange={(e) => setSelectedStore(e.target.value)} 
+            className="crm-select-dropdown"
+            style={{ width: '300px' }}
+          >
+            <option value="">-- Elige una tienda --</option>
+            {stores.map(s => (
+              <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
         
-        {/* FORMULARIO PARA AGREGAR CONOCIMIENTO */}
+        {/* FORMULARIO */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '4px 4px 0px #111', height: 'fit-content' }}>
           <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Nueva Regla</h2>
           {error && <div style={{ color: 'red', marginBottom: '10px', fontSize: '14px' }}>{error}</div>}
@@ -165,14 +176,14 @@ function KnowledgeBase() {
           </form>
         </div>
 
-        {/* LISTA DE CONOCIMIENTO (MEMORIA ACTUAL) */}
+        {/* MEMORIA DE LA IA */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Memoria de la Tienda</h2>
+          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Memoria Activa</h2>
           
           {loading ? (
             <p>Cargando datos neuronales...</p>
           ) : knowledgeList.length === 0 ? (
-            <p style={{ color: '#666', fontStyle: 'italic' }}>Esta tienda aún no tiene reglas. La IA no sabrá qué responder.</p>
+            <p style={{ color: '#666', fontStyle: 'italic' }}>Aún no hay reglas. La IA no sabrá qué responder.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {knowledgeList.map(item => (

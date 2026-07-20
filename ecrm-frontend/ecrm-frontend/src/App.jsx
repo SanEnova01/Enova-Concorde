@@ -55,7 +55,7 @@ function AdminLayout({ children }) {
   { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
   { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
   { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
-  { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] }, // 👈 NUEVA RUTA
+  { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin', 'client'] }, // 👈 NUEVA RUTA
   { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
   { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
 ];
