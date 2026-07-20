@@ -4,55 +4,54 @@ import crmApi from '../../api/crmApi';
 
 function CoopPilotHub() {
   const navigate = useNavigate();
-  const [storeBranding, setStoreBranding] = useState({ name: 'Cargando...', logo_url: '' });
+  const [storeBranding, setStoreBranding] = useState({ name: 'CARGANDO...', logo_url: '', has_cooppilot: true });
+  const [loading, setLoading] = useState(true);
   
-  // Estados para la IA
   const [chatQuery, setChatQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
 
- // 🌟 Multitenancy Dinámico: Lee la tienda desde la URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const activeStoreId = urlParams.get('store') || 'enova.agency';
+
   useEffect(() => {
-    // Busca si en la URL hay un parámetro "?store=nombre"
-    const urlParams = new URLSearchParams(window.location.search);
-    const storeQuery = urlParams.get('store');
+    // Consultar estado de la tienda
+    crmApi.get(`/cooppilot/config/${activeStoreId}`)
+      .then(res => {
+        if (res.data.success) {
+          setStoreBranding({
+            name: res.data.data.name.toUpperCase(),
+            logo_url: res.data.data.logo_url,
+            has_cooppilot: res.data.data.has_cooppilot
+          });
+        }
+      })
+      .catch(() => {
+        setStoreBranding({ name: 'CENTRO DE AYUDA', logo_url: '', has_cooppilot: false });
+      })
+      .finally(() => setLoading(false));
+  }, [activeStoreId]);
 
-    if (storeQuery) {
-      // Si la URL tiene tienda, pinta esa tienda
-      setStoreBranding({
-        name: storeQuery.toUpperCase(),
-        logo_url: '' 
-      });
-    } else {
-      // Si entra a la ruta base sin tienda, muestra el nombre genérico del SaaS
-      setStoreBranding({
-        name: 'CENTRO DE AYUDA',
-        logo_url: '' 
-      });
-    }
-  }, []);
-  const handleAISearch = async (e) => {
-    e.preventDefault();
-    if (!chatQuery.trim()) return;
+  if (loading) {
+    return <div style={{ padding: '50px', textAlign: 'center' }}>Cargando portal de atención...</div>;
+  }
 
-    setIsTyping(true);
-    setAiResponse('');
+  // 🛑 SI COOPPILOT NO ESTÁ HABILITADO
+  if (!storeBranding.has_cooppilot) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#f5f4f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '40px', maxWidth: '500px', textAlign: 'center', boxShadow: '4px 4px 0px #111' }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '15px' }}>{storeBranding.name}</h1>
+          <div style={{ fontSize: '40px', marginBottom: '10px' }}>🔒</div>
+          <h2 style={{ fontSize: '18px', color: '#991b1b', marginBottom: '10px' }}>Servicio CoopPilot No Activo</h2>
+          <p style={{ fontSize: '14px', color: '#666', lineHeight: '1.5' }}>
+            Esta tienda no tiene habilitado el portal de atención automatizada ni la Inteligencia Artificial.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-    try {
-      const res = await crmApi.post('/cooppilot/chat', { 
-        store_id: 'enova.agency', // ID dinámico en el futuro
-        query: chatQuery 
-      });
-
-      if (res.data.success) {
-        setAiResponse(res.data.response);
-      }
-    } catch (error) {
-      setAiResponse("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo.");
-    } finally {
-      setIsTyping(false);
-    }
-  };
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f4f0', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 20px' }}>
       

@@ -1,116 +1,140 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const OpenAI = require('openai');
 
-// POST: "Frictionless Login" - Validar pedido de un cliente final
-router.post('/verify-order', async (req, res) => {
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'dummy_key',
+});
+
+// GET: Consultar configuración y licencia pública de la tienda
+router.get('/config/:store_id', async (req, res) => {
   try {
-    const { store_id, order_number, email } = req.body;
-
-    if (!store_id || !order_number || !email) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Faltan datos. Necesitamos la tienda, el número de pedido y el correo.' 
-      });
-    }
-
-    // Validar que la tienda exista en Concorde
+    const { store_id } = req.params;
     const store = await db('stores').where({ id: store_id }).first();
+    
     if (!store) {
       return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
     }
 
-    // ====================================================================
-    // 🔌 AQUÍ IRÍA LA CONEXIÓN REAL A LA API DE SHOPIFY / VTEX / WOOCOMMERCE
-    // ====================================================================
-    // Por ahora, simularemos que la API de la tienda nos devuelve un carrito exitoso
-    // si el correo tiene un formato válido y el pedido empieza con "#".
-    
-    if (!order_number.startsWith('#')) {
-      return res.status(400).json({ success: false, error: 'El número de pedido debe incluir un "#". Ej: #1024' });
-    }
-
-    // Data simulada que vendría del e-commerce
-    const mockOrderData = {
-      order_number: order_number,
-      customer_email: email,
-      purchase_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // Hace 7 días
-      status: 'DELIVERED',
-      items: [
-        { id: 'prod_1', name: 'Zapatillas Urbanas', size: '42', price: 120.00, image: 'https://via.placeholder.com/150' },
-        { id: 'prod_2', name: 'Camiseta de Algodón', size: 'L', price: 35.00, image: 'https://via.placeholder.com/150' }
-      ]
-    };
-
-    res.json({ 
-      success: true, 
-      data: mockOrderData,
-      store_branding: {
+    res.json({
+      success: true,
+      data: {
+        id: store.id,
         name: store.name,
-        logo_url: store.logo_url
+        logo_url: store.logo_url,
+        has_cooppilot: !!store.has_cooppilot
       }
     });
-
   } catch (error) {
-    console.error("Error validando pedido en CoopPilot:", error);
-    res.status(500).json({ success: false, error: 'Error interno del servidor al validar el pedido.' });
+    res.status(500).json({ success: false, error: 'Error al consultar la tienda.' });
   }
 });
 
-// POST: Asistente de IA (Primer Filtro Conversacional usando la Base de Conocimiento)
+// POST: Validar pedido (Rastreo)
+router.post('/verify-order', async (req, res) => {
+  try {
+    const { store_id, order_number, email } = req.body;
+
+    const store = await db('stores').where({ id: store_id || 'enova.agency' }).first();
+    if (!store) {
+      return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
+    }
+
+    // 🛑 VALIDACIÓN DE LICENCIA COOPPILOT
+    if (!store.has_cooppilot) {
+      return res.status(403).json({ 
+        success: false, 
+        disabled: true,
+        error: 'El servicio CoopPilot no está habilitado para esta tienda.' 
+      });
+    }
+
+    if (!order_number || !order_number.startsWith('#')) {
+      return res.status(400).json({ success: false, error: 'El número de pedido debe incluir "#". Ej: #1024' });
+    }
+
+    res.json({ 
+      success: true, 
+      data: {
+        order_number: order_number,
+        customer_email: email,
+        purchase_date: new Date().toISOString(),
+        status: 'DELIVERED',
+        items: [{ id: '1', name: 'Producto de prueba', size: 'M', price: 100 }]
+      },
+      store_branding: { name: store.name, logo_url: store.logo_url }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Error al verificar la orden.' });
+  }
+});
+
+// POST: Asistente de IA (Chatbot)
 router.post('/chat', async (req, res) => {
   try {
     const { store_id, query } = req.body;
 
     if (!query) {
-      return res.status(400).json({ success: false, error: 'Por favor, escribe una pregunta.' });
+      return res.status(400).json({ success: false, error: 'Escribe una pregunta.' });
     }
 
-    // 1. Buscar si tenemos la tienda en la BD (o usar la tienda por defecto)
     const activeStoreId = store_id || 'enova.agency';
+    const store = await db('stores').where({ id: activeStoreId }).first();
 
-    // 2. Traer todas las reglas activas que le pertenecen a esta tienda
+    if (!store) {
+      return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
+    }
+
+    // 🛑 VALIDACIÓN DE LICENCIA COOPPILOT
+    if (!store.has_cooppilot) {
+      return res.status(403).json({ 
+        success: false, 
+        disabled: true,
+        response: 'El servicio de IA CoopPilot no está activo para esta tienda. Por favor contacta al administrador.' 
+      });
+    }
+
+    // Traer reglas de la Base de Conocimiento
     const kbRules = await db('knowledge_base')
       .where({ store_id: activeStoreId, is_active: true });
 
-    // 3. Motor de Búsqueda de Contexto (Simulación de RAG)
-    const textQuery = query.toLowerCase();
-    let matchedRule = null;
-
+    let knowledgeContext = "No hay políticas específicas cargadas aún.";
     if (kbRules.length > 0) {
-      // Buscar la regla que mejor coincida con lo que preguntó el cliente
-      matchedRule = kbRules.find(rule => {
-        const questionMatch = rule.question && textQuery.includes(rule.question.toLowerCase());
-        const categoryMatch = textQuery.includes(rule.category.toLowerCase().replace('_', ' '));
-        const keywordMatch = rule.answer.toLowerCase().split(' ').some(word => word.length > 4 && textQuery.includes(word));
-        
-        return questionMatch || categoryMatch || keywordMatch;
+      knowledgeContext = kbRules.map(r => `- [${r.category}] Q: ${r.question} | A: ${r.answer}`).join("\n");
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      // Fallback a motor de palabras clave si no hay API Key
+      const text = query.toLowerCase();
+      const match = kbRules.find(r => r.question && text.includes(r.question.toLowerCase()));
+      return res.json({
+        success: true,
+        response: match ? match.answer : "No encontré información específica. Te sugiero usar 'Soporte Especializado'."
       });
     }
 
-    // 4. Determinar la respuesta final
-    let aiResponse = "";
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `Eres CoopPilot, el asistente virtual de "${store.name}". Responde amablemente en base a esta Base de Conocimiento:\n${knowledgeContext}`
+        },
+        { role: 'user', content: query }
+      ],
+      temperature: 0.3,
+    });
 
-    if (matchedRule) {
-      // 🎯 ¡La IA encontró una respuesta en su Base de Conocimiento!
-      aiResponse = matchedRule.answer;
-    } else {
-      // Fallback si no encuentra nada en la Base de Conocimiento
-      aiResponse = "Entiendo tu consulta. No encontré una regla específica para este caso en nuestra base de datos, por lo que te recomiendo seleccionar la opción 'Soporte Especializado' para derivarte con un agente humano de inmediato.";
-    }
-
-    // Simulamos latencia ligera para que la UI marque "Escribiendo..."
-    setTimeout(() => {
-      res.json({ 
-        success: true, 
-        response: aiResponse,
-        has_matched_knowledge: !!matchedRule
-      });
-    }, 800);
+    res.json({
+      success: true,
+      response: completion.choices[0]?.message?.content || "No pude procesar la consulta."
+    });
 
   } catch (error) {
-    console.error("Error en el chat de CoopPilot:", error);
+    console.error("Error en chat CoopPilot:", error);
     res.status(500).json({ success: false, error: 'Error procesando tu consulta.' });
   }
 });
+
 module.exports = router;

@@ -13,9 +13,10 @@ class StoreRepository {
         emails: storeData.emails || null,
         phone: storeData.phone || null,
         plan_type: storeData.plan_type,
-        tecnologia: storeData.tecnologia || null, // 🌟 NUEVO CAMPO AGREGADO
+        tecnologia: storeData.tecnologia || null,
         notes: storeData.notes || null,
         logo_url: storeData.logo_url || null,
+        has_cooppilot: storeData.has_cooppilot || false, // 👈 NUEVO SWITCH
         ticket_count: 0 
       }).returning('*');
 
@@ -45,18 +46,24 @@ class StoreRepository {
     try {
       delete storeData.id;
 
+      const updatePayload = {
+        name: storeData.name,
+        web: storeData.web,
+        emails: storeData.emails,
+        phone: storeData.phone,
+        plan_type: storeData.plan_type,
+        tecnologia: storeData.tecnologia,
+        logo_url: storeData.logo_url, 
+        notes: storeData.notes
+      };
+
+      if (typeof storeData.has_cooppilot !== 'undefined') {
+        updatePayload.has_cooppilot = storeData.has_cooppilot;
+      }
+
       const [updatedStore] = await db('stores')
         .where({ id: id })
-        .update({
-          name: storeData.name,
-          web: storeData.web,
-          emails: storeData.emails,
-          phone: storeData.phone,
-          plan_type: storeData.plan_type,
-          tecnologia: storeData.tecnologia, // 🌟 NUEVO CAMPO AGREGADO
-          logo_url: storeData.logo_url, 
-          notes: storeData.notes
-        })
+        .update(updatePayload)
         .returning('*');
 
       return updatedStore;
@@ -65,12 +72,5 @@ class StoreRepository {
     }
   }
 }
-
-
-
-
-
-
-
 
 module.exports = StoreRepository;

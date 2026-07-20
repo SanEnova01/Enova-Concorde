@@ -182,7 +182,8 @@ function ClientDetail() {
       phone: client.phone || '',
       plan_type: client.plan_type || 'GO',
       tecnologia: client.tecnologia || '',
-      logo_url: client.logo_url || ''
+      logo_url: client.logo_url || '',
+      has_cooppilot: client.has_cooppilot || false // 👈 AGREGAR ESTA LÍNEA
     });
     setShowEditModal(true);
   };
@@ -405,6 +406,7 @@ function ClientDetail() {
           <p className="crm-text-muted"><strong>Correos:</strong> {client.emails || 'No registrados'}</p>
           <p className="crm-text-muted"><strong>Teléfono:</strong> {client.phone || 'No registrado'}</p>
           <p className="crm-text-muted"><strong>Contador de Soportes:</strong> {client.ticket_count || 0} creados en total</p>
+          <p className="crm-text-muted"><strong>CoopPilot (IA):</strong> {client.has_cooppilot ? '✅ Habilitado' : '🔒 Deshabilitado'}</p>
         </div>
 
         {showExternalMonitor && (
@@ -838,6 +840,20 @@ function ClientDetail() {
                   <option value="Magento">Magento</option>
                   <option value="Custom">Custom / Propio</option>
                 </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: '#f9f9f6', border: '1px solid #ccc', borderRadius: '4px' }}>
+                <input 
+                  type="checkbox" 
+                  name="has_cooppilot"
+                  id="has_cooppilot_checkbox"
+                  checked={!!editFormData.has_cooppilot} 
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, has_cooppilot: e.target.checked }))}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <label htmlFor="has_cooppilot_checkbox" className="crm-stat-label" style={{ cursor: 'pointer', margin: 0, fontWeight: 'bold' }}>
+                  🚀 Habilitar Servicio CoopPilot (IA & Postventa)
+                </label>
               </div>
 
               <div className="crm-pagination-box" style={{ marginTop: '16px', justifyContent: 'space-between' }}>
