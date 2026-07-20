@@ -105,13 +105,16 @@ router.post('/chat', async (req, res) => {
       });
     }
 
-    // Traer reglas de la Base de Conocimiento
+   // Traer documentos de la Base de Conocimiento
     const kbRules = await db('knowledge_base')
       .where({ store_id: activeStoreId, is_active: true });
 
-    let knowledgeContext = "No hay políticas específicas cargadas aún.";
+    let knowledgeContext = "No hay políticas o documentos cargados para esta tienda aún.";
     if (kbRules.length > 0) {
-      knowledgeContext = kbRules.map(r => `- [${r.category}] Q: ${r.question} | A: ${r.answer}`).join("\n");
+      // 🧠 Formateamos el contexto como documentos completos para que la IA los analice globalmente
+      knowledgeContext = kbRules.map(r => 
+        `### DOCUMENTO: ${r.question} (Tipo: ${r.category})\n${r.answer}\n---`
+      ).join("\n\n");
     }
 
     if (!process.env.OPENAI_API_KEY) {

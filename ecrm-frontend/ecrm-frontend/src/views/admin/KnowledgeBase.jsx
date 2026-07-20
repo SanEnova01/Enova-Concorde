@@ -205,54 +205,56 @@ function KnowledgeBase() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
         
-        {/* FORMULARIO */}
+        {/* FORMULARIO BULK / COPY-PASTE */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '4px 4px 0px #111', height: 'fit-content' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Nueva Regla</h2>
+          <h2 style={{ fontSize: '18px', marginBottom: '5px' }}>Inyectar Documento a la IA</h2>
+          <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>Pega textos completos. La IA extraerá la información automáticamente.</p>
           
           <form onSubmit={handleSubmit}>
-  <div style={{ marginBottom: '15px' }}>
-    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Categoría</label>
-    <select 
-      value={formData.category} 
-      onChange={e => setFormData({...formData, category: e.target.value})}
-      className="crm-select-dropdown" 
-      style={{ width: '100%', boxSizing: 'border-box' }}
-    >
-      <option value="FAQ">Pregunta Frecuente (FAQ)</option>
-      <option value="POLITICA_DEVOLUCION">Política de Devolución</option>
-      <option value="TIEMPOS_ENVIO">Tiempos de Envío</option>
-      <option value="TONO_MARCA">Tono de Marca (Instrucción IA)</option>
-    </select>
-  </div>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Tipo de Documento</label>
+              <select 
+                value={formData.category} 
+                onChange={e => setFormData({...formData, category: e.target.value})}
+                className="crm-select-dropdown" style={{ width: '100%', boxSizing: 'border-box' }}
+              >
+                <option value="TERMINOS_Y_CONDICIONES">Términos y Condiciones</option>
+                <option value="POLITICAS_DE_ENVIO">Políticas de Envío</option>
+                <option value="POLITICAS_DE_DEVOLUCION">Políticas de Devolución</option>
+                <option value="FAQS_COMPLETAS">Preguntas Frecuentes (Bulk)</option>
+                <option value="INSTRUCCIONES_IA">Instrucciones de Comportamiento (IA)</option>
+              </select>
+            </div>
 
-  <div style={{ marginBottom: '15px' }}>
-    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Pregunta o Palabras Clave</label>
-    <input 
-      type="text" 
-      placeholder="Ej: ¿Cuánto tiempo tengo para devolver?" 
-      value={formData.question}
-      onChange={e => setFormData({...formData, question: e.target.value})}
-      className="crm-input-text" 
-      style={{ width: '100%', boxSizing: 'border-box' }}
-    />
-  </div>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Nombre / Referencia del Texto</label>
+              <input 
+                type="text" 
+                placeholder="Ej: Políticas de Envío 2026..." 
+                value={formData.question}
+                onChange={e => setFormData({...formData, question: e.target.value})}
+                className="crm-input-text" 
+                style={{ width: '100%', boxSizing: 'border-box' }}
+                required
+              />
+            </div>
 
-  <div style={{ marginBottom: '15px' }}>
-    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Respuesta de la IA</label>
-    <textarea 
-      placeholder="Ej: Tienes 30 días. Las prendas deben estar con etiquetas..." 
-      value={formData.answer}
-      onChange={e => setFormData({...formData, answer: e.target.value})}
-      className="crm-input-text" 
-      style={{ width: '100%', minHeight: '100px', resize: 'vertical', boxSizing: 'border-box' }}
-      required
-    />
-  </div>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Contenido Completo (Copy/Paste)</label>
+              <textarea 
+                placeholder="Pega aquí todo el texto de tu documento o políticas..." 
+                value={formData.answer}
+                onChange={e => setFormData({...formData, answer: e.target.value})}
+                className="crm-input-text" 
+                style={{ width: '100%', minHeight: '180px', resize: 'vertical', boxSizing: 'border-box', fontSize: '13px' }}
+                required
+              />
+            </div>
 
-  <button type="submit" disabled={!selectedStore} className="crm-btn-black" style={{ width: '100%', boxSizing: 'border-box' }}>
-    Inyectar a la IA
-  </button>
-</form>
+            <button type="submit" disabled={!selectedStore} className="crm-btn-black" style={{ width: '100%', boxSizing: 'border-box' }}>
+              Procesar y Guardar en Memoria
+            </button>
+          </form>
         </div>
 
         {/* LISTADO DE REGLAS */}
