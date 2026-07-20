@@ -9,13 +9,17 @@ import TotalTickets from './views/admin/TotalTickets';
 import TicketDetail from './views/admin/TicketDetail';
 import MetricsPage from './views/admin/MetricsPage';
 import UsersManagement from './views/admin/UsersManagement';
+import KnowledgeBase from "./views/admin/KnowledgeBase";
+
+// Vistas Públicas (CoopPilot)
 import CoopPilotReturns from './views/public/CoopPilotReturns';
-// Autenticación y Protección de Canales
+import CoopPilotHub from './views/public/CoopPilotHub';
+import CoopPilotTracking from "./views/public/CoopPilotTracking";
+
+// Autenticación y Protección
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
-import CoopPilotHub from './views/public/CoopPilotHub'; // Añadir esta línea
-import CoopPilotTracking from "./views/public/CoopPilotTracking";
-import KnowledgeBase from "./views/admin/KnowledgeBase";
+
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -27,7 +31,6 @@ function AdminLayout({ children }) {
 
   if (token) {
     try {
-      // 🌟 DECODIFICADOR ROBUSTO
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
@@ -38,7 +41,6 @@ function AdminLayout({ children }) {
       userRole = payload.role || 'client';
       userEmail = payload.email || 'sin-correo@sistema.local';
       
-      // 🌟 EL TRUCO DEFINITIVO: Si el nombre está vacío en la BD, usa tu correo
       const emailName = userEmail.split('@')[0];
       const capitalizedEmailName = emailName.charAt(0).toUpperCase() + emailName.slice(1);
       
@@ -49,16 +51,16 @@ function AdminLayout({ children }) {
     }
   }
 
-  // Definición de rutas
- const allNavItems = [
-  { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
-  { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
-  { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
-  { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
-  { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin', 'client'] }, // 👈 NUEVA RUTA
-  { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
-  { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
-];
+  // Definición de menú lateral por roles
+  const allNavItems = [
+    { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
+    { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
+    { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
+    { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
+    { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin', 'client'] },
+    { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
+    { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
+  ];
 
   const visibleNavItems = allNavItems.filter(item => item.allowed.includes(userRole));
 
@@ -82,7 +84,7 @@ function AdminLayout({ children }) {
             </div>
           </div>
 
-          {/* 🌟 NERV ID CARD STYLING */}
+          {/* NERV ID CARD STYLING */}
           <div style={{
             backgroundColor: '#ffffff',
             border: '2px solid #111',
@@ -93,16 +95,13 @@ function AdminLayout({ children }) {
             position: 'relative',
             overflow: 'hidden'
           }}>
-            {/* Triángulo acento tipo Sello NERV (Rojo) */}
             <div style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderTop: '24px solid #d9534f', borderLeft: '24px solid transparent' }}></div>
 
-            {/* Cabecera Técnica */}
             <div style={{ borderBottom: '3px solid #111', paddingBottom: '4px', marginBottom: '10px', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '18px', fontWeight: '900', fontFamily: 'Impact, system-ui, sans-serif', letterSpacing: '0.5px', color: '#111', lineHeight: '1' }}>CONCORDE ONLY</span>
               <span style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '1.5px', color: '#111' }}>AUTHORIZED PERSONNEL</span>
             </div>
 
-            {/* Información del Usuario */}
             <div style={{ marginBottom: '8px' }}>
               <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', display: 'block', borderBottom: '1px solid #111', marginBottom: '2px', textTransform: 'uppercase' }}>NAME</span>
               <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#111', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -117,7 +116,6 @@ function AdminLayout({ children }) {
               </span>
             </div>
 
-            {/* Footer: Rol y Código de Barras */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '2px solid #111', paddingTop: '8px' }}>
               <div style={{
                 border: '2px solid #111',
@@ -132,7 +130,6 @@ function AdminLayout({ children }) {
                 {userRole}
               </div>
               
-              {/* Código de barras CSS simulado */}
               <div style={{ display: 'flex', gap: '2px', height: '22px' }}>
                 <div style={{ width: '2px', backgroundColor: '#111' }}></div>
                 <div style={{ width: '4px', backgroundColor: '#111' }}></div>
@@ -145,12 +142,11 @@ function AdminLayout({ children }) {
               </div>
             </div>
           </div>
-          {/* FIN NERV ID CARD */}
 
           <nav className="crm-nav-container" style={{ paddingTop: 0 }}>
             {visibleNavItems.map(item => {
               const isActive = location.pathname === item.path || 
-                (item.path === '/admin/clientes' && location.pathname.startsWith('/admin/clientes/')) ||
+                (item.path === '/admin/clientes' && location.pathname.startsWith('/admin/clientes/') && !location.pathname.includes('cuentacliente')) ||
                 (item.path === '/admin/tickets' && location.pathname.startsWith('/admin/tickets/'));
               return (
                 <Link
@@ -191,19 +187,27 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* PUBLIC / AUTH */}
         <Route path="/login" element={<Login />} />
-        {/* MOTOR DE IA */}
-        <Route path="/knowledge" element={<KnowledgeBase />} />
+        
         {/* RUTAS PÚBLICAS DE COOPPILOT (B2B2C) */}
         <Route path="/cooppilot" element={<CoopPilotHub />} />
         <Route path="/cooppilot/devoluciones" element={<CoopPilotReturns />} />
         <Route path="/cooppilot/rastreo" element={<CoopPilotTracking />} />
+
+        {/* RUTAS PROTEGIDAS DEL DASHBOARD */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><AdminDashboard /></AdminLayout>
           </ProtectedRoute>
         } />
         
+        <Route path="/admin/knowledge" element={
+          <ProtectedRoute allowedRoles={['super admin', 'admin', 'client']}>
+            <AdminLayout><KnowledgeBase /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
         <Route path="/admin/clientes" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><ClientsList /></AdminLayout>
@@ -240,8 +244,9 @@ function App() {
           </ProtectedRoute>
         } />
 
+        {/* REDIRECCIÓN DE RUTA DESCONOCIDA */}
         <Route path="*" element={
-          isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
+          isClient ? <Navigate to="/admin/knowledge" replace /> : <Navigate to="/login" replace />
         } />
       </Routes>
     </BrowserRouter>
