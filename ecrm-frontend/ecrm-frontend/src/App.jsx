@@ -13,6 +13,9 @@ import CoopPilotReturns from './views/public/CoopPilotReturns';
 // Autenticación y Protección de Canales
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
+import CoopPilotReturns from './views/public/CoopPilotReturns';
+import CoopPilotHub from './views/public/CoopPilotHub'; // Añadir esta línea
+
 
 function AdminLayout({ children }) {
   const location = useLocation();
@@ -190,9 +193,9 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         
-        {/* NUEVA RUTA PÚBLICA DE COOPPILOT */}
-        <Route path="/cooppilot" element={<CoopPilotReturns />} />
-
+        {/* RUTAS PÚBLICAS DE COOPPILOT (B2B2C) */}
+        <Route path="/cooppilot" element={<CoopPilotHub />} />
+        <Route path="/cooppilot/devoluciones" element={<CoopPilotReturns />} />
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><AdminDashboard /></AdminLayout>
