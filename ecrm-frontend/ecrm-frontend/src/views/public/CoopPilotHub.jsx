@@ -110,7 +110,7 @@ function CoopPilotHub() {
       <div style={{ width: '100%', maxWidth: '800px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
         
         <div 
-          onClick={() => alert('Próximamente: Rastreador de envíos')}
+          onClick={() => navigate('/cooppilot/rastreo' + window.location.search)}
           style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s' }}
           onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}

@@ -14,7 +14,7 @@ import CoopPilotReturns from './views/public/CoopPilotReturns';
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import CoopPilotHub from './views/public/CoopPilotHub'; // Añadir esta línea
-
+import CoopPilotTracking from "./views/public/CoopPilotTracking";
 
 function AdminLayout({ children }) {
   const location = useLocation();
@@ -195,6 +195,7 @@ function App() {
         {/* RUTAS PÚBLICAS DE COOPPILOT (B2B2C) */}
         <Route path="/cooppilot" element={<CoopPilotHub />} />
         <Route path="/cooppilot/devoluciones" element={<CoopPilotReturns />} />
+        <Route path="/cooppilot/rastreo" element={<CoopPilotTracking />} />
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><AdminDashboard /></AdminLayout>
