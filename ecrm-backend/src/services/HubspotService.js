@@ -1,5 +1,8 @@
 const db = require('../config/db');
 const TicketRepository = require('../repositories/TicketRepository');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 
 class HubspotService {
   static async syncTickets() {
@@ -36,11 +39,17 @@ class HubspotService {
       const data = await response.json();
       const hubspotTickets = data.results || [];
 
-      // Obtener la tienda por defecto (Resuelve not-null constraint de store_id)
+      // Obtener la tienda por defecto
       const defaultStore = await db('stores').first();
       if (!defaultStore) {
         console.error('[HubSpot Sync Error]: No existen tiendas en la BD para vincular.');
         return;
+      }
+
+      // Directorio del volumen de Railway (el mismo que usa multer en index.js)
+      const uploadDirectory = path.join(__dirname, '../public/assets');
+      if (!fs.existsSync(uploadDirectory)) {
+        fs.mkdirSync(uploadDirectory, { recursive: true });
       }
 
       for (const hsTicket of hubspotTickets) {
@@ -52,13 +61,42 @@ class HubspotService {
           .first();
 
         if (!existingTicket) {
+          let ticketContent = props.content || 'Sin descripción.';
+
+          // --- SCRAPER DE IMÁGENES AUTOMÁTICO ---
+          // Busca etiquetas <img src="..."> en el HTML que manda HubSpot
+          const imgRegex = /<img[^>]+src="([^">]+)"/g;
+          let match;
+
+          while ((match = imgRegex.exec(ticketContent)) !== null) {
+            const imgUrl = match[1];
+            try {
+              const imgRes = await fetch(imgUrl);
+              if (imgRes.ok) {
+                const buffer = await imgRes.arrayBuffer();
+                // Nombramos la imagen con un ID único
+                const fileName = `hs-img-${crypto.randomUUID()}.png`;
+                const savePath = path.join(uploadDirectory, fileName);
+                
+                // Guarda físicamente la imagen en tu disco/volumen de Railway
+                fs.writeFileSync(savePath, Buffer.from(buffer));
+
+                // Reemplaza la URL protegida de HubSpot por la ruta local libre de Concorde
+                ticketContent = ticketContent.replace(imgUrl, `/assets/${fileName}`);
+              }
+            } catch (err) {
+              console.error('[HubSpot Image Scraper] Error descargando imagen:', err.message);
+            }
+          }
+          // --------------------------------------
+
           await TicketRepository.create({
             name: props.subject || 'Ticket de HubSpot (Sin Asunto)',
-            description: `[HUBSPOT_ID: ${hsId}]\nFecha origen: ${props.createdate}\n\n${props.content || 'Sin descripción.'}`,
-            store_id: defaultStore.id, // Válido
+            description: `[HUBSPOT_ID: ${hsId}]\nFecha origen: ${props.createdate}\n\n${ticketContent}`,
+            store_id: defaultStore.id,
             assigned_to: null,
-            priority: 'MEDIUM',        // Válido (Pasa tickets_priority_check)
-            task_type: 'CONSULTA'      // Válido (Pasa tickets_task_type_check)
+            priority: 'MEDIUM',
+            task_type: 'CONSULTA'
           });
 
           console.log(`[HubSpot -> Concorde] ¡TICKET INSERTADO EXITOSAMENTE! ID ${hsId}`);
