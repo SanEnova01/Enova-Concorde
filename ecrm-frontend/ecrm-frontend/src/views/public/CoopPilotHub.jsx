@@ -10,29 +10,12 @@ function CoopPilotHub() {
   const [storeInfo, setStoreInfo] = useState(null);
   const [logoError, setLogoError] = useState(false);
   
-  // Estados para Escalación a Soporte
-  const [showSupportForm, setShowSupportForm] = useState(false);
-  const [supportData, setSupportData] = useState({ name: '', email: '', subject: '', message: '' });
-  const [supportStatus, setSupportStatus] = useState('');
-  const handleSupportSubmit = async (e) => {
-    e.preventDefault();
-    setSupportStatus('Enviando...');
-    try {
-      const res = await crmApi.post('/cooppilot/ticket', { ...supportData, store_id: storeId });
-      if (res.data.success) {
-        setSupportStatus('✅ Solicitud enviada con éxito. Nuestro equipo te contactará pronto.');
-        setSupportData({ name: '', email: '', subject: '', message: '' });
-        setTimeout(() => { setShowSupportForm(false); setSupportStatus(''); }, 3000);
-      }
-    } catch (err) {
-      setSupportStatus('❌ Error al enviar la solicitud.');
-    }
-  };
   // Estados para el Chatbot de IA
   const [query, setQuery] = useState('');
   const [chatResponse, setChatResponse] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-// Estados para Escalación a Soporte
+
+  // Estados para Escalación a Soporte
   const [showSupportForm, setShowSupportForm] = useState(false);
   const [supportData, setSupportData] = useState({ name: '', email: '', subject: '', message: '' });
   const [supportStatus, setSupportStatus] = useState('');
@@ -51,6 +34,7 @@ function CoopPilotHub() {
       setSupportStatus('❌ Error al enviar la solicitud.');
     }
   };
+
   // Helper para construir la URL absoluta del logo hacia el Backend
   const getLogoUrl = (url) => {
     if (!url) return '';
