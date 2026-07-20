@@ -6,19 +6,31 @@ function CoopPilotHub() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // Obtener el ID de la tienda desde la URL (?store=id) o usar el valor por defecto
-  const storeId = searchParams.get('store') || 'enova.agency';
+  // ID de tienda desde la URL (?store=id)
+  const storeId = searchParams.get('store') || 'enova-digital';
 
   const [loading, setLoading] = useState(true);
   const [storeInfo, setStoreInfo] = useState(null);
+  const [logoError, setLogoError] = useState(false);
   
-  // Estados para el Chatbot
+  // Estados para el Chatbot de IA
   const [query, setQuery] = useState('');
   const [chatResponse, setChatResponse] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
+  // Helper para construir la URL absoluta del logo hacia el Backend
+  const getLogoUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const apiBase = crmApi.defaults.baseURL || '';
+    const domain = apiBase.replace(/\/api$/, '');
+    return `${domain}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   useEffect(() => {
-    // 🔍 Consultar configuración y estado de licencia de la tienda
+    setLoading(true);
+    setLogoError(false);
+
     crmApi.get(`/cooppilot/config/${storeId}`)
       .then(res => {
         if (res.data.success) {
@@ -26,14 +38,14 @@ function CoopPilotHub() {
         }
       })
       .catch(err => {
-        console.error("Error al cargar la tienda:", err);
+        console.error("Error cargando configuración de la tienda:", err);
       })
       .finally(() => setLoading(false));
   }, [storeId]);
 
-  const handleSendChat = async (e) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleSendChat = async (inputQuery) => {
+    const textToSend = inputQuery || query;
+    if (!textToSend || !textToSend.trim()) return;
 
     setIsTyping(true);
     setChatResponse('');
@@ -41,16 +53,16 @@ function CoopPilotHub() {
     try {
       const res = await crmApi.post('/cooppilot/chat', {
         store_id: storeId,
-        query: query
+        query: textToSend
       });
 
       if (res.data.success) {
         setChatResponse(res.data.response);
       } else {
-        setChatResponse(res.data.error || "Ocurrió un error al procesar tu consulta.");
+        setChatResponse(res.data.error || "Ocurrió un contratiempo al procesar tu solicitud.");
       }
     } catch (err) {
-      setChatResponse("No fue posible conectar con el asistente virtual en este momento.");
+      setChatResponse("⚠️ No fue posible establecer comunicación con el centro de mando de la IA.");
     } finally {
       setIsTyping(false);
     }
@@ -58,108 +70,159 @@ function CoopPilotHub() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f5f4f0' }}>
-        <p style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>Cargando Centro de Atención...</p>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#090a0f', color: '#FFD700', fontFamily: 'monospace' }}>
+        <div style={{ fontSize: '32px', marginBottom: '12px', animation: 'spin 1.5s linear infinite' }}>✈️</div>
+        <p style={{ letterSpacing: '2px', fontSize: '13px', textTransform: 'uppercase' }}>Iniciando Sistemas de Vuelo Concorde...</p>
       </div>
     );
   }
 
-  // 🔒 BLOQUEO DE ACCESO SI COOPPILOT NO ESTÁ ACTIVO
+  // BLOQUEO SI LA TIENDA NO TIENE LICENCIA
   if (!storeInfo || !storeInfo.has_cooppilot) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        backgroundColor: '#f5f4f0', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        padding: '20px' 
-      }}>
-        <div style={{ 
-          backgroundColor: '#ffffff', 
-          border: '2px solid #111111', 
-          borderRadius: '8px', 
-          padding: '40px 30px', 
-          maxWidth: '480px', 
-          width: '100%', 
-          textAlign: 'center', 
-          boxShadow: '4px 4px 0px #111111' 
-        }}>
+      <div style={{ minHeight: '100vh', backgroundColor: '#090a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ backgroundColor: '#12141d', border: '1px solid #222', borderRadius: '12px', padding: '40px 30px', maxWidth: '480px', width: '100%', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.8)' }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
-          <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#111111', margin: '0 0 10px 0', textTransform: 'uppercase' }}>
-            Servicio No Disponible
+          <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#FFD700', margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            Servicio Restringido
           </h2>
-          <p style={{ fontSize: '14px', color: '#555555', lineHeight: '1.5', margin: 0 }}>
-            El módulo <strong>CoopPilot (IA & Autogestión)</strong> no se encuentra activo para la tienda <strong>{storeInfo?.name || storeId}</strong>.
+          <p style={{ fontSize: '14px', color: '#a0a5b5', lineHeight: '1.6', margin: 0 }}>
+            El módulo <strong>CoopPilot (IA & Autogestión)</strong> no se encuentra contratado o activo para la marca <strong>{storeInfo?.name || storeId}</strong>.
           </p>
         </div>
       </div>
     );
   }
 
-  // 🚀 VISTA NORMAL DEL HUB (CUANDO SÍ TIENE LICENCIA ACTIVA)
+  const storeInitial = storeInfo.name ? storeInfo.name.charAt(0).toUpperCase() : 'E';
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f5f4f0', padding: '40px 20px', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#090a0f', color: '#f3f4f6', padding: '30px 16px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div style={{ maxWidth: '850px', margin: '0 auto' }}>
         
-        {/* CABECERA */}
-        <div style={{ backgroundColor: '#ffffff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '4px 4px 0px #111', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>CENTRO DE AYUDA Y SOPORTE</span>
-            <h1 style={{ margin: '4px 0 0 0', fontSize: '22px', fontWeight: 'bold' }}>{storeInfo.name}</h1>
+        {/* BARRA SUPERIOR TELEMETRÍA */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '8px 16px', backgroundColor: '#12141d', border: '1px solid #1f2430', borderRadius: '8px', fontSize: '11px', fontFamily: 'monospace', color: '#9ca3af' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }}></span>
+            <span>CONCORDE AI ENGINE // ONLINE</span>
           </div>
-          {storeInfo.logo_url && (
-            <img src={storeInfo.logo_url} alt="Logo" style={{ height: '45px', objectFit: 'contain' }} />
-          )}
+          <div style={{ color: '#FFD700', fontWeight: 'bold', letterSpacing: '1px' }}>
+            COOPPILOT v2.4
+          </div>
         </div>
 
-        {/* ACCIONES RÁPIDAS (RASTREO / DEVOLUCIONES) */}
+        {/* CABECERA PRINCIPAL CON BRANDING DE LA TIENDA */}
+        <div style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: '#FFD700', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: '4px' }}>
+              CENTRO DE ATENCIÓN AUTOMATIZADA
+            </span>
+            <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '900', color: '#ffffff', letterSpacing: '-0.5px' }}>
+              {storeInfo.name}
+            </h1>
+          </div>
+
+          {/* RENDERING DINÁMICO DEL LOGO CON FALLBACK INTEGRADO */}
+          <div style={{ width: '60px', height: '60px', borderRadius: '10px', backgroundColor: '#1e2230', border: '1px solid #374151', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+            {storeInfo.logo_url && !logoError ? (
+              <img 
+                src={getLogoUrl(storeInfo.logo_url)} 
+                alt={`Logo ${storeInfo.name}`} 
+                onError={() => setLogoError(true)}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }} 
+              />
+            ) : (
+              <span style={{ fontSize: '24px', fontWeight: '900', color: '#FFD700' }}>
+                {storeInitial}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* TARJETAS DE ACCIÓN RÁPIDA (RASTREO / DEVOLUCIONES) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <button 
             onClick={() => navigate(`/cooppilot/rastreo?store=${storeId}`)}
-            style={{ backgroundColor: '#ffffff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '3px 3px 0px #111', cursor: 'pointer', textAlign: 'left' }}
+            style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}
           >
-            <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📦</span>
-            <strong style={{ fontSize: '16px', display: 'block' }}>Rastrear mi Pedido</strong>
-            <span style={{ fontSize: '12px', color: '#666' }}>Consulta el estado del envío en tiempo real</span>
+            <div style={{ fontSize: '28px', marginBottom: '10px' }}>📦</div>
+            <strong style={{ fontSize: '16px', color: '#ffffff', display: 'block', marginBottom: '4px' }}>Rastrear Pedido</strong>
+            <span style={{ fontSize: '12px', color: '#9ca3af' }}>Consulta el estado del envío en tiempo real</span>
           </button>
 
           <button 
             onClick={() => navigate(`/cooppilot/devoluciones?store=${storeId}`)}
-            style={{ backgroundColor: '#ffffff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '3px 3px 0px #111', cursor: 'pointer', textAlign: 'left' }}
+            style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}
           >
-            <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🔄</span>
-            <strong style={{ fontSize: '16px', display: 'block' }}>Cambios y Devoluciones</strong>
-            <span style={{ fontSize: '12px', color: '#666' }}>Solicita el cambio de talla o devolución</span>
+            <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔄</div>
+            <strong style={{ fontSize: '16px', color: '#ffffff', display: 'block', marginBottom: '4px' }}>Cambios y Devoluciones</strong>
+            <span style={{ fontSize: '12px', color: '#9ca3af' }}>Gestiona el cambio de producto o talla</span>
           </button>
         </div>
 
-        {/* CHATBOT CON IA */}
-        <div style={{ backgroundColor: '#ffffff', border: '2px solid #111', padding: '24px', borderRadius: '8px', boxShadow: '4px 4px 0px #111' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '12px' }}>💬 Asistente Virtual Inteligente</h2>
-          <p style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>Pregúntale a nuestra IA sobre políticas de envío, tiempos de entrega, métodos de pago, etc.</p>
+        {/* MÓDULO INTERACTIVO DE ASISTENTE VIRTUAL IA */}
+        <div style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+            <span style={{ fontSize: '20px' }}>🤖</span>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>Asistente Virtual CoopPilot</h2>
+          </div>
+          <p style={{ fontSize: '13px', color: '#9ca3af', margin: '0 0 20px 0', lineHeight: '1.5' }}>
+            Consulta cualquier duda sobre políticas de compra, envíos, métodos de pago o garantías de <strong>{storeInfo.name}</strong>.
+          </p>
 
-          <form onSubmit={handleSendChat} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          {/* BOTONES DE SUGERENCIA RÁPIDA */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+            {[
+              "¿Cuáles son los tiempos de envío?",
+              "¿Cómo solicito una devolución?",
+              "¿Tienen tienda física?"
+            ].map((promptText, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setQuery(promptText);
+                  handleSendChat(promptText);
+                }}
+                style={{ backgroundColor: '#1a1d29', border: '1px solid #374151', color: '#d1d5db', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', cursor: 'pointer', transition: 'background 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2a2e3d'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1a1d29'}
+              >
+                💬 {promptText}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); handleSendChat(); }} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
             <input 
               type="text" 
-              placeholder="Ej: ¿Cuáles son las políticas de devolución?" 
+              placeholder="Escribe tu consulta aquí..." 
               value={query} 
               onChange={e => setQuery(e.target.value)}
-              style={{ flex: 1, padding: '12px', border: '2px solid #111', borderRadius: '6px', fontSize: '14px', outline: 'none' }}
+              style={{ flex: 1, padding: '14px 16px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '8px', color: '#ffffff', fontSize: '14px', outline: 'none' }}
             />
             <button 
               type="submit" 
               disabled={isTyping}
-              style={{ backgroundColor: '#111', color: '#fff', border: 'none', padding: '0 24px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ backgroundColor: '#FFD700', color: '#111111', border: 'none', padding: '0 24px', borderRadius: '8px', fontWeight: '900', fontSize: '14px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}
             >
               {isTyping ? 'Pensando...' : 'Consultar'}
             </button>
           </form>
 
           {chatResponse && (
-            <div style={{ padding: '16px', backgroundColor: '#f9f9f6', border: '1px solid #111', borderRadius: '6px' }}>
-              <strong style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '6px' }}>RESPUESTA DE COOPPILOT:</strong>
-              <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{chatResponse}</p>
+            <div style={{ padding: '20px', backgroundColor: '#1a1d2d', borderLeft: '4px solid #FFD700', borderRadius: '0 8px 8px 0', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#FFD700', textTransform: 'uppercase', letterSpacing: '1px' }}>RESPUESTA OFICIAL COOPPILOT</span>
+                <span style={{ fontSize: '10px', color: '#6b7280', fontFamily: 'monospace' }}>VERIFIED BY CONCORDE</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '14px', color: '#f3f4f6', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                {chatResponse}
+              </p>
             </div>
           )}
         </div>
