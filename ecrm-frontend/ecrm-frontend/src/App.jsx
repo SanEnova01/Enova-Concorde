@@ -8,7 +8,7 @@ import ClientDetail from './views/admin/ClientDetail';
 import TotalTickets from './views/admin/TotalTickets';
 import TicketDetail from './views/admin/TicketDetail';
 import MetricsPage from './views/admin/MetricsPage';
-import UsersManagement from './views/admin/UsersManagement'; // <-- Importación agregada
+import UsersManagement from './views/admin/UsersManagement';
 
 // Autenticación y Protección de Canales
 import Login from './views/admin/Login';
@@ -19,17 +19,22 @@ function AdminLayout({ children }) {
   const navigate = useNavigate();
 
   const token = localStorage.getItem('crm_token');
-  let userRole = 'client'; 
+  let userRole = 'client';
+  let userName = 'Desconocido';
+  let userEmail = 'sin-correo@sistema.local';
+
   if (token) {
     try {
       const payload = JSON.parse(window.atob(token.split('.')[1]));
       userRole = payload.role;
+      userName = payload.name || 'Desconocido';
+      userEmail = payload.email || 'sin-correo@sistema.local';
     } catch (e) {
       console.error("Error al decodificar credenciales:", e);
     }
   }
 
-  // Definición de rutas adaptada (Comas revisadas y corregidas)
+  // Definición de rutas
   const allNavItems = [
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
@@ -50,10 +55,8 @@ function AdminLayout({ children }) {
     <div className="crm-layout">
       <div className="crm-sidebar" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>
-          <div className="crm-logo-box">
-            
-            {/* 🌟 Contenedor Flex para alinear el SVG y el texto horizontalmente */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+          <div className="crm-logo-box" style={{ borderBottom: 'none', paddingBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <img 
                 src="/favicon.svg" 
                 alt="Enova Concord Logo" 
@@ -61,12 +64,74 @@ function AdminLayout({ children }) {
               />
               <h2 className="crm-logo-text" style={{ margin: 0 }}>Concorde</h2>
             </div>
-            
-            <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold', display: 'block', opacity: 0.7 }}>
-              [{userRole}]
-            </span>
           </div>
-          <nav className="crm-nav-container">
+
+          {/* 🌟 NERV ID CARD STYLING */}
+          <div style={{
+            backgroundColor: '#ffffff',
+            border: '2px solid #111',
+            borderRadius: '6px',
+            margin: '0 16px 16px 16px',
+            padding: '12px',
+            boxShadow: '3px 3px 0px #111',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Triángulo acento tipo Sello NERV (Rojo) */}
+            <div style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderTop: '24px solid #d9534f', borderLeft: '24px solid transparent' }}></div>
+
+            {/* Cabecera Técnica */}
+            <div style={{ borderBottom: '3px solid #111', paddingBottom: '4px', marginBottom: '10px', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '18px', fontWeight: '900', fontFamily: 'Impact, system-ui, sans-serif', letterSpacing: '0.5px', color: '#111', lineHeight: '1' }}>CONCORDE ONLY</span>
+              <span style={{ fontSize: '10px', fontWeight: 'bold', letterSpacing: '1.5px', color: '#111' }}>関係者以外使用禁止</span> {/* "Uso exclusivo para personal autorizado" */}
+            </div>
+
+            {/* Información del Usuario */}
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', display: 'block', borderBottom: '1px solid #111', marginBottom: '2px', textTransform: 'uppercase' }}>品名 (Name)</span>
+              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#111', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {userName}
+              </span>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', display: 'block', borderBottom: '1px solid #111', marginBottom: '2px', textTransform: 'uppercase' }}>管理番号 (Contact)</span>
+              <span style={{ fontSize: '11px', color: '#111', fontFamily: 'monospace', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {userEmail}
+              </span>
+            </div>
+
+            {/* Footer: Rol y Código de Barras */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '2px solid #111', paddingTop: '8px' }}>
+              <div style={{
+                border: '2px solid #111',
+                padding: '2px 8px',
+                fontWeight: '900',
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                color: userRole === 'super admin' ? '#d9534f' : '#111',
+                backgroundColor: '#f5f4f0'
+              }}>
+                {userRole}
+              </div>
+              
+              {/* Código de barras CSS simulado */}
+              <div style={{ display: 'flex', gap: '2px', height: '22px' }}>
+                <div style={{ width: '2px', backgroundColor: '#111' }}></div>
+                <div style={{ width: '4px', backgroundColor: '#111' }}></div>
+                <div style={{ width: '1px', backgroundColor: '#111' }}></div>
+                <div style={{ width: '3px', backgroundColor: '#111' }}></div>
+                <div style={{ width: '2px', backgroundColor: '#111' }}></div>
+                <div style={{ width: '1px', backgroundColor: '#111' }}></div>
+                <div style={{ width: '5px', backgroundColor: '#111' }}></div>
+                <div style={{ width: '1px', backgroundColor: '#111' }}></div>
+              </div>
+            </div>
+          </div>
+          {/* FIN NERV ID CARD */}
+
+          <nav className="crm-nav-container" style={{ paddingTop: 0 }}>
             {visibleNavItems.map(item => {
               const isActive = location.pathname === item.path || 
                 (item.path === '/admin/clientes' && location.pathname.startsWith('/admin/clientes/')) ||
@@ -148,7 +213,6 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Ruta para el gestor de cuentas del Super Admin */}
         <Route path="/admin/usuarios" element={
           <ProtectedRoute allowedRoles={['super admin']}>
             <AdminLayout><UsersManagement /></AdminLayout>
