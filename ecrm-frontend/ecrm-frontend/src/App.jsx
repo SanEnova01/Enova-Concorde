@@ -9,7 +9,7 @@ import TotalTickets from './views/admin/TotalTickets';
 import TicketDetail from './views/admin/TicketDetail';
 import MetricsPage from './views/admin/MetricsPage';
 import UsersManagement from './views/admin/UsersManagement';
-
+import CoopPilotReturns from './views/public/CoopPilotReturns';
 // Autenticación y Protección de Canales
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -189,6 +189,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        
+        {/* NUEVA RUTA PÚBLICA DE COOPPILOT */}
+        <Route path="/cooppilot" element={<CoopPilotReturns />} />
 
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
