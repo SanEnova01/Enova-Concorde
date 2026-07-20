@@ -33,29 +33,46 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET: Obtener una tienda por ID (Para la Landing del Cliente)
+// GET: Obtener una tienda por ID (O resolver 'cuentacliente' por el correo del usuario)
 router.get('/:id', async (req, res) => {
   try {
-    const result = await StoreRepository.getById(req.params.id);
+    let storeId = req.params.id;
+
+    // 🌟 SI VIENE 'cuentacliente', BUSCAMOS LA TIENDA VINCULADA AL CORREO DEL TOKEN
+    if (storeId === 'cuentacliente') {
+      const userEmail = req.adminUser ? req.adminUser.email : '';
+      const stores = await StoreRepository.getAll();
+      const correoLimpio = String(userEmail).toLowerCase().trim();
+      
+      const matched = stores.find(store => {
+        const list = String(store.emails || '').toLowerCase().split(/[\s,;]+/).map(e => e.trim());
+        return list.includes(correoLimpio);
+      });
+
+      if (matched) {
+        return res.status(200).json({ success: true, data: matched });
+      } else {
+        return res.status(404).json({ success: false, error: 'Tienda no asociada a este correo.' });
+      }
+    }
+
+    const result = await StoreRepository.getById(storeId);
     if (!result) {
       return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
     }
     res.status(200).json({ success: true, data: result });
   } catch (error) {
-    console.error(error);
+    console.error("Error en GET /stores/:id", error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });
 
-// =================================================================
-// NUEVA RUTA - PATCH: Actualizar los datos e imagen de la tienda
-// =================================================================
+// PATCH: Actualizar los datos e imagen de la tienda
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const storeData = req.body;
 
-    // Validación intermedia de seguridad
     if (!id) {
       return res.status(400).json({ success: false, error: 'El ID de la tienda es requerido.' });
     }
