@@ -1,5 +1,26 @@
 const db = require('../config/db');
 
+// ESCUDOS AUTO-CORRECTORES (Evitan que PostgreSQL rechace la data)
+const sanitizePriority = (p) => {
+  if (!p) return 'MEDIUM';
+  const upper = String(p).toUpperCase();
+  if (upper.includes('BAJA') || upper === 'LOW') return 'LOW';
+  if (upper.includes('MEDIA') || upper === 'MEDIUM') return 'MEDIUM';
+  if (upper.includes('ALTA') || upper === 'HIGH') return 'HIGH';
+  if (upper.includes('CRITIC') || upper === 'CRITICAL') return 'CRITICAL';
+  return 'MEDIUM'; // Valor seguro por defecto
+};
+
+const sanitizeTaskType = (t) => {
+  if (!t) return 'CONSULTA';
+  const upper = String(t).toUpperCase();
+  if (upper.includes('BUG')) return 'BUG_FIX';
+  if (upper.includes('INTERNA')) return 'TASK_INTERNA';
+  if (upper.includes('CAMBIO')) return 'CAMBIO';
+  // Si llega 'SOPORTE', 'GENERAL' u otra cosa extraña, lo fuerza al valor seguro:
+  return 'CONSULTA'; 
+};
+
 class TicketRepository {
   static async generateSerialNumber() {
     const year = new Date().getFullYear();
@@ -22,31 +43,42 @@ class TicketRepository {
     try {
       const serial_number = await this.generateSerialNumber();
       
-      // Iniciamos una transacción segura en PostgreSQL
+      // 1. Limpiamos las palabras conflictivas
+      const validPriority = sanitizePriority(ticketData.priority);
+      const validTaskType = sanitizeTaskType(ticketData.task_type);
+
+      // 2. Protegemos contra el error "store_id violates not-null"
+      let finalStoreId = ticketData.store_id;
+      if (!finalStoreId || finalStoreId === 'null') {
+        const defaultStore = await db('stores').first();
+        finalStoreId = defaultStore ? defaultStore.id : 'enova.agency';
+      }
+
       const newTicket = await db.transaction(async (trx) => {
-        // 1. Insertamos el ticket incluyendo descripción/nota
         const [insertedTicket] = await trx('tickets').insert({
           serial_number,
-          name: ticketData.name,
-          description: ticketData.description || null, // <-- CAMPO EDITADO: NOTA/DESCRIPCIÓN
-          store_id: ticketData.store_id,
-          priority: ticketData.priority || 'MEDIUM',
-          task_type: ticketData.task_type,
+          name: ticketData.name || 'Ticket Automático',
+          description: ticketData.description || null,
+          store_id: finalStoreId,
+          priority: validPriority,
+          task_type: validTaskType,
           status: 'OPEN',
           assigned_to: ticketData.assigned_to || null,
         }).returning('*');
 
-        // 2. Incrementamos +1 de forma automática en el contador de la tienda asociada
-        await trx('stores')
-          .where({ id: ticketData.store_id })
-          .increment('ticket_count', 1);
+        // Incrementamos el contador de la tienda
+        if (finalStoreId) {
+          await trx('stores')
+            .where({ id: finalStoreId })
+            .increment('ticket_count', 1);
+        }
 
         return insertedTicket;
       });
 
       return newTicket;
     } catch (error) {
-      throw new Error('Error al crear el ticket y actualizar el contador: ' + error.message);
+      throw new Error('Error al crear el ticket: ' + error.message);
     }
   }
 
@@ -58,25 +90,35 @@ class TicketRepository {
     }
   }
 
-  // Agregar dentro de la clase TicketRepository:
-static async update(id, data) {
-  const [updated] = await db('tickets')
-    .where({ id })
-    .update({
+  static async update(id, data) {
+    // Auto-corrector también en las ediciones
+    const validPriority = sanitizePriority(data.priority);
+    const validTaskType = sanitizeTaskType(data.task_type);
+    
+    const updatePayload = {
       name: data.name,
       description: data.description,
-      store_id: data.store_id || null,
       assigned_to: data.assigned_to || null,
-      priority: data.priority,
-      task_type: data.task_type
-    })
-    .returning('*');
-  return updated;
-}
+      priority: validPriority,
+      task_type: validTaskType
+    };
 
-static async delete(id) {
-  return await db('tickets').where({ id }).del();
-}
+    // Solo actualizamos store_id si realmente envían uno válido
+    if (data.store_id && data.store_id !== 'null') {
+      updatePayload.store_id = data.store_id;
+    }
+
+    const [updated] = await db('tickets')
+      .where({ id })
+      .update(updatePayload)
+      .returning('*');
+      
+    return updated;
+  }
+
+  static async delete(id) {
+    return await db('tickets').where({ id }).del();
+  }
   
   static async updateStatus(id, status) {
     try {
@@ -97,6 +139,5 @@ static async delete(id) {
     }
   }
 }
-
 
 module.exports = TicketRepository;
