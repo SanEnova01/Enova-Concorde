@@ -16,9 +16,11 @@ function TicketDetail() {
   const [loading, setLoading] = useState(true);
   const [ticketError, setTicketError] = useState(false);
 
-  // Estados para el Chat
+  // Estados para el Chat Flotante
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const chatScrollRef = useRef(null); // Para hacer auto-scroll al fondo del chat
 
   // Estados para el buscador desplegable de Tiendas
   const [storeSearch, setStoreSearch] = useState('');
@@ -70,19 +72,25 @@ function TicketDetail() {
   };
 
   useEffect(() => {
-    // 1. Obtener la identidad y el rol del usuario conectado
     const token = localStorage.getItem('crm_token');
     if (token) {
       try {
         const payload = JSON.parse(window.atob(token.split('.')[1]));
         setUserRole(payload.role);
-        setUserName(payload.name || payload.email); // Usar nombre si existe, sino email
+        setUserName(payload.name || payload.email);
       } catch(e) { console.error(e); }
     }
 
     fetchTicketData();
     fetchMessages();
   }, [ticketId]);
+
+  // Auto-scroll al fondo del chat cuando se abre o hay nuevos mensajes
+  useEffect(() => {
+    if (isChatOpen && chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [isChatOpen, messages]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -250,8 +258,7 @@ function TicketDetail() {
   }
 
   return (
-    <div style={{ position: 'relative' }}>
-      {/* INYECCIÓN DE ESTILOS PARA LA ANIMACIÓN DEL AVIÓN CONCORDE */}
+    <div style={{ position: 'relative', minHeight: '100vh', paddingBottom: '80px' }}>
       <style>{`
         @keyframes flyConcorde {
           0% { transform: translateX(-40px) rotate(90deg) scale(0.8); opacity: 0; }
@@ -303,6 +310,94 @@ function TicketDetail() {
           </div>
         </div>
       )}
+
+      {/* WIDGET FLOTANTE DE CHAT */}
+      <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+        
+        {/* Ventana del Chat */}
+        {isChatOpen && (
+          <div style={{
+            width: '340px', height: '450px', backgroundColor: '#ffffff', border: '1px solid #111111', 
+            borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', display: 'flex', 
+            flexDirection: 'column', overflow: 'hidden', marginBottom: '16px',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            {/* Header del Chat */}
+            <div style={{ backgroundColor: '#111111', color: '#ffffff', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontWeight: 'bold', fontSize: '14px', display: 'block' }}>Chat del Ticket</span>
+                <span style={{ fontSize: '11px', opacity: 0.8 }}>{ticket.serial_number}</span>
+              </div>
+              <button onClick={() => setIsChatOpen(false)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Mensajes */}
+            <div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f5f4f0' }}>
+              {messages.length === 0 ? (
+                <div style={{ textAlign: 'center', margin: 'auto', color: '#666666', fontSize: '13px' }}>
+                  <p>No hay mensajes aún.</p><p>¡Inicia la conversación!</p>
+                </div>
+              ) : (
+                messages.map(msg => {
+                  const isMe = msg.sender === userName;
+                  return (
+                    <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                      <span style={{ fontSize: '10px', color: '#666', marginBottom: '4px', display: 'block', textAlign: isMe ? 'right' : 'left' }}>
+                        {msg.sender} • {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                      <div style={{ backgroundColor: isMe ? '#111111' : '#ffffff', color: isMe ? '#ffffff' : '#111111', border: isMe ? 'none' : '1px solid #d0d0d0', padding: '10px 14px', borderRadius: '8px', borderTopRightRadius: isMe ? 0 : '8px', borderTopLeftRadius: !isMe ? 0 : '8px' }}>
+                        <p style={{ margin: 0, fontSize: '13px', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{msg.body}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Input Form */}
+            <form onSubmit={handleSendMessage} style={{ padding: '12px', borderTop: '1px solid #d0d0d0', backgroundColor: '#ffffff', display: 'flex', gap: '8px' }}>
+              <input 
+                type="text"
+                value={newMessage} 
+                onChange={e => setNewMessage(e.target.value)} 
+                placeholder="Escribe un mensaje..." 
+                style={{ flex: 1, padding: '10px 12px', borderRadius: '20px', border: '1px solid #d0d0d0', fontSize: '13px', outline: 'none' }}
+                required 
+              />
+              <button type="submit" style={{ backgroundColor: '#111111', color: '#ffffff', border: 'none', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Botón de la Burbuja */}
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          style={{
+            width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#111111', color: '#ffffff', 
+            border: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.3)', 
+            display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', transition: 'transform 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          {isChatOpen ? (
+             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          ) : (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          )}
+          
+          {/* Badge de mensajes no leídos (solo si el chat está cerrado y hay mensajes) */}
+          {messages.length > 0 && !isChatOpen && (
+            <span style={{ position: 'absolute', top: '-4px', right: '-4px', backgroundColor: '#d9534f', color: '#ffffff', fontSize: '11px', fontWeight: 'bold', minWidth: '22px', height: '22px', borderRadius: '11px', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '2px solid #f5f4f0' }}>
+              {messages.length}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* INTERFAZ DEL DETALLE */}
       <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -414,57 +509,6 @@ function TicketDetail() {
         <h3 className="crm-section-title" style={{ marginTop: 0 }}>Descripción Detallada del Problema</h3>
         {/* Utilizamos dangerouslySetInnerHTML para renderizar el HTML proveniente del scraper o notas normales */}
         <div style={{ margin: 0, fontSize: '15px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: ticket.description || 'No se han ingresado notas adicionales.' }} />
-      </div>
-
-      {/* ÁREA DE COMENTARIOS (Pseudo-Chat) */}
-      <div className="crm-card-paper" style={{ marginTop: '24px' }}>
-        <h3 className="crm-section-title" style={{ marginTop: 0 }}>Historial de Conversación</h3>
-        
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '12px', 
-          maxHeight: '400px', 
-          overflowY: 'auto', 
-          padding: '10px 0', 
-          borderBottom: '1px dotted #ccc', 
-          marginBottom: '16px' 
-        }}>
-          {messages.length === 0 ? (
-            <p className="crm-text-muted">No hay mensajes aún. ¡Inicia la conversación!</p>
-          ) : (
-            messages.map(msg => {
-              const isMe = msg.sender === userName;
-              return (
-                <div key={msg.id} style={{ 
-                  alignSelf: isMe ? 'flex-end' : 'flex-start', 
-                  backgroundColor: isMe ? '#f5f4f0' : '#ffffff', 
-                  border: '1px solid #d0d0d0', 
-                  padding: '10px 14px', 
-                  borderRadius: '8px', 
-                  maxWidth: '80%' 
-                }}>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#111111', display: 'block', marginBottom: '6px' }}>
-                    {msg.sender} <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#666' }}>• {new Date(msg.created_at).toLocaleString()}</span>
-                  </span>
-                  <p style={{ margin: 0, fontSize: '14px', whiteSpace: 'pre-wrap', color: '#333' }}>{msg.body}</p>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px' }}>
-          <textarea 
-            value={newMessage} 
-            onChange={e => setNewMessage(e.target.value)} 
-            placeholder="Escribe un comentario o actualización..." 
-            className="crm-select-dropdown" 
-            style={{ flex: 1, minHeight: '40px', resize: 'vertical' }} 
-            required 
-          />
-          <button type="submit" className="crm-btn-black" style={{ alignSelf: 'flex-end' }}>Enviar</button>
-        </form>
       </div>
 
     </div>
