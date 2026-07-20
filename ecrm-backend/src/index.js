@@ -11,6 +11,7 @@ const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
 
 const app = express();
 app.set('trust proxy', 1);
+
 // ==========================================
 // 0.1 CORS: DEBE IR ANTES QUE CUALQUIER OTRO MIDDLEWARE
 // ==========================================
@@ -30,8 +31,8 @@ app.use(helmet({
 const generalLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hora de ventana
   max: 2500, // 2500 solicitudes por hora (promedio de ~40 por minuto)
-  standardHeaders: true, // Devuelve info del límite en las cabeceras RateLimit-*
-  legacyHeaders: false, // Desactiva las cabeceras antiguas X-RateLimit-*
+  standardHeaders: true, 
+  legacyHeaders: false, 
   message: { 
     success: false, 
     error: 'Has superado el límite de actividad para tu cuenta. Por favor, espera unos minutos antes de continuar.' 
@@ -39,6 +40,7 @@ const generalLimiter = rateLimit({
 });
 
 app.use(generalLimiter);
+
 const loginLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, 
   max: 5,
@@ -131,8 +133,9 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       // Corregimos la contraseña directamente en la BD
       await db('users').where({ id: user.id }).update({ password: nuevoHashLimpio });
       
+      // SE INYECTA EL NOMBRE AL TOKEN (name: user.name)
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role }, 
+        { id: user.id, name: user.name, email: user.email, role: user.role }, 
         process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026', 
         { expiresIn: '12h' }
       );
@@ -151,9 +154,9 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       });
     }
 
-    // Generamos el pasaporte digital inyectando el correo en el Payload del JWT
+    // Generamos el pasaporte digital inyectando el nombre (name: user.name)
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role }, 
+      { id: user.id, name: user.name, email: user.email, role: user.role }, 
       process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026', 
       { expiresIn: '12h' }
     );
@@ -230,7 +233,7 @@ app.post(['/api/upload', '/upload'], verificarToken, upload.single('logo'), (req
 });
 
 // ==========================================
-// 🚀 ENDPOINT PÚBLICO PARA MEDIDOR.JS (CORREGIDO SIN COLUMNAS INEXISTENTES)
+// 🚀 ENDPOINT PÚBLICO PARA MEDIDOR.JS
 // ==========================================
 app.post('/api/ingest', async (req, res) => {
   const rawKey = req.headers['x-api-key'] || req.headers['X-API-KEY'] || req.headers['X-Api-Key'] || '';
@@ -250,7 +253,6 @@ app.post('/api/ingest', async (req, res) => {
       return res.status(400).json({ error: 'El campo store_id es obligatorio.' });
     }
 
-    // 🌟 INYECCIÓN LIMPIA: Solo las 13 columnas reales que existen en tu PostgreSQL
     const [insertedRow] = await db('daily_metrics').insert({
       store_id: metricData.store_id,
       date: metricData.date ? new Date(metricData.date).toISOString() : db.fn.now(),
@@ -286,23 +288,21 @@ app.use('/api/stores', verificarToken, require('./routes/stores'));
 // ==========================================
 app.get('/api/external/shopify-status', async (req, res) => {
   try {
-    // Consultamos el resumen completo (Global + Componentes individuales)
     const response = await fetch('https://status.shopify.com/api/v2/summary.json');
     const data = await response.json();
     
-    // Filtramos y limpiamos el array para enviar solo lo que el CRM necesita
     const componentsClean = (data.components || [])
-      .filter(c => !c.group_id) // Ignoramos los contenedores padre para quedarnos solo con los servicios reales
+      .filter(c => !c.group_id)
       .map(c => ({
         name: c.name,
-        status: c.status // 'operational', 'degraded_performance', 'partial_outage', 'major_outage', 'under_maintenance'
+        status: c.status 
       }));
 
     res.json({
       success: true,
       global: {
         status: data.status.description,
-        indicator: data.status.indicator // 'none', 'minor', 'major', 'critical'
+        indicator: data.status.indicator 
       },
       components: componentsClean,
       updated_at: data.page.updated_at
@@ -323,7 +323,7 @@ app.get('/api/external/vtex-status', async (req, res) => {
     const data = await response.json();
     
     const componentsClean = (data.components || [])
-      .filter(c => !c.group_id) // Omitimos contenedores vacíos
+      .filter(c => !c.group_id)
       .map(c => ({
         name: c.name,
         status: c.status 
@@ -345,7 +345,7 @@ app.get('/api/external/vtex-status', async (req, res) => {
 }); 
 
 // ==========================================
-// 🛍️ PROXY EN TIEMPO REAL: MONITOR AUTÓNOMO WOOCOMMERCE (SIN PLUGINS)
+// 🛍️ PROXY EN TIEMPO REAL: MONITOR AUTÓNOMO WOOCOMMERCE
 // ==========================================
 app.get('/api/external/woocommerce-status', async (req, res) => {
   try {
@@ -358,7 +358,6 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s Timeout
 
-    // Hacemos una petición directa a la URL pública que guardó el usuario
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -371,11 +370,9 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     const responseTime = Date.now() - startTime;
     const htmlHeader = await response.text().catch(() => '');
 
-    // Analizamos el cuerpo del HTML público en busca de patrones de error de WordPress
     const tieneErrorBD = htmlHeader.toLowerCase().includes('error estableciendo') || htmlHeader.toLowerCase().includes('database error');
     const tieneErrorCritico = htmlHeader.toLowerCase().includes('error crítico') || htmlHeader.toLowerCase().includes('critical error');
 
-    // 🌟 Estructuramos los componentes SIMULADOS sin "Conectividad Web (Uptime)"
     const components = [
       {
         name: 'Resolución de DNS y SSL',
@@ -398,7 +395,6 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     res.json({
       success: true,
       global: {
-        // 🌟 Ahora el estado global ignora el response.ok para no alertar falsos positivos por bloqueos WAF
         status: !tieneErrorBD && !tieneErrorCritico ? 'All Systems Operational' : 'Systems Disruption',
         indicator: !tieneErrorBD && !tieneErrorCritico ? 'none' : 'major'
       },
@@ -421,46 +417,10 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
     });
   }
 });
-// ==========================================
-// SERVIR FRONTEND REAL
-// ==========================================
-const reactBuildPath = path.join(__dirname, 'dist');  
-
-// 1. Esto le da permiso a Express de entregar los archivos de la carpeta dist
-app.use(express.static(reactBuildPath));
-
-// 2. Esto soluciona los errores 404 del navegador buscando los assets de Vite
-app.use('/assets', express.static(path.join(reactBuildPath, 'assets')));
-
-// 3. Esto atrapa cualquier otra ruta y le entrega el HTML limpio a React
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(reactBuildPath, 'index.html'));
-});
-
-const PORT = process.env.PORT || 8080;
-const HOST = '0.0.0.0'; // <-- Red tradicional IPv4 para que Railway nos encuentre
-
-const HubspotService = require('./services/HubspotService');
-setInterval(() => {
-  HubspotService.syncTickets();
-}, 2 * 60 * 1000);
-
-// Ejecutar primera sincronización al iniciar el servidor
-HubspotService.syncTickets();
-
-app.listen(8080, '0.0.0.0', () => {
-  console.log('Servidor central del CRM corriendo exitosamente');
-});
-
-app.listen(PORT, HOST, () => {
-  console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
-});
 
 // ==========================================
 // NUEVAS RUTAS: GESTIÓN COMPLETA DE USUARIOS
 // ==========================================
-
-// Obtener todos los usuarios
 app.get('/api/users', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
@@ -473,7 +433,6 @@ app.get('/api/users', verificarToken, async (req, res) => {
   }
 });
 
-// Editar un usuario (incluyendo reseteo de contraseña si la escriben)
 app.put('/api/users/:id', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
@@ -488,7 +447,6 @@ app.put('/api/users/:id', verificarToken, async (req, res) => {
       role 
     };
 
-    // Si el super admin escribió una contraseña nueva, la encriptamos y la actualizamos
     if (password && password.trim() !== '') {
       updateData.password = await bcrypt.hash(password, 10);
     }
@@ -500,7 +458,6 @@ app.put('/api/users/:id', verificarToken, async (req, res) => {
   }
 });
 
-// Eliminar un usuario
 app.delete('/api/users/:id', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
@@ -512,4 +469,30 @@ app.delete('/api/users/:id', verificarToken, async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// ==========================================
+// SERVIR FRONTEND REAL
+// ==========================================
+const reactBuildPath = path.join(__dirname, 'dist');  
+
+app.use(express.static(reactBuildPath));
+app.use('/assets', express.static(path.join(reactBuildPath, 'assets')));
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(reactBuildPath, 'index.html'));
+});
+
+const PORT = process.env.PORT || 8080;
+const HOST = '0.0.0.0'; 
+
+const HubspotService = require('./services/HubspotService');
+setInterval(() => {
+  HubspotService.syncTickets();
+}, 2 * 60 * 1000);
+
+// Ejecutar primera sincronización al iniciar el servidor
+HubspotService.syncTickets();
+
+app.listen(PORT, HOST, () => {
+  console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
 });
