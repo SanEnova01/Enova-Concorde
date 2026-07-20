@@ -46,7 +46,12 @@ function TicketDetail() {
     { label: 'CRÍTICA', value: 'CRITICAL' }
   ];
 
-  const taskTypes = ['CONSULTA', 'CAMBIO', 'BUG FIX', 'TAREA INTERNA'];
+  const taskTypes = [
+    { label: 'CONSULTA', value: 'CONSULTA' },
+    { label: 'CAMBIO', value: 'CAMBIO' },
+    { label: 'BUG FIX', value: 'BUG_FIX' },
+    { label: 'TAREA INTERNA', value: 'TASK_INTERNA' }
+  ];
 
   const extraerArreglo = (response) => {
     if (!response || !response.data) return [];
@@ -306,11 +311,18 @@ function TicketDetail() {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Tipo de Tarea</label>
-              <select className="crm-select-dropdown" style={{ width: '100%' }} value={editForm.task_type} onChange={(e) => setEditForm({ ...editForm, task_type: e.target.value })}>
-                {taskTypes.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
+  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Tipo de Tarea</label>
+  <select 
+    className="crm-select-dropdown" 
+    style={{ width: '100%' }}
+    value={editForm.task_type}
+    onChange={(e) => setEditForm({ ...editForm, task_type: e.target.value })}
+  >
+    {taskTypes.map(t => (
+      <option key={t.value} value={t.value}>{t.label}</option>
+    ))}
+  </select>
+</div>
 
             <div style={{ gridColumn: 'span 2' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Responsable (Opcional)</label>
