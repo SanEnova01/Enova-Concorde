@@ -1,125 +1,169 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 function CoopPilotTracking() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
-  const [storeBranding, setStoreBranding] = useState({ name: 'CENTRO DE AYUDA', logo_url: '' });
-  const [trackData, setTrackData] = useState({ order_number: '', email: '' });
-  const [orderInfo, setOrderInfo] = useState(null);
+  const [searchParams] = useSearchParams();
+  const storeId = searchParams.get('store') || 'enova-digital';
+
+  const [loading, setLoading] = useState(true);
+  const [storeInfo, setStoreInfo] = useState(null);
+
+  const [orderNumber, setOrderNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [trackingData, setTrackingData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const storeQuery = urlParams.get('store');
-    if (storeQuery) {
-      setStoreBranding({ name: storeQuery.toUpperCase(), logo_url: '' });
-      setTrackData(prev => ({ ...prev, store_id: storeQuery }));
-    } else {
-      setTrackData(prev => ({ ...prev, store_id: 'enova.agency' })); // Fallback
-    }
-  }, []);
-
-  const handleTrackOrder = async (e) => {
-    e.preventDefault();
     setLoading(true);
-    setError('');
-    setOrderInfo(null);
-    
+    crmApi.get(`/cooppilot/config/${storeId}`)
+      .then(res => {
+        if (res.data.success) {
+          setStoreInfo(res.data.data);
+        }
+      })
+      .catch(err => console.error("Error al consultar tienda:", err))
+      .finally(() => setLoading(false));
+  }, [storeId]);
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!orderNumber || !email) {
+      setErrorMsg('Por favor ingresa tu número de pedido y correo.');
+      return;
+    }
+
+    setIsSearching(true);
+    setErrorMsg('');
+    setTrackingData(null);
+
     try {
-      // Reutilizamos el endpoint que ya habíamos creado para validar pedidos
-      const response = await crmApi.post('/cooppilot/verify-order', trackData);
-      
-      if (response.data.success) {
-        setOrderInfo(response.data.data);
+      const res = await crmApi.post('/cooppilot/verify-order', {
+        store_id: storeId,
+        order_number: orderNumber,
+        email: email
+      });
+
+      if (res.data.success) {
+        setTrackingData(res.data.data);
+      } else {
+        setErrorMsg(res.data.error || 'No se encontró la orden especificada.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'No pudimos encontrar tu pedido. Verifica los datos.');
+      setErrorMsg(err.response?.data?.error || 'Error verificando la orden.');
     } finally {
-      setLoading(false);
+      setIsSearching(false);
     }
   };
 
-  // Función para determinar qué paso del timeline está activo
-  const getStatusLevel = (status) => {
-    const levels = { 'PENDING': 1, 'PROCESSING': 2, 'SHIPPED': 3, 'DELIVERED': 4 };
-    return levels[status] || 1;
-  };
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#090a0f', color: '#FFD700', fontFamily: 'monospace' }}>
+        <p>Cargando módulo de rastreo...</p>
+      </div>
+    );
+  }
+
+  // 🔒 BLOQUEO SI NO TIENE COOPPILOT O EL MÓDULO DE RASTREO DESACTIVADO
+  if (!storeInfo || !storeInfo.has_cooppilot || !storeInfo.has_tracking) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#090a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ backgroundColor: '#12141d', border: '1px solid #222', borderRadius: '12px', padding: '40px 30px', maxWidth: '480px', width: '100%', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.8)' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+          <h2 style={{ fontSize: '20px', fontWeight: '900', color: '#FFD700', margin: '0 0 10px 0', textTransform: 'uppercase' }}>
+            Módulo No Disponible
+          </h2>
+          <p style={{ fontSize: '14px', color: '#a0a5b5', lineHeight: '1.6', margin: '0 0 20px 0' }}>
+            El servicio de <strong>Rastreo de Pedidos</strong> no se encuentra activo para la tienda <strong>{storeInfo?.name || storeId}</strong>.
+          </p>
+          <button 
+            onClick={() => navigate(`/cooppilot?store=${storeId}`)}
+            style={{ backgroundColor: '#FFD700', color: '#111', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            Volver al Centro de Ayuda
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f5f4f0', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 20px' }}>
-      
-      <div style={{ marginBottom: '30px', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', textTransform: 'uppercase', letterSpacing: '2px' }}>
-          {storeBranding.name}
-        </h1>
-        <p style={{ color: '#666', fontSize: '12px', letterSpacing: '1px' }}>RASTREO DE PEDIDO</p>
-      </div>
-
-      <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', width: '100%', maxWidth: '500px', overflow: 'hidden', padding: '32px 24px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#090a0f', color: '#f3f4f6', padding: '40px 20px', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ maxWidth: '650px', margin: '0 auto' }}>
         
-        {!orderInfo ? (
-          <form onSubmit={handleTrackOrder}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '20px' }}>Localiza tu paquete</h2>
-            <p style={{ fontSize: '14px', color: '#666', marginBottom: '24px' }}>Ingresa tus datos para ver el estado de tu envío en tiempo real.</p>
-            
-            {error && <div style={{ padding: '12px', backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #f87171', borderRadius: '4px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
+        <button 
+          onClick={() => navigate(`/cooppilot?store=${storeId}`)}
+          style={{ backgroundColor: 'transparent', border: 'none', color: '#FFD700', fontSize: '13px', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          ← Volver al Centro de Ayuda
+        </button>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>Número de Pedido</label>
-              <input type="text" placeholder="Ej: #1024" value={trackData.order_number} onChange={e => setTrackData({...trackData, order_number: e.target.value})} className="crm-input-text" required />
+        <div style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '30px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+            <span style={{ fontSize: '32px' }}>📦</span>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 'bold', color: '#ffffff' }}>Rastrear Pedido</h1>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>{storeInfo.name}</span>
             </div>
-
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>Correo Electrónico</label>
-              <input type="email" placeholder="El correo con el que compraste" value={trackData.email} onChange={e => setTrackData({...trackData, email: e.target.value})} className="crm-input-text" required />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="button" onClick={() => navigate('/cooppilot')} className="crm-btn-border" style={{ flex: 1 }}>Volver</button>
-              <button type="submit" disabled={loading} className="crm-btn-black" style={{ flex: 2 }}>
-                {loading ? 'Buscando...' : 'Rastrear'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div>
-            <h2 style={{ margin: '0 0 8px 0', fontSize: '20px' }}>Pedido {orderInfo.order_number}</h2>
-            <p style={{ fontSize: '14px', color: '#666', marginBottom: '30px' }}>Actualizado hace un momento</p>
-
-            {/* TIMELINE VISUAL */}
-            <div style={{ position: 'relative', borderLeft: '2px solid #e0e0e0', marginLeft: '12px', paddingBottom: '20px' }}>
-              
-              <div style={{ position: 'relative', paddingLeft: '30px', marginBottom: '30px' }}>
-                <div style={{ position: 'absolute', left: '-9px', top: '0', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getStatusLevel(orderInfo.status) >= 1 ? '#111' : '#fff', border: '2px solid #111' }}></div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: getStatusLevel(orderInfo.status) >= 1 ? '#111' : '#999' }}>Pedido Confirmado</h3>
-                <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Hemos recibido tu pedido correctamente.</p>
-              </div>
-
-              <div style={{ position: 'relative', paddingLeft: '30px', marginBottom: '30px' }}>
-                <div style={{ position: 'absolute', left: '-9px', top: '0', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getStatusLevel(orderInfo.status) >= 2 ? '#111' : '#fff', border: '2px solid #111' }}></div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: getStatusLevel(orderInfo.status) >= 2 ? '#111' : '#999' }}>En Preparación</h3>
-                <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Tu paquete está siendo empacado en nuestro almacén.</p>
-              </div>
-
-              <div style={{ position: 'relative', paddingLeft: '30px', marginBottom: '30px' }}>
-                <div style={{ position: 'absolute', left: '-9px', top: '0', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getStatusLevel(orderInfo.status) >= 3 ? '#111' : '#fff', border: '2px solid #111' }}></div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: getStatusLevel(orderInfo.status) >= 3 ? '#111' : '#999' }}>En Camino</h3>
-                <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Entregado a la empresa de transporte.</p>
-              </div>
-
-              <div style={{ position: 'relative', paddingLeft: '30px' }}>
-                <div style={{ position: 'absolute', left: '-9px', top: '0', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: getStatusLevel(orderInfo.status) === 4 ? '#22c55e' : '#fff', border: '2px solid #111' }}></div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: getStatusLevel(orderInfo.status) === 4 ? '#111' : '#999' }}>Entregado</h3>
-                <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>El paquete llegó a su destino final.</p>
-              </div>
-            </div>
-
-            <button onClick={() => setOrderInfo(null)} className="crm-btn-border" style={{ width: '100%', marginTop: '24px' }}>Rastrear otro pedido</button>
           </div>
-        )}
+
+          <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#d1d5db', marginBottom: '6px' }}>
+                Número de Pedido (Ej: #1024)
+              </label>
+              <input 
+                type="text" 
+                placeholder="#1001" 
+                value={orderNumber} 
+                onChange={e => setOrderNumber(e.target.value)}
+                style={{ width: '100%', padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '8px', color: '#ffffff', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#d1d5db', marginBottom: '6px' }}>
+                Correo Electrónico de la Compra
+              </label>
+              <input 
+                type="email" 
+                placeholder="cliente@ejemplo.com" 
+                value={email} 
+                onChange={e => setEmail(e.target.value)}
+                style={{ width: '100%', padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '8px', color: '#ffffff', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {errorMsg && (
+              <div style={{ padding: '12px', backgroundColor: '#3f1d1d', border: '1px solid #dc2626', borderRadius: '6px', color: '#f87171', fontSize: '13px' }}>
+                {errorMsg}
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              disabled={isSearching}
+              style={{ backgroundColor: '#FFD700', color: '#111', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: '900', fontSize: '14px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}
+            >
+              {isSearching ? 'Buscando...' : 'Consultar Estado'}
+            </button>
+          </form>
+
+          {trackingData && (
+            <div style={{ marginTop: '24px', padding: '20px', backgroundColor: '#1a1d2d', border: '1px solid #FFD700', borderRadius: '8px' }}>
+              <span style={{ fontSize: '11px', color: '#FFD700', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>ESTADO DEL ENVÍO</span>
+              <h3 style={{ margin: '6px 0 12px 0', fontSize: '18px', color: '#ffffff' }}>Pedido {trackingData.order_number}</h3>
+              <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#d1d5db' }}>
+                <strong>Estado actual:</strong> <span style={{ color: '#10b981', fontWeight: 'bold' }}>{trackingData.status}</span>
+              </p>
+              <p style={{ margin: 0, fontSize: '13px', color: '#9ca3af' }}>
+                Registrado para: {trackingData.customer_email}
+              </p>
+            </div>
+          )}
+        </div>
 
       </div>
     </div>

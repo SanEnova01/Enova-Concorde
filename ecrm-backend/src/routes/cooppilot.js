@@ -31,7 +31,9 @@ router.get('/config/:store_id', async (req, res) => {
         id: store.id,
         name: store.name,
         logo_url: store.logo_url,
-        has_cooppilot: !!store.has_cooppilot
+        has_cooppilot: !!store.has_cooppilot,
+        has_tracking: store.has_tracking !== false,
+        has_returns: store.has_returns !== false
       }
     });
   } catch (error) {

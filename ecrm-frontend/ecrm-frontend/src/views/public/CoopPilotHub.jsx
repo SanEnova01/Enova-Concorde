@@ -139,30 +139,41 @@ function CoopPilotHub() {
           </div>
         </div>
 
-        {/* TARJETAS DE ACCIÓN RÁPIDA (RASTREO / DEVOLUCIONES) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-          <button 
-            onClick={() => navigate(`/cooppilot/rastreo?store=${storeId}`)}
-            style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}
-          >
-            <div style={{ fontSize: '28px', marginBottom: '10px' }}>📦</div>
-            <strong style={{ fontSize: '16px', color: '#ffffff', display: 'block', marginBottom: '4px' }}>Rastrear Pedido</strong>
-            <span style={{ fontSize: '12px', color: '#9ca3af' }}>Consulta el estado del envío en tiempo real</span>
-          </button>
+        {/* TARJETAS DE ACCIÓN RÁPIDA (SOLO SI ESTÁN ACTIVAS) */}
+        {(storeInfo.has_tracking || storeInfo.has_returns) && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: (storeInfo.has_tracking && storeInfo.has_returns) ? '1fr 1fr' : '1fr', 
+            gap: '16px', 
+            marginBottom: '24px' 
+          }}>
+            {storeInfo.has_tracking && (
+              <button 
+                onClick={() => navigate(`/cooppilot/rastreo?store=${storeId}`)}
+                style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '10px' }}>📦</div>
+                <strong style={{ fontSize: '16px', color: '#ffffff', display: 'block', marginBottom: '4px' }}>Rastrear Pedido</strong>
+                <span style={{ fontSize: '12px', color: '#9ca3af' }}>Consulta el estado del envío en tiempo real</span>
+              </button>
+            )}
 
-          <button 
-            onClick={() => navigate(`/cooppilot/devoluciones?store=${storeId}`)}
-            style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}
-          >
-            <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔄</div>
-            <strong style={{ fontSize: '16px', color: '#ffffff', display: 'block', marginBottom: '4px' }}>Cambios y Devoluciones</strong>
-            <span style={{ fontSize: '12px', color: '#9ca3af' }}>Gestiona el cambio de producto o talla</span>
-          </button>
-        </div>
+            {storeInfo.has_returns && (
+              <button 
+                onClick={() => navigate(`/cooppilot/devoluciones?store=${storeId}`)}
+                style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '22px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#FFD700'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2e3d'}
+              >
+                <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔄</div>
+                <strong style={{ fontSize: '16px', color: '#ffffff', display: 'block', marginBottom: '4px' }}>Cambios y Devoluciones</strong>
+                <span style={{ fontSize: '12px', color: '#9ca3af' }}>Gestiona el cambio de producto o talla</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* MÓDULO INTERACTIVO DE ASISTENTE VIRTUAL IA */}
         <div style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>

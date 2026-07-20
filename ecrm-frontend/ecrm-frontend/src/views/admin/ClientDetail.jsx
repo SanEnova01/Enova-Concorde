@@ -183,7 +183,9 @@ function ClientDetail() {
       plan_type: client.plan_type || 'GO',
       tecnologia: client.tecnologia || '',
       logo_url: client.logo_url || '',
-      has_cooppilot: client.has_cooppilot || false // 👈 AGREGAR ESTA LÍNEA
+      has_cooppilot: client.has_cooppilot || false,
+      has_tracking: client.has_tracking !== false,
+      has_returns: client.has_returns !== false
     });
     setShowEditModal(true);
   };
@@ -869,18 +871,41 @@ function ClientDetail() {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: '#f9f9f6', border: '1px solid #ccc', borderRadius: '4px' }}>
-                <input 
-                  type="checkbox" 
-                  name="has_cooppilot"
-                  id="has_cooppilot_checkbox"
-                  checked={!!editFormData.has_cooppilot} 
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, has_cooppilot: e.target.checked }))}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <label htmlFor="has_cooppilot_checkbox" className="crm-stat-label" style={{ cursor: 'pointer', margin: 0, fontWeight: 'bold' }}>
-                  🚀 Habilitar Servicio CoopPilot (IA & Postventa)
-                </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px', padding: '12px', backgroundColor: '#f9f9f6', border: '1px solid #ccc', borderRadius: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input 
+                    type="checkbox" 
+                    name="has_cooppilot"
+                    id="has_cooppilot_checkbox"
+                    checked={!!editFormData.has_cooppilot} 
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, has_cooppilot: e.target.checked }))}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="has_cooppilot_checkbox" className="crm-stat-label" style={{ cursor: 'pointer', margin: 0, fontWeight: 'bold' }}>
+                    🚀 Habilitar Servicio CoopPilot (IA & Postventa)
+                  </label>
+                </div>
+
+                {editFormData.has_cooppilot && (
+                  <div style={{ marginLeft: '28px', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '8px', borderTop: '1px dashed #ccc' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={!!editFormData.has_tracking}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, has_tracking: e.target.checked }))}
+                      />
+                      📦 Módulo de Rastrear Pedido
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={!!editFormData.has_returns}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, has_returns: e.target.checked }))}
+                      />
+                      🔄 Módulo de Cambios y Devoluciones
+                    </label>
+                  </div>
+                )}
               </div>
 
               <div className="crm-pagination-box" style={{ marginTop: '16px', justifyContent: 'space-between' }}>

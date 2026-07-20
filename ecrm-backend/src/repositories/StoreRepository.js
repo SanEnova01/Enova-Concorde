@@ -60,6 +60,12 @@ class StoreRepository {
       if (typeof storeData.has_cooppilot !== 'undefined') {
         updatePayload.has_cooppilot = storeData.has_cooppilot;
       }
+      if (typeof storeData.has_tracking !== 'undefined') {
+        updatePayload.has_tracking = storeData.has_tracking;
+      }
+      if (typeof storeData.has_returns !== 'undefined') {
+        updatePayload.has_returns = storeData.has_returns;
+      }
 
       const [updatedStore] = await db('stores')
         .where({ id: id })
