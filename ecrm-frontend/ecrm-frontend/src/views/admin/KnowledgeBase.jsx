@@ -1,10 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import crmApi from '../../api/crmApi';
 
+// Helper ultra-seguro para decodificar el token sin que la app colapse
+const getUserFromToken = () => {
+  const token = localStorage.getItem('crm_token');
+  if (!token) return { role: 'client', store_id: '' };
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error("Error al decodificar token en KnowledgeBase:", e);
+    return { role: 'client', store_id: '' };
+  }
+};
+
 function KnowledgeBase() {
-  // 1. Detectar quién es el usuario logueado
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isClient = user.role === 'client';
+  const currentUser = getUserFromToken();
+  const isClient = currentUser.role === 'client';
 
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState('');
@@ -18,18 +37,16 @@ function KnowledgeBase() {
     answer: ''
   });
 
-  // 2. Lógica de inicio dependiendo del ROL
   useEffect(() => {
     if (isClient) {
-      // Si es la marca, fijamos su tienda automáticamente y no buscamos otras
-      setSelectedStore(user.store_id);
+      // Si es cliente, fijamos su tienda asignada
+      setSelectedStore(currentUser.store_id || '');
     } else {
-      // Si es la agencia (Enova), cargamos el selector de tiendas (El Hub)
+      // Si es admin/super admin, traemos la lista de tiendas para el selector
       fetchStores();
     }
   }, []);
 
-  // 3. Cuando cambia la tienda seleccionada (o se autoselecciona), traemos sus reglas
   useEffect(() => {
     if (selectedStore) {
       fetchKnowledge();
@@ -41,8 +58,8 @@ function KnowledgeBase() {
   const fetchStores = async () => {
     try {
       const res = await crmApi.get('/stores');
-      setStores(res.data);
-      if (res.data.length > 0) {
+      setStores(res.data || []);
+      if (res.data && res.data.length > 0) {
         setSelectedStore(res.data[0].id);
       }
     } catch (err) {
@@ -51,11 +68,12 @@ function KnowledgeBase() {
   };
 
   const fetchKnowledge = async () => {
+    if (!selectedStore) return;
     setLoading(true);
     try {
       const res = await crmApi.get(`/knowledge/${selectedStore}`);
-      if (res.data.success) {
-        setKnowledgeList(res.data.data);
+      if (res.data && res.data.success) {
+        setKnowledgeList(res.data.data || []);
       }
     } catch (err) {
       console.error('Error cargando conocimiento:', err);
@@ -77,7 +95,7 @@ function KnowledgeBase() {
       const payload = { store_id: selectedStore, ...formData };
       const res = await crmApi.post('/knowledge', payload);
       
-      if (res.data.success) {
+      if (res.data && res.data.success) {
         setFormData({ category: 'FAQ', question: '', answer: '' });
         fetchKnowledge();
       }
@@ -87,7 +105,7 @@ function KnowledgeBase() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar esta regla? La IA dejará de saber esto.')) return;
+    if (!window.confirm('¿Seguro que deseas eliminar esta regla? La IA dejará de responder sobre este tema.')) return;
     try {
       await crmApi.delete(`/knowledge/${id}`);
       fetchKnowledge();
@@ -108,7 +126,7 @@ function KnowledgeBase() {
           : "HUB DE AGENCIA: Audita y gestiona las reglas de inteligencia artificial de todos tus clientes."}
       </p>
 
-      {/* 4. SÓLO MOSTRAR EL SELECTOR SI ES LA AGENCIA (ADMIN) */}
+      {/* Solo mostramos el selector si es Admin o Super Admin */}
       {!isClient && (
         <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e5e7eb', borderRadius: '8px', border: '1px dashed #111' }}>
           <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Viendo la IA de:</label>
@@ -176,7 +194,7 @@ function KnowledgeBase() {
           </form>
         </div>
 
-        {/* MEMORIA DE LA IA */}
+        {/* MEMORIA ACTIVA */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px' }}>
           <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Memoria Activa</h2>
           
