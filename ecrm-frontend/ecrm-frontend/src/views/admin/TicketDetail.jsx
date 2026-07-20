@@ -215,12 +215,12 @@ function TicketDetail() {
         }
         .concorde-plane {
           position: absolute;
-          top: 26px; /* Altura exacta de los puntos rojo y celeste en tu imagen */
+          top: 26px;
           left: 0;
-          color: #000;
+          color: #e0e0e0; /* Gris claro para que sea una marca de agua de fondo */
           animation: flyConcorde 2s ease-in-out forwards;
           pointer-events: none;
-          z-index: 10;
+          z-index: 0; /* ¡Bajamos la capa del avión! */
         }
         .crm-modal-overlay {
           position: fixed; top: 0; left: 0; right: 0; bottom: 0;
