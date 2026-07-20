@@ -440,14 +440,17 @@ app.get(/.*/, (req, res) => {
 const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0'; // <-- Red tradicional IPv4 para que Railway nos encuentre
 
-// Sincronización periódica con HubSpot
 const HubspotService = require('./services/HubspotService');
 setInterval(() => {
   HubspotService.syncTickets();
 }, 2 * 60 * 1000);
 
-// Ejecutar sincronización inicial al arrancar
+// Ejecutar primera sincronización al iniciar el servidor
 HubspotService.syncTickets();
+
+app.listen(8080, '0.0.0.0', () => {
+  console.log('Servidor central del CRM corriendo exitosamente');
+});
 
 app.listen(PORT, HOST, () => {
   console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
