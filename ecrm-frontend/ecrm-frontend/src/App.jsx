@@ -13,7 +13,6 @@ import CoopPilotReturns from './views/public/CoopPilotReturns';
 // Autenticación y Protección de Canales
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
-import CoopPilotReturns from './views/public/CoopPilotReturns';
 import CoopPilotHub from './views/public/CoopPilotHub'; // Añadir esta línea
 
 
