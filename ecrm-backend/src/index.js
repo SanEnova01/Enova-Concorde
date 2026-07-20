@@ -10,7 +10,7 @@ const bcrypt = require('bcryptjs');
 const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
 
 const app = express();
-
+app.set('trust proxy', 1);
 // ==========================================
 // 0.1 CORS: DEBE IR ANTES QUE CUALQUIER OTRO MIDDLEWARE
 // ==========================================
