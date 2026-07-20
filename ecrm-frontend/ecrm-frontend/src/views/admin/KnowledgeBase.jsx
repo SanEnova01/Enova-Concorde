@@ -210,46 +210,49 @@ function KnowledgeBase() {
           <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Nueva Regla</h2>
           
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Categoría</label>
-              <select 
-                value={formData.category} 
-                onChange={e => setFormData({...formData, category: e.target.value})}
-                className="crm-select-dropdown" style={{ width: '100%' }}
-              >
-                <option value="FAQ">Pregunta Frecuente (FAQ)</option>
-                <option value="POLITICA_DEVOLUCION">Política de Devolución</option>
-                <option value="TIEMPOS_ENVIO">Tiempos de Envío</option>
-                <option value="TONO_MARCA">Tono de Marca (Instrucción IA)</option>
-              </select>
-            </div>
+  <div style={{ marginBottom: '15px' }}>
+    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Categoría</label>
+    <select 
+      value={formData.category} 
+      onChange={e => setFormData({...formData, category: e.target.value})}
+      className="crm-select-dropdown" 
+      style={{ width: '100%', boxSizing: 'border-box' }}
+    >
+      <option value="FAQ">Pregunta Frecuente (FAQ)</option>
+      <option value="POLITICA_DEVOLUCION">Política de Devolución</option>
+      <option value="TIEMPOS_ENVIO">Tiempos de Envío</option>
+      <option value="TONO_MARCA">Tono de Marca (Instrucción IA)</option>
+    </select>
+  </div>
 
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Pregunta o Palabras Clave</label>
-              <input 
-                type="text" 
-                placeholder="Ej: ¿Cuánto tiempo tengo para devolver?" 
-                value={formData.question}
-                onChange={e => setFormData({...formData, question: e.target.value})}
-                className="crm-input-text" style={{ width: '100%' }}
-              />
-            </div>
+  <div style={{ marginBottom: '15px' }}>
+    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Pregunta o Palabras Clave</label>
+    <input 
+      type="text" 
+      placeholder="Ej: ¿Cuánto tiempo tengo para devolver?" 
+      value={formData.question}
+      onChange={e => setFormData({...formData, question: e.target.value})}
+      className="crm-input-text" 
+      style={{ width: '100%', boxSizing: 'border-box' }}
+    />
+  </div>
 
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Respuesta de la IA</label>
-              <textarea 
-                placeholder="Ej: Tienes 30 días. Las prendas deben estar con etiquetas..." 
-                value={formData.answer}
-                onChange={e => setFormData({...formData, answer: e.target.value})}
-                className="crm-input-text" style={{ width: '100%', minHeight: '100px', resize: 'vertical' }}
-                required
-              />
-            </div>
+  <div style={{ marginBottom: '15px' }}>
+    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Respuesta de la IA</label>
+    <textarea 
+      placeholder="Ej: Tienes 30 días. Las prendas deben estar con etiquetas..." 
+      value={formData.answer}
+      onChange={e => setFormData({...formData, answer: e.target.value})}
+      className="crm-input-text" 
+      style={{ width: '100%', minHeight: '100px', resize: 'vertical', boxSizing: 'border-box' }}
+      required
+    />
+  </div>
 
-            <button type="submit" disabled={!selectedStore} className="crm-btn-black" style={{ width: '100%' }}>
-              Inyectar a la IA
-            </button>
-          </form>
+  <button type="submit" disabled={!selectedStore} className="crm-btn-black" style={{ width: '100%', boxSizing: 'border-box' }}>
+    Inyectar a la IA
+  </button>
+</form>
         </div>
 
         {/* LISTADO DE REGLAS */}
