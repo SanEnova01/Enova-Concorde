@@ -15,7 +15,7 @@ import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import CoopPilotHub from './views/public/CoopPilotHub'; // Añadir esta línea
 import CoopPilotTracking from "./views/public/CoopPilotTracking";
-
+import KnowledgeBase from "./views/admin/KnowledgeBase";
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,14 +50,15 @@ function AdminLayout({ children }) {
   }
 
   // Definición de rutas
-  const allNavItems = [
-    { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
-    { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
-    { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
-    { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
-    { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
-    { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
-  ];
+ const allNavItems = [
+  { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
+  { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
+  { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
+  { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
+  { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] }, // 👈 NUEVA RUTA
+  { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
+  { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
+];
 
   const visibleNavItems = allNavItems.filter(item => item.allowed.includes(userRole));
 
@@ -191,7 +192,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        
+        {/* MOTOR DE IA */}
+        <Route path="/knowledge" element={<KnowledgeBase />} />
         {/* RUTAS PÚBLICAS DE COOPPILOT (B2B2C) */}
         <Route path="/cooppilot" element={<CoopPilotHub />} />
         <Route path="/cooppilot/devoluciones" element={<CoopPilotReturns />} />

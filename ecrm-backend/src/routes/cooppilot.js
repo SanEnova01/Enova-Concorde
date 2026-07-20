@@ -57,7 +57,7 @@ router.post('/verify-order', async (req, res) => {
   }
 });
 
-// POST: Asistente de IA (Primer Filtro Conversacional)
+// POST: Asistente de IA (Primer Filtro Conversacional usando la Base de Conocimiento)
 router.post('/chat', async (req, res) => {
   try {
     const { store_id, query } = req.body;
@@ -66,38 +66,47 @@ router.post('/chat', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Por favor, escribe una pregunta.' });
     }
 
-    // ====================================================================
-    // 🧠 AQUÍ CONECTAREMOS OPENAI Y LA BASE DE CONOCIMIENTO (RAG)
-    // ====================================================================
-    // Por ahora, crearemos un motor de reglas básico para simular la IA
-    // y demostrar cómo ataja los problemas antes de crear un ticket.
+    // 1. Buscar si tenemos la tienda en la BD (o usar la tienda por defecto)
+    const activeStoreId = store_id || 'enova.agency';
 
-    let aiResponse = "He recibido tu consulta. En este momento estoy aprendiendo las políticas de la tienda, por lo que te sugiero hacer clic en 'Soporte Especializado' para hablar con un humano.";
-    let actionType = 'none';
+    // 2. Traer todas las reglas activas que le pertenecen a esta tienda
+    const kbRules = await db('knowledge_base')
+      .where({ store_id: activeStoreId, is_active: true });
 
-    const text = query.toLowerCase();
+    // 3. Motor de Búsqueda de Contexto (Simulación de RAG)
+    const textQuery = query.toLowerCase();
+    let matchedRule = null;
 
-    if (text.includes('tarjeta') || text.includes('pago') || text.includes('comprar')) {
-      aiResponse = "Si tu tarjeta no pasa, suele ser por un bloqueo preventivo de tu banco para compras online. Te sugiero:\n1. Llamar a tu banco para autorizar la compra.\n2. Intentar con una tarjeta distinta.\n3. Usar un método de pago alternativo si está disponible en el checkout.";
-      actionType = 'info';
-    } 
-    else if (text.includes('pedido') || text.includes('envío') || text.includes('dónde está')) {
-      aiResponse = "Para conocer el estado exacto de tu envío, por favor utiliza la opción 'Rastrear Pedido' que se encuentra en el menú inferior. Solo necesitarás tu número de pedido y correo electrónico.";
-      actionType = 'redirect_tracking';
-    }
-    else if (text.includes('cambio') || text.includes('devolver') || text.includes('talla')) {
-      aiResponse = "¡Claro que sí! Tienes hasta 30 días para solicitar un cambio de talla o devolución. Puedes iniciar el proceso automáticamente desde la opción 'Cambios y Devoluciones' aquí abajo.";
-      actionType = 'redirect_rma';
+    if (kbRules.length > 0) {
+      // Buscar la regla que mejor coincida con lo que preguntó el cliente
+      matchedRule = kbRules.find(rule => {
+        const questionMatch = rule.question && textQuery.includes(rule.question.toLowerCase());
+        const categoryMatch = textQuery.includes(rule.category.toLowerCase().replace('_', ' '));
+        const keywordMatch = rule.answer.toLowerCase().split(' ').some(word => word.length > 4 && textQuery.includes(word));
+        
+        return questionMatch || categoryMatch || keywordMatch;
+      });
     }
 
-    // Simulamos un pequeño "pensamiento" de la IA para que se sienta real
+    // 4. Determinar la respuesta final
+    let aiResponse = "";
+
+    if (matchedRule) {
+      // 🎯 ¡La IA encontró una respuesta en su Base de Conocimiento!
+      aiResponse = matchedRule.answer;
+    } else {
+      // Fallback si no encuentra nada en la Base de Conocimiento
+      aiResponse = "Entiendo tu consulta. No encontré una regla específica para este caso en nuestra base de datos, por lo que te recomiendo seleccionar la opción 'Soporte Especializado' para derivarte con un agente humano de inmediato.";
+    }
+
+    // Simulamos latencia ligera para que la UI marque "Escribiendo..."
     setTimeout(() => {
       res.json({ 
         success: true, 
         response: aiResponse,
-        action: actionType
+        has_matched_knowledge: !!matchedRule
       });
-    }, 1000);
+    }, 800);
 
   } catch (error) {
     console.error("Error en el chat de CoopPilot:", error);
