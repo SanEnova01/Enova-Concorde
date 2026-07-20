@@ -53,7 +53,6 @@ app.use(express.json());
 // ==========================================
 // 🧠 MOTOR DE IA: BASE DE CONOCIMIENTO
 // ==========================================
-app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 
 
 
@@ -294,7 +293,7 @@ app.post('/api/ingest', async (req, res) => {
 app.use('/api/metrics', verificarToken, require('./routes/metrics'));
 app.use('/api/tickets', verificarToken, require('./routes/tickets'));
 app.use('/api/stores', verificarToken, require('./routes/stores'));
-
+app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE SHOPIFY
 // ==========================================
