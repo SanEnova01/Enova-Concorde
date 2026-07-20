@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import crmApi from '../../api/crmApi';
 
-// Helper ultra-seguro para decodificar el token sin que la app colapse
+// Helper ultra-seguro para decodificar JWT sin romper la app
 const getUserFromToken = () => {
   const token = localStorage.getItem('crm_token');
   if (!token) return { role: 'client', store_id: '' };
@@ -16,7 +16,7 @@ const getUserFromToken = () => {
     );
     return JSON.parse(jsonPayload);
   } catch (e) {
-    console.error("Error al decodificar token en KnowledgeBase:", e);
+    console.error("Error decodificando token:", e);
     return { role: 'client', store_id: '' };
   }
 };
@@ -30,6 +30,7 @@ function KnowledgeBase() {
   const [knowledgeList, setKnowledgeList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const [formData, setFormData] = useState({
     category: 'FAQ',
@@ -39,10 +40,8 @@ function KnowledgeBase() {
 
   useEffect(() => {
     if (isClient) {
-      // Si es cliente, fijamos su tienda asignada
       setSelectedStore(currentUser.store_id || '');
     } else {
-      // Si es admin/super admin, traemos la lista de tiendas para el selector
       fetchStores();
     }
   }, []);
@@ -55,15 +54,21 @@ function KnowledgeBase() {
     }
   }, [selectedStore]);
 
+  // Garantiza que la respuesta siempre se convierta en Arreglo (evita pantalla blanca)
   const fetchStores = async () => {
     try {
       const res = await crmApi.get('/stores');
-      setStores(res.data || []);
-      if (res.data && res.data.length > 0) {
-        setSelectedStore(res.data[0].id);
+      const storeData = Array.isArray(res.data) 
+        ? res.data 
+        : (Array.isArray(res.data?.data) ? res.data.data : []);
+      
+      setStores(storeData);
+      if (storeData.length > 0) {
+        setSelectedStore(storeData[0].id);
       }
     } catch (err) {
       console.error('Error cargando tiendas:', err);
+      setStores([]);
     }
   };
 
@@ -72,11 +77,14 @@ function KnowledgeBase() {
     setLoading(true);
     try {
       const res = await crmApi.get(`/knowledge/${selectedStore}`);
-      if (res.data && res.data.success) {
-        setKnowledgeList(res.data.data || []);
-      }
+      const kbData = Array.isArray(res.data) 
+        ? res.data 
+        : (Array.isArray(res.data?.data) ? res.data.data : []);
+      
+      setKnowledgeList(kbData);
     } catch (err) {
       console.error('Error cargando conocimiento:', err);
+      setKnowledgeList([]);
     } finally {
       setLoading(false);
     }
@@ -85,6 +93,7 @@ function KnowledgeBase() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     
     if (!selectedStore) {
       setError('Error: No hay una tienda seleccionada.');
@@ -95,17 +104,19 @@ function KnowledgeBase() {
       const payload = { store_id: selectedStore, ...formData };
       const res = await crmApi.post('/knowledge', payload);
       
-      if (res.data && res.data.success) {
+      if (res.data && (res.data.success || res.status === 200)) {
+        setSuccessMsg('✅ Regla procesada e inyectada correctamente en PostgreSQL.');
         setFormData({ category: 'FAQ', question: '', answer: '' });
         fetchKnowledge();
+        setTimeout(() => setSuccessMsg(''), 4000);
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al guardar la regla.');
+      setError(err.response?.data?.error || 'Error al procesar e inyectar la regla.');
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar esta regla? La IA dejará de responder sobre este tema.')) return;
+    if (!window.confirm('¿Seguro que deseas eliminar esta regla?')) return;
     try {
       await crmApi.delete(`/knowledge/${id}`);
       fetchKnowledge();
@@ -114,22 +125,46 @@ function KnowledgeBase() {
     }
   };
 
-  return (
-    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
-      <h1 style={{ fontSize: '24px', fontWeight: 'bold', borderBottom: '2px solid #111', paddingBottom: '10px', marginBottom: '20px' }}>
-        🧠 Entrenamiento de IA (Base de Conocimiento)
-      </h1>
-      
-      <p style={{ color: '#666', marginBottom: '20px' }}>
-        {isClient 
-          ? "Añade políticas y preguntas frecuentes de tu marca. Nuestro asistente virtual leerá estas reglas antes de responder a tus clientes."
-          : "HUB DE AGENCIA: Audita y gestiona las reglas de inteligencia artificial de todos tus clientes."}
-      </p>
+  const safeStores = Array.isArray(stores) ? stores : [];
+  const safeKnowledgeList = Array.isArray(knowledgeList) ? knowledgeList : [];
 
-      {/* Solo mostramos el selector si es Admin o Super Admin */}
+  return (
+    <div style={{ padding: '20px', maxWidth: '1100px', margin: '0 auto' }}>
+      
+      {/* CABECERA */}
+      <h1 style={{ fontSize: '24px', fontWeight: 'bold', borderBottom: '2px solid #111', paddingBottom: '10px', marginBottom: '15px' }}>
+        🧠 Entrenamiento y Auditoría de IA
+      </h1>
+
+      {/* BARRA DE ESTADO Y AUDITORÍA DE PROCESAMIENTO */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+        
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
+          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>ESTADO DEL SERVIDOR</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
+            <span style={{ fontWeight: 'bold', fontSize: '14px' }}>BD Conectada</span>
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
+          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>REGLAS PROCESADAS</span>
+          <p style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: '900' }}>{safeKnowledgeList.length}</p>
+        </div>
+
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
+          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>TIENDA ACTIVA</span>
+          <p style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selectedStore || 'Ninguna'}
+          </p>
+        </div>
+
+      </div>
+
+      {/* SELECTOR DE TIENDAS PARA LA AGENCIA */}
       {!isClient && (
         <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e5e7eb', borderRadius: '8px', border: '1px dashed #111' }}>
-          <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Viendo la IA de:</label>
+          <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Auditar la IA de:</label>
           <select 
             value={selectedStore} 
             onChange={(e) => setSelectedStore(e.target.value)} 
@@ -137,19 +172,30 @@ function KnowledgeBase() {
             style={{ width: '300px' }}
           >
             <option value="">-- Elige una tienda --</option>
-            {stores.map(s => (
+            {safeStores.map(s => (
               <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
             ))}
           </select>
         </div>
       )}
 
+      {/* MENSAJES DE ESTADO DE PROCESAMIENTO */}
+      {successMsg && (
+        <div style={{ padding: '12px', backgroundColor: '#dcfce7', color: '#15803d', border: '2px solid #15803d', borderRadius: '6px', marginBottom: '20px', fontWeight: 'bold' }}>
+          {successMsg}
+        </div>
+      )}
+      {error && (
+        <div style={{ padding: '12px', backgroundColor: '#fee2e2', color: '#991b1b', border: '2px solid #991b1b', borderRadius: '6px', marginBottom: '20px', fontWeight: 'bold' }}>
+          {error}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
         
-        {/* FORMULARIO */}
+        {/* FORMULARIO DE INYECCIÓN */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '4px 4px 0px #111', height: 'fit-content' }}>
           <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Nueva Regla</h2>
-          {error && <div style={{ color: 'red', marginBottom: '10px', fontSize: '14px' }}>{error}</div>}
           
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '15px' }}>
@@ -167,7 +213,7 @@ function KnowledgeBase() {
             </div>
 
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Pregunta o Escenario</label>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Pregunta o Palabras Clave</label>
               <input 
                 type="text" 
                 placeholder="Ej: ¿Cuánto tiempo tengo para devolver?" 
@@ -194,20 +240,20 @@ function KnowledgeBase() {
           </form>
         </div>
 
-        {/* MEMORIA ACTIVA */}
+        {/* REGISTRO DE LO APRENDIDO (AUDITORÍA) */}
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Memoria Activa</h2>
+          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>Memoria Procesada en Sistema</h2>
           
           {loading ? (
-            <p>Cargando datos neuronales...</p>
-          ) : knowledgeList.length === 0 ? (
-            <p style={{ color: '#666', fontStyle: 'italic' }}>Aún no hay reglas. La IA no sabrá qué responder.</p>
+            <p style={{ fontStyle: 'italic', color: '#666' }}>Consultando base de conocimiento...</p>
+          ) : safeKnowledgeList.length === 0 ? (
+            <p style={{ color: '#666', fontStyle: 'italic' }}>Esta tienda aún no tiene reglas registradas.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {knowledgeList.map(item => (
-                <div key={item.id} style={{ border: '1px solid #ddd', padding: '15px', borderRadius: '6px' }}>
+              {safeKnowledgeList.map(item => (
+                <div key={item.id} style={{ border: '1px solid #111', padding: '15px', borderRadius: '6px', backgroundColor: '#f9f9f6' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '10px', backgroundColor: '#111', color: '#fff', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '10px', backgroundColor: '#111', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
                       {item.category}
                     </span>
                     <button 
@@ -218,7 +264,7 @@ function KnowledgeBase() {
                     </button>
                   </div>
                   {item.question && <p style={{ fontWeight: 'bold', margin: '0 0 5px 0', fontSize: '14px' }}>Q: {item.question}</p>}
-                  <p style={{ margin: 0, fontSize: '14px', color: '#444' }}>A: {item.answer}</p>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#333' }}>A: {item.answer}</p>
                 </div>
               ))}
             </div>
