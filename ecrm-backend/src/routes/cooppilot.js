@@ -57,4 +57,51 @@ router.post('/verify-order', async (req, res) => {
   }
 });
 
+// POST: Asistente de IA (Primer Filtro Conversacional)
+router.post('/chat', async (req, res) => {
+  try {
+    const { store_id, query } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ success: false, error: 'Por favor, escribe una pregunta.' });
+    }
+
+    // ====================================================================
+    // 🧠 AQUÍ CONECTAREMOS OPENAI Y LA BASE DE CONOCIMIENTO (RAG)
+    // ====================================================================
+    // Por ahora, crearemos un motor de reglas básico para simular la IA
+    // y demostrar cómo ataja los problemas antes de crear un ticket.
+
+    let aiResponse = "He recibido tu consulta. En este momento estoy aprendiendo las políticas de la tienda, por lo que te sugiero hacer clic en 'Soporte Especializado' para hablar con un humano.";
+    let actionType = 'none';
+
+    const text = query.toLowerCase();
+
+    if (text.includes('tarjeta') || text.includes('pago') || text.includes('comprar')) {
+      aiResponse = "Si tu tarjeta no pasa, suele ser por un bloqueo preventivo de tu banco para compras online. Te sugiero:\n1. Llamar a tu banco para autorizar la compra.\n2. Intentar con una tarjeta distinta.\n3. Usar un método de pago alternativo si está disponible en el checkout.";
+      actionType = 'info';
+    } 
+    else if (text.includes('pedido') || text.includes('envío') || text.includes('dónde está')) {
+      aiResponse = "Para conocer el estado exacto de tu envío, por favor utiliza la opción 'Rastrear Pedido' que se encuentra en el menú inferior. Solo necesitarás tu número de pedido y correo electrónico.";
+      actionType = 'redirect_tracking';
+    }
+    else if (text.includes('cambio') || text.includes('devolver') || text.includes('talla')) {
+      aiResponse = "¡Claro que sí! Tienes hasta 30 días para solicitar un cambio de talla o devolución. Puedes iniciar el proceso automáticamente desde la opción 'Cambios y Devoluciones' aquí abajo.";
+      actionType = 'redirect_rma';
+    }
+
+    // Simulamos un pequeño "pensamiento" de la IA para que se sienta real
+    setTimeout(() => {
+      res.json({ 
+        success: true, 
+        response: aiResponse,
+        action: actionType
+      });
+    }, 1000);
+
+  } catch (error) {
+    console.error("Error en el chat de CoopPilot:", error);
+    res.status(500).json({ success: false, error: 'Error procesando tu consulta.' });
+  }
+});
 module.exports = router;

@@ -1,27 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 function CoopPilotHub() {
   const navigate = useNavigate();
   const [storeBranding, setStoreBranding] = useState({ name: 'Cargando...', logo_url: '' });
+  
+  // Estados para la IA
   const [chatQuery, setChatQuery] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
 
-  // Simulador de Multitenancy: En el futuro esto leerá el subdominio real (ej. ayuda.rumah.pe)
   useEffect(() => {
-    // Por ahora simulamos que detectó a "Rumah"
     setStoreBranding({
       name: 'RUMAH',
-      logo_url: '' // Aquí iría el logo de Rumah si lo tuvieras
+      logo_url: '' 
     });
   }, []);
 
-  const handleAISearch = (e) => {
+  const handleAISearch = async (e) => {
     e.preventDefault();
-    alert(`Aquí la IA analizará: "${chatQuery}" y dará una solución instantánea antes de crear el ticket.`);
-    // Próximo paso: Conectar a OpenAI/Asistente
-  };
+    if (!chatQuery.trim()) return;
 
+    setIsTyping(true);
+    setAiResponse('');
+
+    try {
+      const res = await crmApi.post('/cooppilot/chat', { 
+        store_id: 'enova.agency', // ID dinámico en el futuro
+        query: chatQuery 
+      });
+
+      if (res.data.success) {
+        setAiResponse(res.data.response);
+      }
+    } catch (error) {
+      setAiResponse("Lo siento, tuve un problema de conexión. Por favor, intenta de nuevo.");
+    } finally {
+      setIsTyping(false);
+    }
+  };
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f4f0', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 20px' }}>
       
@@ -53,6 +71,21 @@ function CoopPilotHub() {
             <button type="submit" className="crm-btn-black" style={{ padding: '0 32px', fontSize: '16px' }}>
               Preguntar
             </button>
+            {/* ÁREA DE RESPUESTA DE LA IA */}
+          {(isTyping || aiResponse) && (
+            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f5f4f0', borderRadius: '8px', borderLeft: '4px solid #111' }}>
+              {isTyping ? (
+                <div style={{ color: '#666', fontStyle: 'italic', fontSize: '14px' }}>
+                  El asistente está escribiendo...
+                </div>
+              ) : (
+                <div>
+                  <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', fontSize: '12px', color: '#111' }}>ASISTENTE COOPPILOT</p>
+                  <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{aiResponse}</p>
+                </div>
+              )}
+            </div>
+          )}
           </form>
           <p style={{ fontSize: '12px', color: '#666', marginTop: '12px' }}>
             Nuestro asistente virtual intentará resolver tu duda al instante. Si no puede, te comunicará con un agente de inmediato.
