@@ -1,16 +1,21 @@
 const db = require('../config/db');
 const TicketRepository = require('../repositories/TicketRepository');
 
-// Marca de tiempo capturada exactamente al iniciar el servidor (en milisegundos)
-const serviceStartTime = Date.now();
-
 class HubspotService {
   static async syncTickets() {
     const token = process.env.HUBSPOT_ACCESS_TOKEN;
-    if (!token) return;
+    if (!token) {
+      console.log('[HubSpot] No hay Token configurado. Abortando sincronización.');
+      return;
+    }
 
     try {
-      // Usamos el endpoint de BÚSQUEDA para filtrar solo tickets creados desde este instante
+      console.log('[HubSpot] Iniciando búsqueda de tickets recientes...');
+      
+      // Buscar tickets creados en las últimas 24 horas (protege contra reinicios de Railway)
+      // Se usa toString() porque la API de HubSpot exige que el valor sea texto
+      const cutoffTime = (Date.now() - 24 * 60 * 60 * 1000).toString();
+
       const response = await fetch(
         'https://api.hubapi.com/crm/v3/objects/tickets/search',
         {
@@ -20,17 +25,13 @@ class HubspotService {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            filterGroups: [
-              {
-                filters: [
-                  {
-                    propertyName: 'createdate',
-                    operator: 'GTE', // Greater Than or Equal (Mayor o igual que)
-                    value: serviceStartTime
-                  }
-                ]
-              }
-            ],
+            filterGroups: [{
+              filters: [{
+                propertyName: 'createdate',
+                operator: 'GTE',
+                value: cutoffTime
+              }]
+            }],
             properties: ['subject', 'content', 'hs_ticket_priority', 'hs_pipeline_stage', 'createdate'],
             associations: ['contacts'],
             sorts: [{ propertyName: 'createdate', direction: 'DESCENDING' }]
@@ -39,30 +40,31 @@ class HubspotService {
       );
 
       if (!response.ok) {
-        console.error('[HubSpot Search] Error en la API:', response.statusText);
+        const errorData = await response.text();
+        console.error('[HubSpot Search] Error API HTTP:', response.status, errorData);
         return;
       }
 
       const data = await response.json();
       const hubspotTickets = data.results || [];
+      
+      console.log(`[HubSpot] Se encontraron ${hubspotTickets.length} tickets en las últimas 24h.`);
 
       for (const hsTicket of hubspotTickets) {
         const hsId = hsTicket.id;
         const props = hsTicket.properties || {};
 
-        // Evitar duplicados por si se ejecuta la consulta varias veces
+        // Verificamos si ya lo importamos antes
         const existingTicket = await db('tickets')
           .where('description', 'like', `%[HUBSPOT_ID: ${hsId}]%`)
           .first();
 
         if (!existingTicket) {
-          // A) Mapeo de prioridad
           let concordePriority = 'MEDIUM';
           const hsPriority = (props.hs_ticket_priority || '').toUpperCase();
           if (hsPriority === 'HIGH' || hsPriority === 'URGENT') concordePriority = 'HIGH';
           if (hsPriority === 'LOW') concordePriority = 'LOW';
 
-          // B) Búsqueda de tienda en Concorde según el email del contacto
           let storeId = null;
           const contactAssoc = hsTicket.associations?.contacts?.results?.[0];
 
@@ -90,16 +92,18 @@ class HubspotService {
             storeId = defaultStore ? defaultStore.id : null;
           }
 
-          // C) Inyección en la base de datos de Concorde
-          await TicketRepository.create({
-            name: props.subject || 'Ticket sin título (HubSpot)',
-            description: `[HUBSPOT_ID: ${hsId}]\n\n${props.content || 'Sin descripción.'}`,
-            store_id: storeId,
-            priority: concordePriority,
-            task_type: 'SOPORTE'
-          });
+          // Reemplaza esta sección en HubspotService.js:
+await TicketRepository.create({
+  name: props.subject || 'Ticket sin título (HubSpot)',
+  description: `[HUBSPOT_ID: ${hsId}]\n\n${props.content || 'Sin descripción.'}`,
+  store_id: storeId,
+  priority: concordePriority,
+  task_type: 'GENERAL' // <-- Cambiamos 'SOPORTE' por un tipo permitido por la DB
+});
 
-          console.log(`[HubSpot -> Concorde] Nuevo ticket ${hsId} importado con éxito.`);
+          console.log(`[HubSpot -> Concorde] INYECTADO NUEVO TICKET: ID ${hsId} - ${props.subject}`);
+        } else {
+          // Ya existía, lo ignoramos en silencio
         }
       }
     } catch (error) {
