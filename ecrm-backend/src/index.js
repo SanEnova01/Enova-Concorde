@@ -50,6 +50,15 @@ const loginLimiter = rateLimit({
 app.use(cors());
 app.use(express.json());
 
+
+
+
+
+// ==========================================
+// 🚀 COOPPILOT (Rutas Públicas B2B2C)
+// ==========================================
+app.use('/api/cooppilot', require('./routes/cooppilot'));
+
 // ==========================================
 // MIDDLEWARE: GUARDIÁN DE RUTAS INTERNAS
 // ==========================================
