@@ -7,10 +7,13 @@ function TicketDetail() {
   const navigate = useNavigate();
   
   const [ticket, setTicket] = useState(null);
-  const [storesList, setStoresList] = useState([]); // Lista completa de tiendas para el selector
+  const [storesList, setStoresList] = useState([]);
   const [associatedStore, setAssociatedStore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [ticketError, setTicketError] = useState(false);
+
+  // Estado para el buscador de tiendas (+50 tiendas)
+  const [storeSearch, setStoreSearch] = useState('');
 
   // Estados para el modo de edición
   const [isEditing, setIsEditing] = useState(false);
@@ -18,13 +21,21 @@ function TicketDetail() {
     name: '',
     store_id: '',
     assigned_to: '',
-    priority: 'MEDIA',
+    priority: 'MEDIUM',
     task_type: 'CONSULTA',
     description: ''
   });
 
   const statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
-  const priorities = ['BAJA', 'MEDIA', 'ALTA', 'CRÍTICA'];
+  
+  // Valores de prioridad alineados con los constraints de PostgreSQL (MEDIUM, HIGH, etc.)
+  const priorityOptions = [
+    { label: 'BAJA', value: 'LOW' },
+    { label: 'MEDIA', value: 'MEDIUM' },
+    { label: 'ALTA', value: 'HIGH' },
+    { label: 'CRÍTICA', value: 'CRITICAL' }
+  ];
+
   const taskTypes = ['CONSULTA', 'CAMBIO', 'BUG FIX', 'TAREA INTERNA'];
 
   const extraerArreglo = (response) => {
@@ -60,12 +71,11 @@ function TicketDetail() {
       if (foundTicket) {
         setTicket(foundTicket);
         
-        // Cargar datos en el formulario de edición
         setEditForm({
           name: foundTicket.name || '',
           store_id: foundTicket.store_id || '',
           assigned_to: foundTicket.assigned_to || '',
-          priority: foundTicket.priority || 'MEDIA',
+          priority: foundTicket.priority || 'MEDIUM',
           task_type: foundTicket.task_type || 'CONSULTA',
           description: foundTicket.description || ''
         });
@@ -101,7 +111,7 @@ function TicketDetail() {
     }
   };
 
-  // Guardar cambios generales del ticket
+  // Guardar cambios generales (Resuelve el 404)
   const handleSaveTicketDetails = async (e) => {
     e.preventDefault();
     try {
@@ -109,13 +119,35 @@ function TicketDetail() {
       if (response.status === 200 || response.data?.success) {
         alert('Ticket actualizado correctamente.');
         setIsEditing(false);
-        fetchTicketData(); // Recargar datos
+        fetchTicketData();
       }
     } catch (error) {
       console.error('Error al actualizar ticket:', error);
-      alert('Error al guardar los cambios del ticket.');
+      alert('Error al guardar los cambios del ticket. Verifica las rutas del backend.');
     }
   };
+
+  // Eliminar ticket de la DB
+  const handleDeleteTicket = async () => {
+    const confirmDelete = window.confirm(`¿Estás seguro de eliminar el ticket ${ticket.serial_number}? Esta acción no se puede deshacer.`);
+    if (!confirmDelete) return;
+
+    try {
+      const response = await crmApi.delete(`/tickets/${ticketId}`);
+      if (response.status === 200 || response.data?.success) {
+        alert('Ticket eliminado de la base de datos.');
+        navigate('/admin/tickets');
+      }
+    } catch (error) {
+      console.error('Error al eliminar ticket:', error);
+      alert('Error al intentar eliminar el ticket.');
+    }
+  };
+
+  // Filtro dinámico para el dropdown de tiendas
+  const filteredStores = storesList.filter(st => 
+    (st.name || '').toLowerCase().includes(storeSearch.toLowerCase())
+  );
 
   if (loading) return <div className="crm-text-loading">Cargando detalles del ticket...</div>;
   
@@ -135,19 +167,28 @@ function TicketDetail() {
     <div>
       <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Ticket: {ticket.serial_number}</h1>
-        <div>
+        <div style={{ display: 'flex', gap: '10px' }}>
           <button 
             onClick={() => setIsEditing(!isEditing)} 
             className="crm-btn-black" 
-            style={{ marginRight: '10px' }}
           >
             {isEditing ? 'Cancelar Edición' : 'Editar / Clasificar Ticket'}
           </button>
+          
+          {/* Botón de eliminación */}
+          <button 
+            onClick={handleDeleteTicket} 
+            className="crm-btn-border"
+            style={{ color: '#d9534f', borderColor: '#d9534f', fontWeight: 'bold' }}
+          >
+            Eliminar Ticket
+          </button>
+
           <button onClick={() => navigate(-1)} className="crm-btn-border">Volver</button>
         </div>
       </div>
 
-      {/* FORMULARIO DE EDICIÓN */}
+      {/* FORMULARIO DE EDICIÓN CON BUSCADOR DE TIENDAS */}
       {isEditing ? (
         <form onSubmit={handleSaveTicketDetails} className="crm-card-paper" style={{ marginBottom: '24px' }}>
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Editar / Clasificar Datos del Ticket</h3>
@@ -165,16 +206,25 @@ function TicketDetail() {
               />
             </div>
 
+            {/* SELECCIÓN DE TIENDA CON FILTRO BUSCADOR */}
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Tienda / Cliente</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>Tienda / Cliente</label>
+              <input 
+                type="text" 
+                placeholder="🔍 Buscar tienda..." 
+                className="crm-select-dropdown"
+                style={{ width: '100%', marginBottom: '6px', fontSize: '12px' }}
+                value={storeSearch}
+                onChange={(e) => setStoreSearch(e.target.value)}
+              />
               <select 
                 className="crm-select-dropdown" 
                 style={{ width: '100%' }}
                 value={editForm.store_id}
                 onChange={(e) => setEditForm({ ...editForm, store_id: e.target.value })}
               >
-                <option value="">-- Seleccionar Tienda --</option>
-                {storesList.map(st => (
+                <option value="">-- Seleccionar Tienda ({filteredStores.length} encontradas) --</option>
+                {filteredStores.map(st => (
                   <option key={st.id} value={st.id}>{st.name}</option>
                 ))}
               </select>
@@ -188,8 +238,8 @@ function TicketDetail() {
                 value={editForm.priority}
                 onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
               >
-                {priorities.map(p => (
-                  <option key={p} value={p}>{p}</option>
+                {priorityOptions.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
             </div>
@@ -235,7 +285,7 @@ function TicketDetail() {
         </form>
       ) : null}
 
-      {/* VISTA DE LECTURA DE DATOS */}
+      {/* VISTA DE LECTURA */}
       <div className="crm-grid-two-columns">
         <div className="crm-card-paper">
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Metadatos de Soporte</h3>

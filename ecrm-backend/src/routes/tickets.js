@@ -62,4 +62,33 @@ router.patch('/:id/status', async (req, res) => {
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });
+
+
+// 1. Ruta para actualizar ticket (Soluciona el error 404 al guardar)
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedTicket = await TicketRepository.update(id, req.body);
+    if (!updatedTicket) {
+      return res.status(404).json({ success: false, message: 'Ticket no encontrado' });
+    }
+    return res.json({ success: true, data: updatedTicket });
+  } catch (error) {
+    console.error('Error al actualizar ticket:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 2. Ruta para eliminar ticket de la Base de Datos
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await TicketRepository.delete(id);
+    return res.json({ success: true, message: 'Ticket eliminado correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar ticket:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

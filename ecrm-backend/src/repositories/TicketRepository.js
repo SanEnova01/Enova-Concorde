@@ -57,6 +57,26 @@ class TicketRepository {
       throw new Error('Error al obtener los tickets: ' + error.message);
     }
   }
+
+  // Agregar dentro de la clase TicketRepository:
+static async update(id, data) {
+  const [updated] = await db('tickets')
+    .where({ id })
+    .update({
+      name: data.name,
+      description: data.description,
+      store_id: data.store_id || null,
+      assigned_to: data.assigned_to || null,
+      priority: data.priority,
+      task_type: data.task_type
+    })
+    .returning('*');
+  return updated;
+}
+
+static async delete(id) {
+  return await db('tickets').where({ id }).del();
+}
   
   static async updateStatus(id, status) {
     try {
@@ -77,5 +97,6 @@ class TicketRepository {
     }
   }
 }
+
 
 module.exports = TicketRepository;
