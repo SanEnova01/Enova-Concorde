@@ -50,7 +50,10 @@ const loginLimiter = rateLimit({
 app.use(cors());
 app.use(express.json());
 
-
+// ==========================================
+// 🧠 MOTOR DE IA: BASE DE CONOCIMIENTO
+// ==========================================
+app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 
 
 
