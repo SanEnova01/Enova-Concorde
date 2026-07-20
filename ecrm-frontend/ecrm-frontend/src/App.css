@@ -182,3 +182,13 @@
     border-right-color: var(--border);
   }
 }
+
+.concorde-plane {
+          position: absolute;
+          top: 26px;
+          left: 0;
+          color: #e0e0e0; /* Gris claro para que sea una marca de agua de fondo */
+          animation: flyConcorde 2s ease-in-out forwards;
+          pointer-events: none;
+          z-index: 0; /* ¡Bajamos la capa del avión! */
+        }

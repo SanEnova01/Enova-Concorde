@@ -232,35 +232,40 @@ function TicketDetail() {
           text-align: center; border: 2px solid #000; box-shadow: 0 15px 35px rgba(0,0,0,0.2);
           position: relative; overflow: hidden;
         }
-      `}</style>
+      `}</style>c
 
       {/* RENDERIZADO DEL MODAL PERSONALIZADO */}
       {modalConfig.isOpen && (
         <div className="crm-modal-overlay">
           <div className="crm-modal-box">
-            {/* Animación del Avión (Solo vuela si es éxito o confirmación) */}
+            
+            {/* Animación del Avión (Capa inferior z-index: 0) */}
             {(modalConfig.status === 'success' || modalConfig.type === 'confirm') && (
               <svg className="concorde-plane" viewBox="0 0 24 24" width="48" height="48" fill="currentColor">
                 <path d="M21,16v-2l-8-5V3.5C13,2.67,12.33,2,11.5,2S10,2.67,10,3.5V9l-8,5v2l8-2.5V19l-2,1.5V22l3.5-1l3.5,1v-1.5L13,19v-5.5L21,16z"/>
               </svg>
             )}
             
-            <h3 style={{ marginTop: 0, fontSize: '18px', fontWeight: 'bold' }}>
-              {modalConfig.type === 'confirm' ? 'Confirmar Acción' : (modalConfig.status === 'error' ? 'Aviso' : 'Concorde System')}
-            </h3>
-            
-            <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5', margin: '16px 0 24px' }}>
-              {modalConfig.message}
-            </p>
-            
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              {modalConfig.type === 'confirm' && (
-                <button onClick={closeModal} className="crm-btn-border" style={{ flex: 1 }}>Cancelar</button>
-              )}
-              <button onClick={modalConfig.type === 'confirm' ? handleConfirmAction : closeModal} className="crm-btn-black" style={{ flex: 1 }}>
-                {modalConfig.type === 'confirm' ? 'Sí, proceder' : 'Aceptar'}
-              </button>
+            {/* CONTENEDOR DE TEXTOS FRONTALES (Capa superior z-index: 10) */}
+            <div style={{ position: 'relative', zIndex: 10 }}>
+              <h3 style={{ marginTop: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                {modalConfig.type === 'confirm' ? 'Confirmar Acción' : (modalConfig.status === 'error' ? 'Aviso' : 'Concorde System')}
+              </h3>
+              
+              <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5', margin: '16px 0 24px' }}>
+                {modalConfig.message}
+              </p>
+              
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                {modalConfig.type === 'confirm' && (
+                  <button onClick={closeModal} className="crm-btn-border" style={{ flex: 1 }}>Cancelar</button>
+                )}
+                <button onClick={modalConfig.type === 'confirm' ? handleConfirmAction : closeModal} className="crm-btn-black" style={{ flex: 1 }}>
+                  {modalConfig.type === 'confirm' ? 'Sí, proceder' : 'Aceptar'}
+                </button>
+              </div>
             </div>
+
           </div>
         </div>
       )}
