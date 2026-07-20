@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const OpenAI = require('openai');
+const TicketRepository = require('../repositories/TicketRepository');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy_key',
@@ -13,17 +14,12 @@ router.get('/config/:store_id', async (req, res) => {
     const { store_id } = req.params;
     let store = await db('stores').where({ id: store_id }).first();
     
-    // Si buscan 'enova.agency' o una tienda inactiva sin parámetro, buscar la primera tienda que SÍ tenga CoopPilot activo
     if ((!store || !store.has_cooppilot) && store_id === 'enova.agency') {
       const activeStore = await db('stores').where({ has_cooppilot: true }).first();
-      if (activeStore) {
-        store = activeStore;
-      }
+      if (activeStore) store = activeStore;
     }
 
-    if (!store) {
-      return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
-    }
+    if (!store) return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
 
     res.json({
       success: true,
@@ -45,20 +41,10 @@ router.get('/config/:store_id', async (req, res) => {
 router.post('/verify-order', async (req, res) => {
   try {
     const { store_id, order_number, email } = req.body;
-
     const store = await db('stores').where({ id: store_id || 'enova.agency' }).first();
-    if (!store) {
-      return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
-    }
-
-    // 🛑 VALIDACIÓN DE LICENCIA COOPPILOT
-    if (!store.has_cooppilot) {
-      return res.status(403).json({ 
-        success: false, 
-        disabled: true,
-        error: 'El servicio CoopPilot no está habilitado para esta tienda.' 
-      });
-    }
+    
+    if (!store) return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
+    if (!store.has_cooppilot) return res.status(403).json({ success: false, disabled: true, error: 'Módulo inactivo.' });
 
     if (!order_number || !order_number.startsWith('#')) {
       return res.status(400).json({ success: false, error: 'El número de pedido debe incluir "#". Ej: #1024' });
@@ -80,87 +66,73 @@ router.post('/verify-order', async (req, res) => {
   }
 });
 
-// POST: Asistente de IA (Chatbot)
+// POST: Asistente de IA (Chatbot con RAG)
 router.post('/chat', async (req, res) => {
   try {
     const { store_id, query } = req.body;
-
-    if (!query) {
-      return res.status(400).json({ success: false, error: 'Escribe una pregunta.' });
-    }
+    if (!query) return res.status(400).json({ success: false, error: 'Escribe una pregunta.' });
 
     const activeStoreId = store_id || 'enova.agency';
     const store = await db('stores').where({ id: activeStoreId }).first();
 
-    if (!store) {
-      return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
-    }
-
-    // 🛑 VALIDACIÓN DE LICENCIA COOPPILOT
-    if (!store.has_cooppilot) {
-      return res.status(403).json({ 
-        success: false, 
-        disabled: true,
-        response: 'El servicio de IA CoopPilot no está activo para esta tienda. Por favor contacta al administrador.' 
-      });
-    }
-
-   // Traer documentos de la Base de Conocimiento
-    const kbRules = await db('knowledge_base')
-      .where({ store_id: activeStoreId, is_active: true });
+    if (!store) return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
+    if (!store.has_cooppilot) return res.status(403).json({ success: false, disabled: true, response: 'IA inactiva.' });
 
     let knowledgeContext = "No hay políticas o documentos cargados para esta tienda aún.";
-    if (kbRules.length > 0) {
-      // 🧠 Formateamos el contexto como documentos completos para que la IA los analice globalmente
-      knowledgeContext = kbRules.map(r => 
-        `### DOCUMENTO: ${r.question} (Tipo: ${r.category})\n${r.answer}\n---`
-      ).join("\n\n");
-    }
 
-    if (!process.env.OPENAI_API_KEY) {
-      // Fallback a motor de palabras clave si no hay API Key
-      const text = query.toLowerCase();
-      const match = kbRules.find(r => r.question && text.includes(r.question.toLowerCase()));
-      return res.json({
-        success: true,
-        response: match ? match.answer : "No encontré información específica. Te sugiero usar 'Soporte Especializado'."
+    if (process.env.OPENAI_API_KEY) {
+      // 1. Convertir la pregunta a Vector
+      const embedRes = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: query,
       });
+      const queryVector = `[${embedRes.data[0].embedding.join(',')}]`;
+
+      // 2. Buscar similitud en la BD (RAG)
+      const kbRules = await db.raw(`
+        SELECT category, question, answer, 1 - (embedding <=> ?) as similarity
+        FROM knowledge_base
+        WHERE store_id = ? AND is_active = true AND embedding IS NOT NULL
+        ORDER BY embedding <=> ?
+        LIMIT 3
+      `, [queryVector, activeStoreId, queryVector]);
+
+      if (kbRules.rows && kbRules.rows.length > 0) {
+        knowledgeContext = kbRules.rows.map(r => 
+          `### FRAGMENTO RELEVANTE (${r.category}): ${r.question}\n${r.answer}\n---`
+        ).join("\n");
+      }
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Eres CoopPilot, el asistente virtual de "${store.name}". Responde de forma concisa usando SOLO esta base de conocimiento:\n${knowledgeContext}`
+          },
+          { role: 'user', content: query }
+        ],
+        temperature: 0.3,
+      });
+
+      return res.json({ success: true, response: completion.choices[0]?.message?.content || "No pude procesar la consulta." });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `Eres CoopPilot, el asistente virtual de "${store.name}". Responde amablemente en base a esta Base de Conocimiento:\n${knowledgeContext}`
-        },
-        { role: 'user', content: query }
-      ],
-      temperature: 0.3,
-    });
-
-    res.json({
-      success: true,
-      response: completion.choices[0]?.message?.content || "No pude procesar la consulta."
-    });
-
+    res.json({ success: true, response: "Modo simulacro: Necesitas configurar la API de OpenAI." });
   } catch (error) {
     console.error("Error en chat CoopPilot:", error);
     res.status(500).json({ success: false, error: 'Error procesando tu consulta.' });
   }
 });
-const TicketRepository = require('../repositories/TicketRepository');
 
-// POST: Crear un ticket de soporte directamente desde el Hub Público
+// POST: Escalación a Humano (Ticket desde Hub)
 router.post('/ticket', async (req, res) => {
   try {
     const { store_id, name, email, subject, message } = req.body;
-
     if (!name || !email || !message) {
       return res.status(400).json({ success: false, error: 'Nombre, correo y mensaje son obligatorios.' });
     }
 
-    // Usamos el repositorio para inyectarlo directo al Kanban de la agencia
     const newTicket = await TicketRepository.create({
       name: `[HUB] ${subject || 'Soporte'} - ${name}`,
       description: `Cliente: ${name} (${email})\n\nMensaje:\n${message}`,
@@ -175,4 +147,5 @@ router.post('/ticket', async (req, res) => {
     res.status(500).json({ success: false, error: 'Error al enviar tu solicitud de soporte.' });
   }
 });
+
 module.exports = router;
