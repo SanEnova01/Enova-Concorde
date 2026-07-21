@@ -1,0 +1,89 @@
+import React, { useState } from 'react';
+
+// Funciones evaluadoras de rendimiento
+const getLoadColor = (ms) => {
+  if (!ms) return 'inherit';
+  const sec = ms / 1000;
+  if (sec < 2.5) return '#16a34a'; // Verde (Óptimo)
+  if (sec < 4.0) return '#eab308'; // Amarillo (Aceptable)
+  return '#dc2626'; // Rojo (Crítico)
+};
+
+const getRamColor = (mb) => {
+  if (!mb) return 'inherit';
+  if (mb < 150) return '#16a34a'; // Verde
+  if (mb < 300) return '#eab308'; // Amarillo
+  return '#dc2626'; // Rojo
+};
+
+function ClientMetricsHistory({ metrics }) {
+  const [metricCurrentPage, setMetricCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  const indexOfLastMetric = metricCurrentPage * itemsPerPage;
+  const indexOfFirstMetric = indexOfLastMetric - itemsPerPage;
+  const currentMetrics = metrics.slice(indexOfFirstMetric, indexOfLastMetric);
+  const totalMetricPages = Math.ceil(metrics.length / itemsPerPage) || 1;
+
+  return (
+    <div className="crm-card-paper">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 className="crm-section-title" style={{ marginTop: 0 }}>Registros Históricos de Actividad</h2>
+        <button className="crm-btn-border" style={{ fontSize: '11px', padding: '4px 8px' }}>
+          ↗ Ampliar Vista
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '260px', overflowX: 'auto' }}>
+        {currentMetrics.length === 0 ? (
+          <p className="crm-text-muted">No cuenta con métricas diarias registradas.</p>
+        ) : (
+          <table className="crm-table-data" style={{ minWidth: '600px', fontSize: '13px' }}>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Req</th>
+                <th>Peso</th>
+                <th>RAM Core</th>
+                <th>RAM Total</th>
+                <th>Load</th>
+                <th>DOM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentMetrics.map(metric => (
+                <tr key={metric.id}>
+                  <td>{metric.date ? new Date(metric.date).toLocaleDateString() : (metric.created_at ? new Date(metric.created_at).toLocaleDateString() : '—')}</td>
+                  <td>{metric.total_requests || '—'}</td>
+                  <td>{metric.total_weight_mb !== null ? `${metric.total_weight_mb} MB` : '—'}</td>
+                  <td style={{ color: getRamColor(metric.ram_core_mb), fontWeight: 'bold' }}>
+                    {metric.ram_core_mb !== null ? `${metric.ram_core_mb} MB` : '—'}
+                  </td>
+                  <td style={{ color: getRamColor(metric.ram_total_mb), fontWeight: 'bold' }}>
+                    {metric.ram_total_mb !== null ? `${metric.ram_total_mb} MB` : '—'}
+                  </td>
+                  <td style={{ color: getLoadColor(metric.load_ms), fontWeight: 'bold' }}>
+                    {metric.load_ms !== null ? `${(metric.load_ms / 1000).toFixed(2)}s` : '—'}
+                  </td>
+                  <td style={{ color: getLoadColor(metric.dom_ms), fontWeight: 'bold' }}>
+                    {metric.dom_ms !== null ? `${(metric.dom_ms / 1000).toFixed(2)}s` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {totalMetricPages > 1 && (
+        <div className="crm-pagination-box" style={{ marginTop: '16px' }}>
+          <button disabled={metricCurrentPage === 1} onClick={() => setMetricCurrentPage(prev => prev - 1)} className="crm-btn-border" style={{ padding: '4px 10px', fontSize: '12px' }}>Anterior</button>
+          <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{metricCurrentPage} / {totalMetricPages}</span>
+          <button disabled={metricCurrentPage === totalMetricPages} onClick={() => setMetricCurrentPage(prev => prev + 1)} className="crm-btn-border" style={{ padding: '4px 10px', fontSize: '12px' }}>Siguiente</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default ClientMetricsHistory;
