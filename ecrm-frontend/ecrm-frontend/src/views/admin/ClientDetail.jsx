@@ -5,14 +5,17 @@ import crmApi from '../../api/crmApi';
 function ClientDetail() {
   const { storeId } = useParams();
   const navigate = useNavigate();
-  const [ticketView, setTicketView] = useState('B2B'); // 'B2B' o 'B2C'
-  const filteredTickets = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
-  // Estados principales
+  
+  // 1. PRIMERO LOS ESTADOS PRINCIPALES
   const [client, setClient] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [clientError, setClientError] = useState(false);
+
+  // 2. LUEGO EL FILTRO DE PESTAÑAS (Ahora sí ya existe "tickets")
+  const [ticketView, setTicketView] = useState('B2B');
+  const filteredTickets = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
 
   // Estados para la edición de notas
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -26,14 +29,14 @@ function ClientDetail() {
   const [ticketCurrentPage, setTicketCurrentPage] = useState(1);
   const [metricCurrentPage, setMetricCurrentPage] = useState(1);
   
- // 🌟 ESTADOS PARA MONITORES EXTERNOS
+  // ESTADOS PARA MONITORES EXTERNOS
   const [shopifyStatus, setShopifyStatus] = useState(null);
   const [vtexStatus, setVtexStatus] = useState(null);
   const [wooStatus, setWooStatus] = useState(null);
   
   const itemsPerPage = 5;
 
-  // 🔒 EXTRACCIÓN MAESTRA DE SEGURIDAD
+  // EXTRACCIÓN MAESTRA DE SEGURIDAD
   const token = localStorage.getItem('crm_token');
   let userRole = 'client'; 
   let userEmail = '';

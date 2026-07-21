@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 function TotalTickets() {
+  const navigate = useNavigate();
+  
+  // 1. PRIMERO LOS ESTADOS
   const [tickets, setTickets] = useState([]);
   const [stores, setStores] = useState([]);
   const [viewMode, setViewMode] = useState('KANBAN'); 
@@ -10,11 +13,12 @@ function TotalTickets() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [calendarDate, setCalendarDate] = useState(new Date());
-  const [ticketView, setTicketView] = useState('B2B'); // 'B2B' o 'B2C'
-  const filteredTickets = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
-  const navigate = useNavigate();
 
-  // Estado del formulario ampliado con todos los campos requeridos por la BD
+  // 2. LUEGO EL FILTRO DE PESTAÑAS
+  const [ticketView, setTicketView] = useState('B2B');
+  const filteredTickets = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
+
+  // Estado del formulario
   const [formData, setFormData] = useState({ 
     name: '', 
     description: '', 
