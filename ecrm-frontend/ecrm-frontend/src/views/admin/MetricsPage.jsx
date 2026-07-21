@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 // 🌟 FUNCIONES EVALUADORAS DE COLOR (SEMAFORIZACIÓN)
@@ -18,22 +19,22 @@ const getRamColor = (mb) => {
 };
 
 function MetricsPage() {
+  const navigate = useNavigate(); // 🌟 HOOK PARA NAVEGACIÓN
+  
   const [metrics, setMetrics] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPopup, setShowPopup] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  // 🌟 ESTADO DE LAS PESTAÑAS
-  const [activeTab, setActiveTab] = useState('CHARTS'); // 'CHARTS' | 'HISTORY'
+  const [activeTab, setActiveTab] = useState('CHARTS'); 
 
-  // Filtros de búsqueda para el historial operativo
+  // Filtros de búsqueda para el historial
   const [metricsSearchQuery, setMetricsSearchQuery] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterStoreId, setFilterStoreId] = useState('ALL');
 
-  // Paginación para la Tabla Histórica
   const [tableCurrentPage, setTableCurrentPage] = useState(1);
   const tableItemsPerPage = 10; 
 
@@ -65,7 +66,8 @@ function MetricsPage() {
   };
 
   const [chartCurrentPage, setChartCurrentPage] = useState(1);
-  const chartStoresPerPage = 5; // 🌟 MÁXIMO 5 DE ANCHO COMO PEDISTE
+  // 🌟 PAGINACIÓN DE TABLERO: 15 (Grid de 5 ancho x 3 alto)
+  const chartStoresPerPage = 15; 
 
   const [formData, setFormData] = useState({
     store_id: '',
@@ -83,9 +85,7 @@ function MetricsPage() {
     if (Array.isArray(response.data)) return response.data;
     if (response.data.data && Array.isArray(response.data.data)) return response.data.data;
     if (response.data.result && Array.isArray(response.data.result)) return response.data.result;
-    
-    const arregloEncontrado = Object.values(response.data).find(val => Array.isArray(val));
-    return arregloEncontrado || [];
+    return Object.values(response.data).find(val => Array.isArray(val)) || [];
   };
 
   const fetchMetricsData = async () => {
@@ -149,14 +149,7 @@ function MetricsPage() {
       if (response.data.success || response.status === 200 || response.status === 201) {
         alert('Métricas registradas con éxito.');
         setShowPopup(false);
-        setFormData(prev => ({
-          ...prev,
-          ram_core_mb: '',
-          ram_total_mb: '',
-          web_flow: '',
-          load_s: '',
-          dom_s: ''
-        }));
+        setFormData(prev => ({ ...prev, ram_core_mb: '', ram_total_mb: '', web_flow: '', load_s: '', dom_s: '' }));
         fetchMetricsData(); 
       }
     } catch (error) {
@@ -165,12 +158,8 @@ function MetricsPage() {
     }
   };
 
-  // ==========================================================================
-  // FILTRADO DINÁMICO DE LA TABLA HISTÓRICA
-  // ==========================================================================
   const filteredMetrics = metrics.filter(m => {
     if (!m) return false;
-    
     const storeObj = stores.find(s => String(s.id) === String(m.store_id));
     const nombreTienda = storeObj ? storeObj.name.toLowerCase() : '';
     const idTienda = m.store_id ? String(m.store_id).toLowerCase() : '';
@@ -186,7 +175,6 @@ function MetricsPage() {
       if (filterStartDate && metricDate < filterStartDate) matchesDate = false;
       if (filterEndDate && metricDate > filterEndDate) matchesDate = false;
     }
-
     return matchesSearch && matchesStore && matchesDate;
   });
 
@@ -195,13 +183,9 @@ function MetricsPage() {
   const currentTableMetrics = filteredMetrics.slice(indexOfFirstTableItem, indexOfLastTableItem);
   const totalTablePages = Math.ceil(filteredMetrics.length / tableItemsPerPage) || 1; 
 
-  // ==========================================================================
-  // PROCESAMIENTO DEL GRÁFICO (TABLERO DE AVIÓN)
-  // ==========================================================================
   const storeChartGroups = stores.map(store => {
     const storeRecords = metrics.filter(m => String(m.store_id) === String(store.id));
     
-    // 🌟 FILTRO: SI NO TIENE REGISTROS, LO DESCARTAMOS
     if (storeRecords.length === 0) return null;
 
     const validLoad = storeRecords.filter(m => m.load_ms !== null && m.load_ms !== undefined);
@@ -222,14 +206,13 @@ function MetricsPage() {
       avgRamCore,
       avgRamTotal
     };
-  }).filter(Boolean); // 🌟 ELIMINA LOS NULLS (TIENDAS SIN REGISTROS)
+  }).filter(Boolean); 
 
   const indexOfLastChartItem = chartCurrentPage * chartStoresPerPage;
   const indexOfFirstChartItem = indexOfLastChartItem - chartStoresPerPage;
   const currentChartStores = storeChartGroups.slice(indexOfFirstChartItem, indexOfLastChartItem);
   const totalChartPages = Math.ceil(storeChartGroups.length / chartStoresPerPage) || 1;
 
-  // 🌟 RENDERIZADOR DEL VÚMETRO (ESTILO CABINA OSCURA)
   const renderMiniVu = (value, maxVal, label) => {
     const safeVal = Number(value) || 0;
     const angle = Math.min((safeVal / maxVal) * 180, 180) - 90; 
@@ -279,20 +262,12 @@ function MetricsPage() {
         `}
       </style>
 
-      {/* BARRA DE ACCIONES PRINCIPAL */}
       <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: '16px' }}>
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Análisis de Rendimiento</h1>
-        
         <div style={{ display: 'flex', gap: '12px' }}>
           <label className="crm-btn-border" style={{ cursor: 'pointer', opacity: isUploading ? 0.5 : 1 }}>
             {isUploading ? 'Subiendo...' : 'Cargar CSV Local'}
-            <input 
-              type="file" 
-              accept=".csv" 
-              style={{ display: 'none' }} 
-              onChange={handleFileUpload} 
-              disabled={isUploading}
-            />
+            <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileUpload} disabled={isUploading} />
           </label>
           <button onClick={() => setShowPopup(true)} className="crm-btn-black">
             Registro Manual
@@ -300,7 +275,6 @@ function MetricsPage() {
         </div>
       </div>
 
-      {/* 🌟 PESTAÑAS (TABS) */}
       <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #e5e7eb', marginBottom: '24px' }}>
         <button 
           onClick={() => setActiveTab('CHARTS')} 
@@ -316,9 +290,6 @@ function MetricsPage() {
         </button>
       </div>
 
-      {/* =========================================
-          TAB 1: TABLERO DE CONTROL (AVIÓN)
-          ========================================= */}
       {activeTab === 'CHARTS' && (
         <div style={{ backgroundColor: '#1a1a1a', padding: '24px', borderRadius: '8px', border: '4px solid #111', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)', marginBottom: '32px' }}>
           
@@ -328,10 +299,10 @@ function MetricsPage() {
             </h3>
             <div style={{ display: 'flex', gap: '14px', fontSize: '12px', color: '#9ca3af', fontWeight: 'bold' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ width: '12px', height: '12px', backgroundColor: '#0ea5e9', borderRadius: '2px' }}></div> Load (s)
+                <div style={{ width: '12px', height: '12px', backgroundColor: '#16a34a', borderRadius: '2px' }}></div> Load (s)
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ width: '12px', height: '12px', backgroundColor: '#f43f5e', borderRadius: '2px' }}></div> DOM (s)
+                <div style={{ width: '12px', height: '12px', backgroundColor: '#2563eb', borderRadius: '2px' }}></div> DOM (s)
               </span>
             </div>
           </div>
@@ -341,8 +312,8 @@ function MetricsPage() {
               NO HAY TIENDAS CON MÉTRICAS REGISTRADAS.
             </div>
           ) : (
-            // 🌟 GRID DE MÁXIMO 5 COLUMNAS
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+            // 🌟 GRID ESTRICTO DE 5 COLUMNAS 
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
               {currentChartStores.map(sc => {
                 const avgLoadSec = sc.avgLoadMs / 1000;
                 const avgDomSec = sc.avgDomMs / 1000;
@@ -351,13 +322,18 @@ function MetricsPage() {
                 const hDom = Math.min((avgDomSec / 5) * 100, 100);
 
                 return (
-                  <div key={sc.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: '2px solid #333', padding: '16px 12px', borderRadius: '8px', backgroundColor: '#222', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+                  <div 
+                    key={sc.id} 
+                    onClick={() => navigate(`/admin/clientes/${sc.id}`)}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: '2px solid #333', padding: '16px 12px', borderRadius: '8px', backgroundColor: '#222', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'border-color 0.2s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#FFD700'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = '#333'}
+                  >
                     
-                    {/* BARRAS DE TIEMPO (Top) */}
                     <div style={{ display: 'flex', gap: '16px', height: '100px', alignItems: 'flex-end', justifyContent: 'center', width: '100%', borderBottom: '1px solid #444', paddingBottom: '12px' }}>
                       
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '30px', height: '100%', justifyContent: 'flex-end' }}>
-                        <div style={{ height: `${Math.max(hLoad, 6)}%`, backgroundColor: '#0ea5e9', width: '100%', position: 'relative', borderRadius: '2px 2px 0 0' }}>
+                        <div style={{ height: `${Math.max(hLoad, 6)}%`, backgroundColor: '#16a34a', width: '100%', position: 'relative', borderRadius: '2px 2px 0 0' }}>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e5e7eb', position: 'absolute', top: '-20px', left: '50%', transform: 'translateX(-50%)' }}>
                             {avgLoadSec.toFixed(1)}s
                           </span>
@@ -365,7 +341,7 @@ function MetricsPage() {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '30px', height: '100%', justifyContent: 'flex-end' }}>
-                        <div style={{ height: `${Math.max(hDom, 6)}%`, backgroundColor: '#f43f5e', width: '100%', position: 'relative', borderRadius: '2px 2px 0 0' }}>
+                        <div style={{ height: `${Math.max(hDom, 6)}%`, backgroundColor: '#2563eb', width: '100%', position: 'relative', borderRadius: '2px 2px 0 0' }}>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e5e7eb', position: 'absolute', top: '-20px', left: '50%', transform: 'translateX(-50%)' }}>
                             {avgDomSec.toFixed(1)}s
                           </span>
@@ -373,7 +349,6 @@ function MetricsPage() {
                       </div>
                     </div>
                     
-                    {/* VÚMETROS DUALES (Bottom) */}
                     <div style={{ display: 'flex', justifyContent: 'space-around', width: '100%', marginTop: '16px', gap: '8px' }}>
                       {renderMiniVu(sc.avgRamCore, 200, 'RAM CORE')}
                       {renderMiniVu(sc.avgRamTotal, 500, 'RAM TOTAL')}
@@ -398,9 +373,6 @@ function MetricsPage() {
         </div>
       )}
 
-      {/* =========================================
-          TAB 2: HISTORIAL OPERATIVO (COLORES)
-          ========================================= */}
       {activeTab === 'HISTORY' && (
         <div className="crm-card-paper">
           <h3 className="crm-section-title" style={{ margin: 0, paddingBottom: '16px', border: 'none' }}>Registros Históricos de Rendimiento</h3>
@@ -462,11 +434,16 @@ function MetricsPage() {
                   currentTableMetrics.map(m => {
                     const associatedStore = stores.find(s => String(s.id) === String(m.store_id));
                     return (
-                      <tr key={m.id}>
+                      <tr 
+                        key={m.id} 
+                        onClick={() => navigate(`/admin/clientes/${m.store_id}`)}
+                        style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
                         <td>{m.date ? new Date(m.date).toLocaleDateString() : (m.created_at ? new Date(m.created_at).toLocaleDateString() : '—')}</td>
                         <td><strong>{associatedStore ? associatedStore.name : m.store_id}</strong></td>
                         
-                        {/* 🌟 COLUMNAS CON SEMAFORIZACIÓN DE COLORES */}
                         <td style={{ color: getRamColor(m.ram_core_mb), fontWeight: 'bold' }}>
                           {m.ram_core_mb !== null && m.ram_core_mb !== undefined ? `${m.ram_core_mb} MB` : '---'}
                         </td>
@@ -503,16 +480,12 @@ function MetricsPage() {
         </div>
       )}
 
-      {/* =========================================
-          MODAL DE REGISTRO MANUAL
-          ========================================= */}
       {showPopup && (
         <div className="crm-modal-mask" onClick={() => setShowPopup(false)}>
           <div className="crm-modal-content" onClick={e => e.stopPropagation()}>
             <h3 className="crm-section-title" style={{ marginTop: 0 }}>Registro Técnico Diario</h3>
             
             <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label className="crm-stat-label">Tienda / Cliente</label>
                 <select name="store_id" value={formData.store_id} onChange={handleInputChange} className="crm-select-dropdown" required>
