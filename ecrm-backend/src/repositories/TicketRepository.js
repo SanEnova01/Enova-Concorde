@@ -64,6 +64,7 @@ class TicketRepository {
           task_type: validTaskType,
           status: 'OPEN',
           assigned_to: ticketData.assigned_to || null,
+          is_b2c: ticketData.is_b2c || false // 👈 NUEVA ETIQUETA
         }).returning('*');
 
         // Incrementamos el contador de la tienda

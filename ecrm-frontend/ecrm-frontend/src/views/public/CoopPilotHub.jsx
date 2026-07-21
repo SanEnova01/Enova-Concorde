@@ -132,7 +132,7 @@ function CoopPilotHub() {
         <div style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontSize: '11px', fontWeight: '800', color: '#FFD700', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: '4px' }}>
-              CENTRO DE ATENCIÓN AUTOMATIZADA
+              CENTRO DE ATENCIÓN VIP
             </span>
             <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '900', color: '#ffffff', letterSpacing: '-0.5px' }}>
               {storeInfo.name}

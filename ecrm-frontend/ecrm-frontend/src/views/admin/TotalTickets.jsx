@@ -10,7 +10,8 @@ function TotalTickets() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [calendarDate, setCalendarDate] = useState(new Date());
-
+  const [ticketView, setTicketView] = useState('B2B'); // 'B2B' o 'B2C'
+  const filteredTickets = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
   const navigate = useNavigate();
 
   // Estado del formulario ampliado con todos los campos requeridos por la BD

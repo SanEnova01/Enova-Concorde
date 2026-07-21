@@ -5,7 +5,8 @@ import crmApi from '../../api/crmApi';
 function ClientDetail() {
   const { storeId } = useParams();
   const navigate = useNavigate();
-
+  const [ticketView, setTicketView] = useState('B2B'); // 'B2B' o 'B2C'
+  const filteredTickets = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
   // Estados principales
   const [client, setClient] = useState(null);
   const [tickets, setTickets] = useState([]);

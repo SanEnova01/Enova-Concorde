@@ -128,17 +128,20 @@ router.post('/chat', async (req, res) => {
 // POST: Escalación a Humano (Ticket desde Hub)
 router.post('/ticket', async (req, res) => {
   try {
-    const { store_id, name, email, subject, message } = req.body;
+    const { store_id, name, email, phone, subject, message } = req.body;
     if (!name || !email || !message) {
       return res.status(400).json({ success: false, error: 'Nombre, correo y mensaje son obligatorios.' });
     }
 
+    const phoneText = phone ? `Teléfono: ${phone}\n` : '';
+
     const newTicket = await TicketRepository.create({
-      name: `[HUB] ${subject || 'Soporte'} - ${name}`,
-      description: `Cliente: ${name} (${email})\n\nMensaje:\n${message}`,
+      name: `${subject || 'Soporte'} - ${name}`,
+      description: `Cliente: ${name} (${email})\n${phoneText}\nMensaje:\n${message}`,
       store_id: store_id || 'enova.agency',
       priority: 'MEDIUM',
-      task_type: 'CONSULTA'
+      task_type: 'CONSULTA',
+      is_b2c: true // 👈 ESTO LO ENVÍA AL CAJÓN DE CLIENTES FINALES
     });
 
     res.json({ success: true, data: newTicket });
