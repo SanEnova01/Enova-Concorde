@@ -1,293 +1,315 @@
 import React, { useState, useEffect } from 'react';
 import crmApi from '../../api/crmApi';
 
-// Helper ultra-seguro para decodificar JWT
-const getUserFromToken = () => {
-  const token = localStorage.getItem('crm_token');
-  if (!token) return { role: 'client' };
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      window.atob(base64)
-        .split('')
-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return { role: 'client' };
-  }
-};
+// COMPONENTE TARJETA ACCORDION (CONTRAÍBLE)
+function KnowledgeItem({ item, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div style={{
+      border: '2px solid #111',
+      borderRadius: '6px',
+      padding: '12px',
+      marginBottom: '12px',
+      backgroundColor: '#ffffff',
+      boxShadow: '3px 3px 0px #111',
+      transition: 'all 0.2s'
+    }}>
+      {/* CABECERA: CATEGORÍA Y BOTÓN BORRAR */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{
+          fontSize: '10px',
+          fontWeight: '900',
+          backgroundColor: '#111',
+          color: '#FFD700',
+          padding: '3px 8px',
+          borderRadius: '4px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          {item.category || 'GENERAL'}
+        </span>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(item.id);
+          }}
+          style={{
+            color: '#d9534f',
+            background: 'none',
+            border: 'none',
+            fontWeight: '900',
+            cursor: 'pointer',
+            fontSize: '11px',
+            letterSpacing: '0.5px'
+          }}
+        >
+          [ BORRAR ]
+        </button>
+      </div>
+
+      {/* ÁREA CLICKEABLE PARA EXPANDIR / CONTRAER */}
+      <div 
+        onClick={() => setExpanded(!expanded)} 
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+      >
+        <h4 style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: 'bold', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{item.question || 'Documento / Pregunta sin título'}</span>
+          <span style={{ fontSize: '11px', color: '#6b7280', backgroundColor: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', border: '1px solid #d1d5db', marginLeft: '8px' }}>
+            {expanded ? '▲ Ocultar' : '▼ Expandir'}
+          </span>
+        </h4>
+
+        {expanded ? (
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#374151', 
+            lineHeight: '1.6', 
+            whiteSpace: 'pre-wrap', 
+            backgroundColor: '#f9fafb', 
+            padding: '12px', 
+            borderRadius: '6px', 
+            border: '1px solid #e5e7eb',
+            marginTop: '8px',
+            maxHeight: '400px',
+            overflowY: 'auto'
+          }}>
+            {item.answer}
+          </div>
+        ) : (
+          <p style={{ 
+            margin: 0, 
+            fontSize: '12px', 
+            color: '#6b7280', 
+            whiteSpace: 'nowrap', 
+            overflow: 'hidden', 
+            textOverflow: 'ellipsis' 
+          }}>
+            {item.answer}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function KnowledgeBase() {
-  const currentUser = getUserFromToken();
-  const isClient = currentUser.role === 'client';
-
   const [stores, setStores] = useState([]);
-  const [selectedStore, setSelectedStore] = useState(isClient ? 'cuentacliente' : '');
+  const [selectedStoreId, setSelectedStoreId] = useState('cuentacliente');
   const [knowledgeList, setKnowledgeList] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [formData, setFormData] = useState({
-    category: 'FAQ',
-    question: '',
-    answer: ''
-  });
+  // Formulario
+  const [category, setCategory] = useState('Preguntas Frecuentes');
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
 
-  useEffect(() => {
-    if (isClient) {
-      setSelectedStore('cuentacliente');
-    } else {
-      fetchStores();
-    }
-  }, [isClient]);
-
-  useEffect(() => {
-    if (selectedStore) {
-      fetchKnowledge();
-    } else {
-      setKnowledgeList([]);
-    }
-  }, [selectedStore]);
-
-  const fetchStores = async () => {
+  // Identificar Rol del usuario
+  const token = localStorage.getItem('crm_token');
+  let userRole = 'client';
+  if (token) {
     try {
-      const res = await crmApi.get('/stores');
-      const storeData = Array.isArray(res.data) 
-        ? res.data 
-        : (Array.isArray(res.data?.data) ? res.data.data : []);
-      
-      setStores(storeData);
-      if (storeData.length > 0) {
-        setSelectedStore(storeData[0].id);
-      }
-    } catch (err) {
-      console.error('Error cargando tiendas:', err);
-      setStores([]);
-    }
-  };
+      userRole = JSON.parse(window.atob(token.split('.')[1])).role || 'client';
+    } catch (e) {}
+  }
 
-  const fetchKnowledge = async () => {
-    if (!selectedStore) return;
+  const isStaff = userRole === 'super admin' || userRole === 'admin';
+
+  // Cargar tiendas si es Staff
+  useEffect(() => {
+    if (isStaff) {
+      crmApi.get('/stores')
+        .then(res => {
+          const list = Array.isArray(res.data) ? res.data : (res.data.data || []);
+          setStores(list);
+          if (list.length > 0) {
+            setSelectedStoreId(list[0].id);
+          }
+        })
+        .catch(err => console.error("Error cargando tiendas:", err));
+    }
+  }, [isStaff]);
+
+  // Cargar elementos de la base de conocimiento
+  const fetchKnowledge = () => {
     setLoading(true);
-    try {
-      const res = await crmApi.get(`/knowledge/${selectedStore}`);
-      const kbData = Array.isArray(res.data) 
-        ? res.data 
-        : (Array.isArray(res.data?.data) ? res.data.data : []);
-      
-      setKnowledgeList(kbData);
-    } catch (err) {
-      console.error('Error cargando conocimiento:', err);
-      setKnowledgeList([]);
-    } finally {
-      setLoading(false);
-    }
+    crmApi.get(`/knowledge/${selectedStoreId}`)
+      .then(res => {
+        const list = Array.isArray(res.data) ? res.data : (res.data.data || []);
+        setKnowledgeList(list);
+      })
+      .catch(err => console.error("Error cargando base de conocimiento:", err))
+      .finally(() => setLoading(false));
   };
 
+  useEffect(() => {
+    fetchKnowledge();
+  }, [selectedStoreId]);
+
+  // Agregar nuevo documento / regla
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccessMsg('');
-    
-    if (!selectedStore) {
-      setError('Error: No hay una tienda seleccionada.');
+    if (!answer.trim()) {
+      alert("El contenido no puede estar vacío.");
       return;
     }
 
+    setSaving(true);
     try {
-      const payload = { store_id: selectedStore, ...formData };
-      const res = await crmApi.post('/knowledge', payload);
-      
-      if (res.data && (res.data.success || res.status === 200)) {
-        setSuccessMsg('✅ Regla guardada e inyectada correctamente en la memoria de la IA.');
-        setFormData({ category: 'FAQ', question: '', answer: '' });
+      const res = await crmApi.post('/knowledge', {
+        store_id: selectedStoreId,
+        category,
+        question: question || category,
+        answer
+      });
+
+      if (res.data.success || res.status === 200) {
+        alert("Documento procesado y guardado en memoria exitosamente.");
+        setQuestion('');
+        setAnswer('');
         fetchKnowledge();
-        setTimeout(() => setSuccessMsg(''), 4000);
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al guardar la regla.');
+      console.error(err);
+      alert("Error al guardar en la base de conocimiento.");
+    } finally {
+      setSaving(false);
     }
   };
 
+  // Borrar documento / regla
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar esta regla?')) return;
+    if (!window.confirm("¿Seguro que deseas eliminar esta regla de la memoria de la IA?")) return;
+
     try {
-      await crmApi.delete(`/knowledge/${id}`);
-      fetchKnowledge();
+      const res = await crmApi.delete(`/knowledge/${id}`);
+      if (res.data.success || res.status === 200) {
+        fetchKnowledge();
+      }
     } catch (err) {
-      console.error('Error eliminando:', err);
+      console.error(err);
+      alert("Error al eliminar la regla.");
     }
   };
-
-  const safeStores = Array.isArray(stores) ? stores : [];
-  const safeKnowledgeList = Array.isArray(knowledgeList) ? knowledgeList : [];
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1100px', margin: '0 auto' }}>
-      
-      <h1 style={{ fontSize: '24px', fontWeight: 'bold', borderBottom: '2px solid #111', paddingBottom: '10px', marginBottom: '15px' }}>
-        🧠 {isClient ? "Entrenamiento de tu Asistente IA" : "Entrenamiento y Auditoría de IA"}
-      </h1>
+    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Base de Conocimiento IA</h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
+            Inyecta políticas, FAQs y reglas de negocio para alimentar las respuestas inteligentes de CoopPilot.
+          </p>
+        </div>
 
-      {/* BARRA SUPERIOR ADAPTADA SEGÚN EL ROL */}
-      {!isClient ? (
-        /* VISTA DE AGENCIA / ADMIN (AUDITORÍA TÉCNICA) */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
-          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>ESTADO DEL SERVIDOR</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
-              <span style={{ fontWeight: 'bold', fontSize: '14px' }}>BD Conectada</span>
-            </div>
+        {/* SELECTOR DE TIENDA (SOLO PARA ADMINS) */}
+        {isStaff && stores.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Tienda:</label>
+            <select
+              value={selectedStoreId}
+              onChange={e => setSelectedStoreId(e.target.value)}
+              className="crm-select-dropdown"
+              style={{ minWidth: '200px' }}
+            >
+              {stores.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </div>
+        )}
+      </div>
 
-          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>REGLAS PROCESADAS</span>
-            <p style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: '900' }}>{safeKnowledgeList.length}</p>
-          </div>
-
-          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 16px', borderRadius: '6px', boxShadow: '3px 3px 0px #111' }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>TIENDA ACTIVA</span>
-            <p style={{ margin: '4px 0 0 0', fontSize: '14px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedStore || 'Ninguna'}
-            </p>
-          </div>
-        </div>
-      ) : (
-        /* VISTA DE CLIENTE (LIMPIA Y CENTRADA EN SU MARCA) */
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '25px' }}>
-          <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '12px 20px', borderRadius: '6px', boxShadow: '3px 3px 0px #111', display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div>
-              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase', display: 'block' }}>REGLAS EN MEMORIA</span>
-              <span style={{ fontSize: '22px', fontWeight: '900', color: '#111' }}>{safeKnowledgeList.length}</span>
-            </div>
-            <div style={{ borderLeft: '1px solid #ccc', paddingLeft: '20px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase', display: 'block' }}>ESTADO DE TU IA</span>
-              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#15803d' }}>✨ Activa y Respondiendo</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SELECTOR DE TIENDAS PARA LA AGENCIA */}
-      {!isClient && (
-        <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e5e7eb', borderRadius: '8px', border: '1px dashed #111' }}>
-          <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Auditar la IA de:</label>
-          <select 
-            value={selectedStore} 
-            onChange={(e) => setSelectedStore(e.target.value)} 
-            className="crm-select-dropdown"
-            style={{ width: '300px' }}
-          >
-            <option value="">-- Elige una tienda --</option>
-            {safeStores.map(s => (
-              <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* MENSAJES DE ESTADO */}
-      {successMsg && (
-        <div style={{ padding: '12px', backgroundColor: '#dcfce7', color: '#15803d', border: '2px solid #15803d', borderRadius: '6px', marginBottom: '20px', fontWeight: 'bold' }}>
-          {successMsg}
-        </div>
-      )}
-      {error && (
-        <div style={{ padding: '12px', backgroundColor: '#fee2e2', color: '#991b1b', border: '2px solid #991b1b', borderRadius: '6px', marginBottom: '20px', fontWeight: 'bold' }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
         
-        {/* FORMULARIO BULK / COPY-PASTE */}
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px', boxShadow: '4px 4px 0px #111', height: 'fit-content' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '5px' }}>Inyectar Documento a la IA</h2>
-          <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>Pega textos completos. La IA extraerá la información automáticamente.</p>
-          
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Tipo de Documento</label>
+        {/* PANEL IZQUIERDO: FORMULARIO DE INYECCIÓN */}
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '20px', boxShadow: '4px 4px 0px #111' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '900', color: '#111' }}>
+            Inyectar Documento a la IA
+          </h3>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label className="crm-stat-label">Tipo de Documento</label>
               <select 
-                value={formData.category} 
-                onChange={e => setFormData({...formData, category: e.target.value})}
-                className="crm-select-dropdown" style={{ width: '100%', boxSizing: 'border-box' }}
+                value={category} 
+                onChange={e => setCategory(e.target.value)}
+                className="crm-select-dropdown"
               >
-                <option value="TERMINOS_Y_CONDICIONES">Términos y Condiciones</option>
-                <option value="POLITICAS_DE_ENVIO">Políticas de Envío</option>
-                <option value="POLITICAS_DE_DEVOLUCION">Políticas de Devolución</option>
-                <option value="FAQS_COMPLETAS">Preguntas Frecuentes (Bulk)</option>
-                <option value="INSTRUCCIONES_IA">Instrucciones de Comportamiento (IA)</option>
+                <option value="Preguntas Frecuentes">Preguntas Frecuentes (FAQs)</option>
+                <option value="Términos y Condiciones">Términos y Condiciones</option>
+                <option value="Políticas de Envío">Políticas de Envío</option>
+                <option value="Devoluciones y Cambios">Devoluciones y Cambios</option>
+                <option value="Garantías">Garantías</option>
+                <option value="General">General / Otros</option>
               </select>
             </div>
 
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Nombre / Referencia del Texto</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label className="crm-stat-label">Nombre / Referencia del Texto</label>
               <input 
                 type="text" 
                 placeholder="Ej: Políticas de Envío 2026..." 
-                value={formData.question}
-                onChange={e => setFormData({...formData, question: e.target.value})}
-                className="crm-input-text" 
-                style={{ width: '100%', boxSizing: 'border-box' }}
-                required
+                value={question}
+                onChange={e => setQuestion(e.target.value)}
+                className="crm-input-text"
+                style={{ width: 'auto' }}
               />
             </div>
 
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Contenido Completo (Copy/Paste)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label className="crm-stat-label">Contenido Completo (Copy/Paste)</label>
               <textarea 
                 placeholder="Pega aquí todo el texto de tu documento o políticas..." 
-                value={formData.answer}
-                onChange={e => setFormData({...formData, answer: e.target.value})}
-                className="crm-input-text" 
-                style={{ width: '100%', minHeight: '180px', resize: 'vertical', boxSizing: 'border-box', fontSize: '13px' }}
+                value={answer}
+                onChange={e => setAnswer(e.target.value)}
+                className="crm-input-text"
+                style={{ height: '220px', resize: 'vertical', width: 'auto', fontFamily: 'sans-serif' }}
                 required
               />
             </div>
 
-            <button type="submit" disabled={!selectedStore} className="crm-btn-black" style={{ width: '100%', boxSizing: 'border-box' }}>
-              Procesar y Guardar en Memoria
+            <button 
+              type="submit" 
+              disabled={saving} 
+              className="crm-btn-black"
+              style={{ marginTop: '8px', padding: '12px' }}
+            >
+              {saving ? 'Procesando en IA...' : 'Procesar y Guardar en Memoria'}
             </button>
           </form>
         </div>
 
-        {/* LISTADO DE REGLAS */}
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', padding: '20px', borderRadius: '8px' }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '15px' }}>
-            {isClient ? "Conocimiento Guardado para tu IA" : "Memoria Procesada en Sistema"}
-          </h2>
-          
-          {loading ? (
-            <p style={{ fontStyle: 'italic', color: '#666' }}>Consultando base de conocimiento...</p>
-          ) : safeKnowledgeList.length === 0 ? (
-            <p style={{ color: '#666', fontStyle: 'italic' }}>Esta tienda aún no tiene reglas registradas.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {safeKnowledgeList.map(item => (
-                <div key={item.id} style={{ border: '1px solid #111', padding: '15px', borderRadius: '6px', backgroundColor: '#f9f9f6' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '10px', backgroundColor: '#111', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
-                      {item.category}
-                    </span>
-                    <button 
-                      onClick={() => handleDelete(item.id)}
-                      style={{ background: 'none', border: 'none', color: '#d9534f', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
-                    >
-                      [ BORRAR ]
-                    </button>
-                  </div>
-                  {item.question && <p style={{ fontWeight: 'bold', margin: '0 0 5px 0', fontSize: '14px' }}>Q: {item.question}</p>}
-                  <p style={{ margin: 0, fontSize: '14px', color: '#333' }}>A: {item.answer}</p>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* PANEL DERECHO: MEMORIA PROCESADA (LISTA DE ACCORDEONES) */}
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '20px', boxShadow: '4px 4px 0px #111', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '900', color: '#111' }}>
+              Memoria Procesada en Sistema
+            </h3>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666' }}>
+              {knowledgeList.length} registros
+            </span>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', maxHeight: '550px', paddingRight: '4px' }}>
+            {loading ? (
+              <div className="crm-text-loading">Cargando memoria...</div>
+            ) : knowledgeList.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#9ca3af', padding: '40px 20px', fontSize: '13px' }}>
+                No hay documentos cargados en la memoria de esta tienda.
+              </div>
+            ) : (
+              knowledgeList.map(item => (
+                <KnowledgeItem 
+                  key={item.id} 
+                  item={item} 
+                  onDelete={handleDelete} 
+                />
+              ))
+            )}
+          </div>
         </div>
 
       </div>
