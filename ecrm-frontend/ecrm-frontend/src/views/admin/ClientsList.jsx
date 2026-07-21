@@ -6,7 +6,10 @@ function ClientsList() {
   const [clients, setClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // FILTROS
   const [planFilter, setPlanFilter] = useState('ALL');
+  const [techFilter, setTechFilter] = useState('ALL'); // 👈 NUEVO FILTRO DE TECNOLOGÍA
   const [searchQuery, setSearchQuery] = useState('');
   
   // ESTADO PARA EL CAMBIO DE VISTA (grid o table)
@@ -27,7 +30,7 @@ function ClientsList() {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = viewMode === 'table' ? 15 : 9; // Mostramos más items si es tabla
+  const itemsPerPage = viewMode === 'table' ? 15 : 9;
 
   const navigate = useNavigate();
 
@@ -52,10 +55,20 @@ function ClientsList() {
   useEffect(() => {
     let result = clients;
     
+    // Filtrar por Plan
     if (planFilter !== 'ALL') {
       result = result.filter(c => c.plan_type === planFilter);
     }
+
+    // Filtrar por Tecnología
+    if (techFilter !== 'ALL') {
+      result = result.filter(c => {
+        if (!c.tecnologia) return false;
+        return c.tecnologia.toLowerCase() === techFilter.toLowerCase();
+      });
+    }
     
+    // Filtrar por Búsqueda de Texto
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       result = result.filter(c => 
@@ -66,11 +79,9 @@ function ClientsList() {
     
     setFilteredClients(result);
     setCurrentPage(1);
-  }, [planFilter, searchQuery, clients]);
+  }, [planFilter, techFilter, searchQuery, clients]);
 
-  // =================================================================
-  // RESOLUTOR DE LOGO (Construye la URL absoluta para el listado)
-  // =================================================================
+  // RESOLUTOR DE LOGO
   const getLogoUrl = (url) => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -86,9 +97,7 @@ function ClientsList() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // =================================================================
-  // FUNCIÓN: Subir imagen al servidor usando Multer
-  // =================================================================
+  // Subir imagen
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -144,9 +153,7 @@ function ClientsList() {
     }
   };
 
-  // =================================================================
   // ESTILOS PARA BADGE DE TECNOLOGÍA
-  // =================================================================
   const getTechBadgeStyle = (tech) => {
     const baseStyle = {
       padding: '2px 10px',
@@ -172,7 +179,7 @@ function ClientsList() {
     }
   };
 
-  // Calculos de paginacion
+  // Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredClients.slice(indexOfFirstItem, indexOfLastItem);
@@ -220,6 +227,7 @@ function ClientsList() {
             className="crm-input-text"
           />
 
+          {/* FILTRO DE PLANES */}
           <select 
             value={planFilter} 
             onChange={(e) => setPlanFilter(e.target.value)}
@@ -232,6 +240,20 @@ function ClientsList() {
             <option value="WARRANTY">WARRANTY</option>
             <option value="OUT_OF_WARRANTY">OUT OF WARRANTY</option>
             <option value="LEAD">LEAD</option>
+          </select>
+
+          {/* NUEVO FILTRO DE TECNOLOGÍA */}
+          <select 
+            value={techFilter} 
+            onChange={(e) => setTechFilter(e.target.value)}
+            className="crm-select-dropdown"
+          >
+            <option value="ALL">Todas las tecnologías</option>
+            <option value="Shopify">Shopify</option>
+            <option value="Woocommerce">WooCommerce</option>
+            <option value="Vtex">VTEX</option>
+            <option value="Magento">Magento</option>
+            <option value="Custom">Custom / Propio</option>
           </select>
 
           <button 
@@ -325,7 +347,7 @@ function ClientsList() {
 
       {/* RENDERIZADO CONDICIONAL DE LA VISTA */}
       {viewMode === 'grid' ? (
-        /* VISTA 1: GRID / TARJETAS (La original) */
+        /* VISTA 1: GRID / TARJETAS */
         <div className="crm-grid-three-columns">
           {currentItems.map(client => (
             <div 
