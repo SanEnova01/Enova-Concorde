@@ -7,6 +7,7 @@ import ClientPerformance from './ClientDetail/ClientPerformance';
 import ClientMemoryVu from './ClientDetail/ClientMemoryVu';
 import ClientTickets from './ClientDetail/ClientTickets';
 import ClientMetricsHistory from './ClientDetail/ClientMetricsHistory';
+import ClientExternalMonitor from './ClientDetail/ClientExternalMonitor';
 
 function ClientDetail() {
   const { storeId } = useParams();
@@ -183,18 +184,11 @@ function ClientDetail() {
   if (loading) return <div className="crm-text-loading">Cargando perfil de cliente...</div>;
   if (clientError || !client) return (<div className="crm-card-paper" style={{ maxWidth: '500px', margin: '40px auto', textAlign: 'center' }}><h3>Cliente no encontrado</h3></div>);
 
-  // CONFIGURACIÓN DE MONITORES EXTERNOS
   const techStr = String(client.tecnologia).toLowerCase();
   const showShopifyWidget = techStr.includes('shopify') && shopifyStatus;
   const showVtexWidget = techStr.includes('vtex') && vtexStatus;
   const showWooWidget = techStr.includes('woo'); 
   const showExternalMonitor = showShopifyWidget || showVtexWidget || showWooWidget;
-
-  const activeMonitorName = showShopifyWidget ? 'Ecosistema Shopify Inc.' : showVtexWidget ? 'Plataforma VTEX Global' : 'Monitoreo Externo WooCommerce';
-  const activeMonitor = showShopifyWidget ? shopifyStatus : showVtexWidget ? vtexStatus : (wooStatus || {
-    global: { status: 'Analizando conexión...', indicator: 'minor' },
-    components: [ { name: 'Resolución de DNS', status: 'under_maintenance' } ]
-  });
 
   return (
     <div>
@@ -223,9 +217,9 @@ function ClientDetail() {
         </div>
       </div>
 
-      {/* FILA 1: DATOS DE CONTACTO Y STATUS EXTERNO RESTAURADO */}
-      <div className={showExternalMonitor ? "crm-grid-two-columns" : "crm-card-paper"} style={{ marginBottom: '24px', padding: showExternalMonitor ? 0 : undefined, border: showExternalMonitor ? 'none' : undefined, backgroundColor: showExternalMonitor ? 'transparent' : undefined}}>
-        <div className="crm-card-paper" style={{ height: '100%', boxSizing: 'border-box' }}>
+      {/* FILA 1: DATOS DE CONTACTO Y MONITOR EXTERNO CORREGIDOS */}
+      <div className={showExternalMonitor ? "crm-grid-two-columns" : ""} style={{ marginBottom: '24px' }}>
+        <div className="crm-card-paper" style={{ margin: 0, height: '100%', boxSizing: 'border-box' }}>
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Datos de Contacto</h3>
           <p className="crm-text-muted"><strong>Sitio Web:</strong> {client.web ? <a href={client.web} target="_blank" rel="noreferrer" style={{ color: '#111' }}>{client.web}</a> : 'No registrado'}</p>
           <p className="crm-text-muted"><strong>Tecnología:</strong> {client.tecnologia || 'No registrada'}</p>
@@ -240,27 +234,12 @@ function ClientDetail() {
           )}
         </div>
 
-        {showExternalMonitor && (
-          <div className="crm-card-paper" style={{ height: '100%', boxSizing: 'border-box' }}>
-            <div style={{ padding: '16px', borderRadius: '8px', backgroundColor: '#fff', border: '1px solid #ccc', height: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px dotted #111', paddingBottom: '12px', marginBottom: '14px' }}>
-                <div>
-                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase' }}>Infraestructura Externa</span>
-                  <h4 style={{ margin: '2px 0 0 0', fontSize: '16px', fontWeight: 'bold', color: '#111' }}>{activeMonitorName}: {activeMonitor.global?.status}</h4>
-                </div>
-                <span style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: activeMonitor.global?.indicator === 'none' ? '#16a34a' : '#dc2626' }}></span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
-                {(activeMonitor.components || []).map((comp, idx) => (
-                  <div key={idx} style={{ padding: '10px', borderRadius: '6px', backgroundColor: '#fcfbfa', border: '1px solid #e5e5e5', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={comp.name}>{comp.name}</span>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: comp.status.includes('maintenance') ? '#2563eb' : comp.status.includes('outage') ? '#dc2626' : '#16a34a' }}>{comp.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        <ClientExternalMonitor 
+          client={client} 
+          shopifyStatus={shopifyStatus} 
+          vtexStatus={vtexStatus} 
+          wooStatus={wooStatus} 
+        />
       </div>
 
       {/* COMPONENTES MODULARIZADOS: GRÁFICOS Y MÉTRICAS */}
@@ -296,7 +275,7 @@ function ClientDetail() {
         </div>
       )}
 
-      {/* MODAL DE EDICIÓN COMPLETO RESTAURADO */}
+      {/* MODAL DE EDICIÓN */}
       {showEditModal && (
         <div className="crm-modal-mask" onClick={() => setShowEditModal(false)}>
           <div className="crm-modal-content" onClick={e => e.stopPropagation()}>

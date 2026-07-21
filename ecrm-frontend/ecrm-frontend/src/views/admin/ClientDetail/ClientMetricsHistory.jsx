@@ -18,27 +18,32 @@ const getRamColor = (mb) => {
 
 function ClientMetricsHistory({ metrics }) {
   const [metricCurrentPage, setMetricCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Si está expandido mostramos 15 filas, si no, solo 5
+  const itemsPerPage = isExpanded ? 15 : 5;
 
   const indexOfLastMetric = metricCurrentPage * itemsPerPage;
   const indexOfFirstMetric = indexOfLastMetric - itemsPerPage;
   const currentMetrics = metrics.slice(indexOfFirstMetric, indexOfLastMetric);
   const totalMetricPages = Math.ceil(metrics.length / itemsPerPage) || 1;
 
-  return (
-    <div className="crm-card-paper">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 className="crm-section-title" style={{ marginTop: 0 }}>Registros Históricos de Actividad</h2>
-        <button className="crm-btn-border" style={{ fontSize: '11px', padding: '4px 8px' }}>
-          ↗ Ampliar Vista
-        </button>
+  const renderContent = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h2 className="crm-section-title" style={{ marginTop: 0, marginBottom: 0 }}>Registros Históricos de Actividad</h2>
+        {!isExpanded && (
+          <button onClick={() => setIsExpanded(true)} className="crm-btn-border" style={{ fontSize: '11px', padding: '4px 8px' }}>
+            ↗ Ampliar Vista
+          </button>
+        )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '260px', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexGrow: 1, overflowX: 'auto' }}>
         {currentMetrics.length === 0 ? (
           <p className="crm-text-muted">No cuenta con métricas diarias registradas.</p>
         ) : (
-          <table className="crm-table-data" style={{ minWidth: '600px', fontSize: '13px' }}>
+          <table className="crm-table-data" style={{ minWidth: '600px', fontSize: '13px', width: '100%' }}>
             <thead>
               <tr>
                 <th>Fecha</th>
@@ -83,6 +88,30 @@ function ClientMetricsHistory({ metrics }) {
         </div>
       )}
     </div>
+  );
+
+  return (
+    <>
+      <div className="crm-card-paper">
+        {renderContent()}
+      </div>
+
+      {/* MODAL EMERGENTE PANTALLA COMPLETA */}
+      {isExpanded && (
+        <div className="crm-modal-mask" onClick={() => setIsExpanded(false)} style={{ zIndex: 9999 }}>
+          <div 
+            className="crm-modal-content" 
+            onClick={e => e.stopPropagation()}
+            style={{ width: '90vw', height: '80vh', maxWidth: '1000px', display: 'flex', flexDirection: 'column' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+              <button onClick={() => setIsExpanded(false)} className="crm-btn-red" style={{ padding: '6px 12px' }}>Cerrar ✕</button>
+            </div>
+            {renderContent()}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
