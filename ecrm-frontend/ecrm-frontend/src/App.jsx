@@ -11,6 +11,9 @@ import MetricsPage from './views/admin/MetricsPage';
 import UsersManagement from './views/admin/UsersManagement';
 import KnowledgeBase from "./views/admin/KnowledgeBase";
 
+// Vista de Tickets para el Cliente
+import ClientTickets from './views/client/ClientTickets';
+
 // Vistas Públicas (CoopPilot)
 import CoopPilotReturns from './views/public/CoopPilotReturns';
 import CoopPilotHub from './views/public/CoopPilotHub';
@@ -53,7 +56,7 @@ function AdminLayout({ children }) {
     }
   }
 
-  // Verificar si el cliente tiene CoopPilot activo para mostrar/ocultar el menú
+  // Verificar si el cliente tiene CoopPilot activo
   useEffect(() => {
     if (userRole === 'client') {
       crmApi.get('/stores/cuentacliente')
@@ -72,6 +75,7 @@ function AdminLayout({ children }) {
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
+    { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] }, // 👈 NUEVO ENLACE EN SIDEBAR
     { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
     
     // RUTA DE IA PARA LA AGENCIA
@@ -196,7 +200,6 @@ function AdminLayout({ children }) {
   );
 }
 
-// Guardián para verificar la licencia de CoopPilot del cliente en la URL /client/knowledge
 function ClientKnowledgeGuard() {
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
@@ -250,17 +253,22 @@ function App() {
           </ProtectedRoute>
         } />
         
-        {/* RUTA DE IA SOLO PARA SUPER ADMIN Y ADMIN */}
         <Route path="/admin/knowledge" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><KnowledgeBase /></AdminLayout>
           </ProtectedRoute>
         } />
 
-        {/* RUTA DE IA PARA CLIENTES (SOLO SI TIENEN LICENCIA ACTIVA) */}
         <Route path="/client/knowledge" element={
           <ProtectedRoute allowedRoles={['client']}>
             <AdminLayout><ClientKnowledgeGuard /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* RUTA DE TABLERO DE TICKETS PARA CLIENTES */}
+        <Route path="/client/tickets" element={
+          <ProtectedRoute allowedRoles={['client']}>
+            <AdminLayout><ClientTickets /></AdminLayout>
           </ProtectedRoute>
         } />
 
@@ -300,7 +308,6 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* REDIRECCIÓN DE RUTA DESCONOCIDA */}
         <Route path="*" element={
           isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
         } />

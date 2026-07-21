@@ -1,6 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
-function AdminKanban({ tickets = [], onTicketMoved }) {
+function AdminKanban({ tickets = [], onTicketMoved, readOnly = false }) {
+  const navigate = useNavigate();
   const statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
   return (
@@ -19,7 +21,11 @@ function AdminKanban({ tickets = [], onTicketMoved }) {
                   <div style={styles.emptyState}>Sin tickets</div>
                 ) : (
                   filteredTickets.map(ticket => (
-                    <div key={ticket.id} style={styles.card}>
+                    <div 
+                      key={ticket.id} 
+                      style={{ ...styles.card, cursor: 'pointer' }}
+                      onClick={() => navigate(`/admin/tickets/${ticket.id}`)}
+                    >
                       <div style={styles.cardHeader}>
                         <span style={styles.serial}>{ticket.serial_number}</span>
                         <span style={{ ...styles.priority, ...(styles[ticket.priority] || styles.MEDIUM) }}>
@@ -33,24 +39,34 @@ function AdminKanban({ tickets = [], onTicketMoved }) {
                       <div style={styles.cardFooter}>
                         <span style={styles.store}>Tienda: {ticket.store_id}</span>
                       </div>
-                      <div style={styles.actions}>
-                        {status !== 'OPEN' && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); onTicketMoved(ticket.id, statuses[statuses.indexOf(status) - 1]); }}
-                            style={styles.actionButton}
-                          >
-                            Anterior
-                          </button>
-                        )}
-                        {status !== 'CLOSED' && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); onTicketMoved(ticket.id, statuses[statuses.indexOf(status) + 1]); }}
-                            style={{ ...styles.actionButton, ...styles.nextButton }}
-                          >
-                            Avanzar
-                          </button>
-                        )}
-                      </div>
+
+                      {/* SOLO MUESTRA BOTONES DE MOVER SI NO ES SOLO LECTURA */}
+                      {!readOnly && (
+                        <div style={styles.actions}>
+                          {status !== 'OPEN' && (
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (onTicketMoved) onTicketMoved(ticket.id, statuses[statuses.indexOf(status) - 1]); 
+                              }}
+                              style={styles.actionButton}
+                            >
+                              Anterior
+                            </button>
+                          )}
+                          {status !== 'CLOSED' && (
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (onTicketMoved) onTicketMoved(ticket.id, statuses[statuses.indexOf(status) + 1]); 
+                              }}
+                              style={{ ...styles.actionButton, ...styles.nextButton }}
+                            >
+                              Avanzar
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
