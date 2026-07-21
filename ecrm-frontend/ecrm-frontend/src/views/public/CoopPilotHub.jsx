@@ -15,9 +15,9 @@ function CoopPilotHub() {
   const [chatResponse, setChatResponse] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  // Estados para Escalación a Soporte
+  // Estados para Escalación a Soporte (Incluye teléfono)
   const [showSupportForm, setShowSupportForm] = useState(false);
-  const [supportData, setSupportData] = useState({ name: '', email: '', subject: '', message: '' });
+  const [supportData, setSupportData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [supportStatus, setSupportStatus] = useState('');
 
   const handleSupportSubmit = async (e) => {
@@ -27,7 +27,7 @@ function CoopPilotHub() {
       const res = await crmApi.post('/cooppilot/ticket', { ...supportData, store_id: storeId });
       if (res.data && res.data.success) {
         setSupportStatus('✅ Solicitud enviada con éxito. Nuestro equipo te contactará pronto.');
-        setSupportData({ name: '', email: '', subject: '', message: '' });
+        setSupportData({ name: '', email: '', phone: '', subject: '', message: '' });
         setTimeout(() => { setShowSupportForm(false); setSupportStatus(''); }, 4000);
       }
     } catch (err) {
@@ -132,7 +132,7 @@ function CoopPilotHub() {
         <div style={{ backgroundColor: '#12141d', border: '1px solid #2a2e3d', padding: '24px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontSize: '11px', fontWeight: '800', color: '#FFD700', textTransform: 'uppercase', letterSpacing: '1.5px', display: 'block', marginBottom: '4px' }}>
-              CENTRO DE ATENCIÓN VIP
+              CENTRO DE ATENCIÓN AUTOMATIZADA
             </span>
             <h1 style={{ margin: 0, fontSize: '26px', fontWeight: '900', color: '#ffffff', letterSpacing: '-0.5px' }}>
               {storeInfo.name}
@@ -272,6 +272,7 @@ function CoopPilotHub() {
             <form onSubmit={handleSupportSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input type="text" placeholder="Tu Nombre" required value={supportData.name} onChange={e => setSupportData({...supportData, name: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#ffffff' }} />
               <input type="email" placeholder="Tu Correo" required value={supportData.email} onChange={e => setSupportData({...supportData, email: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#ffffff' }} />
+              <input type="tel" placeholder="Tu Teléfono (Ej: +51 999...)" value={supportData.phone} onChange={e => setSupportData({...supportData, phone: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#ffffff' }} />
               <input type="text" placeholder="Asunto (Ej: Ayuda con mi pedido)" required value={supportData.subject} onChange={e => setSupportData({...supportData, subject: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#ffffff' }} />
               <textarea placeholder="Detalla tu problema aquí..." required value={supportData.message} onChange={e => setSupportData({...supportData, message: e.target.value})} style={{ padding: '12px', backgroundColor: '#090a0f', border: '1px solid #374151', borderRadius: '6px', color: '#ffffff', minHeight: '100px', resize: 'vertical' }} />
               <button type="submit" style={{ backgroundColor: '#FFD700', color: '#111111', padding: '12px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}>Enviar Solicitud</button>
