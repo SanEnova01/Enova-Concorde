@@ -9,6 +9,9 @@ function ClientsList() {
   const [planFilter, setPlanFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   
+  // ESTADO PARA EL CAMBIO DE VISTA (grid o table)
+  const [viewMode, setViewMode] = useState('grid');
+  
   // Estado para el formulario de nueva tienda
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -20,11 +23,11 @@ function ClientsList() {
     plan_type: 'GO',
     tecnologia: '',
     notes: '',
-    logo_url: '' // Aquí guardaremos la ruta devuelta por el servidor
+    logo_url: '' 
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 9; 
+  const itemsPerPage = viewMode === 'table' ? 15 : 9; // Mostramos más items si es tabla
 
   const navigate = useNavigate();
 
@@ -84,7 +87,7 @@ function ClientsList() {
   };
 
   // =================================================================
-  // NUEVA FUNCIÓN: Subir imagen al servidor usando Multer
+  // FUNCIÓN: Subir imagen al servidor usando Multer
   // =================================================================
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
@@ -147,7 +150,7 @@ function ClientsList() {
   const getTechBadgeStyle = (tech) => {
     const baseStyle = {
       padding: '2px 10px',
-      borderRadius: '12px', // Esquinas redondeadas
+      borderRadius: '12px', 
       fontSize: '10px',
       fontWeight: 'bold',
       marginLeft: '8px',
@@ -155,17 +158,17 @@ function ClientsList() {
       textTransform: 'uppercase'
     };
 
-    if (!tech) return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }; // Gris
+    if (!tech) return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }; 
 
     const t = tech.toLowerCase();
     if (t === 'shopify') {
-      return { ...baseStyle, backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }; // Verde
+      return { ...baseStyle, backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }; 
     } else if (t === 'woocommerce') {
-      return { ...baseStyle, backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }; // Morado
+      return { ...baseStyle, backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }; 
     } else if (t === 'vtex') {
-      return { ...baseStyle, backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }; // Rojo
+      return { ...baseStyle, backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }; 
     } else {
-      return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }; // Gris (Magento, Custom, etc.)
+      return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }; 
     }
   };
 
@@ -184,6 +187,31 @@ function ClientsList() {
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Gestión de Clientes</h1>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          
+          {/* CONTROLADOR DE CAMBIO DE VISTA */}
+          <div style={{ display: 'flex', gap: '4px', backgroundColor: '#e5e7eb', padding: '4px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+            <button
+              onClick={() => setViewMode('grid')}
+              style={{
+                padding: '8px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', transition: 'all 0.2s',
+                backgroundColor: viewMode === 'grid' ? '#111' : 'transparent',
+                color: viewMode === 'grid' ? '#FFD700' : '#4b5563'
+              }}
+            >
+              ⊞ Cuadrícula
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              style={{
+                padding: '8px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', transition: 'all 0.2s',
+                backgroundColor: viewMode === 'table' ? '#111' : 'transparent',
+                color: viewMode === 'table' ? '#FFD700' : '#4b5563'
+              }}
+            >
+              ☰ Tabla
+            </button>
+          </div>
+
           <input 
             type="text"
             placeholder="Buscar por nombre o ID..."
@@ -270,7 +298,6 @@ function ClientsList() {
               </select>
             </div>
             
-            {/* NUEVO CAMPO DE SUBIDA DE IMAGEN */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label className="crm-stat-label">Subir Logotipo de la Tienda</label>
               <input 
@@ -296,51 +323,103 @@ function ClientsList() {
         </form>
       )}
 
-      {/* Grid de 3 Columnas Kindle E-ink */}
-      <div className="crm-grid-three-columns">
-        {currentItems.map(client => (
-          <div 
-            key={client.id} 
-            className="crm-card-paper-clickable"
-            onClick={() => navigate(`/admin/clientes/${client.id}`)}
-          >
-            {/* Cabecera de la tarjeta con el Logo resuelto mediante getLogoUrl */}
-            <div className="crm-card-header-line" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '40px', height: '40px', backgroundColor: '#f2f1ec', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #111111', overflow: 'hidden', flexShrink: 0 }}>
-                {client.logo_url ? (
-                  <img src={getLogoUrl(client.logo_url)} alt={`Logo de ${client.name}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <span style={{ fontSize: '9px', fontWeight: 'bold' }}>LOGO</span>
-                )}
+      {/* RENDERIZADO CONDICIONAL DE LA VISTA */}
+      {viewMode === 'grid' ? (
+        /* VISTA 1: GRID / TARJETAS (La original) */
+        <div className="crm-grid-three-columns">
+          {currentItems.map(client => (
+            <div 
+              key={client.id} 
+              className="crm-card-paper-clickable"
+              onClick={() => navigate(`/admin/clientes/${client.id}`)}
+            >
+              <div className="crm-card-header-line" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', backgroundColor: '#f2f1ec', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #111111', overflow: 'hidden', flexShrink: 0 }}>
+                  {client.logo_url ? (
+                    <img src={getLogoUrl(client.logo_url)} alt={`Logo de ${client.name}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ fontSize: '9px', fontWeight: 'bold' }}>LOGO</span>
+                  )}
+                </div>
+                <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                    {client.name}
+                  </h3>
+                  <span className="crm-badge">{client.plan_type}</span>
+                </div>
               </div>
-              <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                  {client.name}
-                </h3>
-                <span className="crm-badge">{client.plan_type}</span>
+
+              <div style={{ marginTop: '12px' }}>
+                <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>ID:</strong> {client.id}</p>
+                <p className="crm-text-muted" style={{ margin: '6px 0', display: 'flex', alignItems: 'center' }}>
+                  <strong>Tecnología:</strong> 
+                  <span style={getTechBadgeStyle(client.tecnologia)}>
+                    {client.tecnologia || 'No indicada'}
+                  </span>
+                </p>
+                <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>Web:</strong> {client.web || 'No indicada'}</p>
+                <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>Tickets:</strong> {client.ticket_count}</p>
               </div>
             </div>
-
-            {/* ESTO REEMPLAZA AL DIV INFERIOR DE CADA TARJETA */}
-            <div style={{ marginTop: '12px' }}>
-              <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>ID:</strong> {client.id}</p>
-              
-              <p className="crm-text-muted" style={{ margin: '6px 0', display: 'flex', alignItems: 'center' }}>
-                <strong>Tecnología:</strong> 
-                <span style={getTechBadgeStyle(client.tecnologia)}>
-                  {client.tecnologia || 'No indicada'}
-                </span>
-              </p>
-
-              <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>Web:</strong> {client.web || 'No indicada'}</p>
-              <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>Tickets:</strong> {client.ticket_count}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        /* VISTA 2: TABLA / LISTA */
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+            <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #111' }}>
+              <tr>
+                <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb', width: '50px' }}>Logo</th>
+                <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Tienda & ID</th>
+                <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Plan</th>
+                <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Tecnología</th>
+                <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Web</th>
+                <th style={{ padding: '14px', fontWeight: '900', color: '#111', textAlign: 'center' }}>Tickets</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentItems.map(client => (
+                <tr 
+                  key={client.id}
+                  onClick={() => navigate(`/admin/clientes/${client.id}`)}
+                  style={{ borderBottom: '1px solid #e5e7eb', cursor: 'pointer', transition: 'background-color 0.2s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                    <div style={{ width: '36px', height: '36px', backgroundColor: '#f2f1ec', border: '1px solid #111', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: '4px' }}>
+                      {client.logo_url ? (
+                        <img src={getLogoUrl(client.logo_url)} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      ) : (
+                        <span style={{ fontSize: '9px', fontWeight: 'bold' }}>LOGO</span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                    <div style={{ fontWeight: 'bold', color: '#111', fontSize: '14px' }}>{client.name}</div>
+                    <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px' }}>ID: {client.id}</div>
+                  </td>
+                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                    <span className="crm-badge">{client.plan_type}</span>
+                  </td>
+                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                    <span style={getTechBadgeStyle(client.tecnologia)}>{client.tecnologia || 'No indicada'}</span>
+                  </td>
+                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb', color: '#4b5563' }}>
+                    {client.web || '-'}
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 'bold', color: '#111' }}>
+                    {client.ticket_count}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {filteredClients.length === 0 && (
-        <div className="crm-text-loading">No se encontraron clientes con los criterios ingresados.</div>
+        <div className="crm-text-loading" style={{ marginTop: '20px' }}>No se encontraron clientes con los criterios ingresados.</div>
       )}
 
       {/* Controles de Paginacion */}
