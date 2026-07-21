@@ -4,7 +4,8 @@ import crmApi from '../../api/crmApi';
 
 function CoopPilotTracking() {
   const navigate = useNavigate();
-  const { storeId } = useParams();
+  const params = useParams();
+  const storeId = params.storeId || params.store_id;
 
   const [loading, setLoading] = useState(true);
   const [storeInfo, setStoreInfo] = useState(null);
@@ -16,6 +17,7 @@ function CoopPilotTracking() {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
+    if (!storeId) return;
     setLoading(true);
     crmApi.get(`/cooppilot/config/${storeId}`)
       .then(res => {
@@ -57,6 +59,14 @@ function CoopPilotTracking() {
     }
   };
 
+  const handleGoBack = () => {
+    if (storeId && storeId !== 'undefined') {
+      navigate(`/cooppilot/${storeId}`);
+    } else {
+      navigate('/login');
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#090a0f', color: '#FFD700', fontFamily: 'monospace' }}>
@@ -78,7 +88,7 @@ function CoopPilotTracking() {
             El servicio de <strong>Rastreo de Pedidos</strong> no se encuentra activo para la tienda <strong>{storeInfo?.name || storeId}</strong>.
           </p>
           <button 
-            onClick={() => navigate(`/cooppilot/${storeId}`)}
+            onClick={handleGoBack}
             style={{ backgroundColor: '#FFD700', color: '#111', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
           >
             Volver al Centro de Ayuda
@@ -93,7 +103,7 @@ function CoopPilotTracking() {
       <div style={{ maxWidth: '650px', margin: '0 auto' }}>
         
         <button 
-          onClick={() => navigate(`/cooppilot?store=${storeId}`)}
+          onClick={handleGoBack}
           style={{ backgroundColor: 'transparent', border: 'none', color: '#FFD700', fontSize: '13px', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           ← Volver al Centro de Ayuda

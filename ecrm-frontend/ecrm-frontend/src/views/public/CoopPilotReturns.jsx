@@ -4,7 +4,8 @@ import crmApi from '../../api/crmApi';
 
 function CoopPilotReturns() {
   const navigate = useNavigate();
-  const { storeId } = useParams();
+  const params = useParams();
+  const storeId = params.storeId || params.store_id;
 
   const [loading, setLoading] = useState(true);
   const [storeInfo, setStoreInfo] = useState(null);
@@ -17,6 +18,7 @@ function CoopPilotReturns() {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
+    if (!storeId) return;
     setLoading(true);
     crmApi.get(`/cooppilot/config/${storeId}`)
       .then(res => {
@@ -39,13 +41,20 @@ function CoopPilotReturns() {
     setErrorMsg('');
 
     try {
-      // Simulación o llamado de solicitud
       await new Promise(r => setTimeout(r, 1200));
       setSuccessMsg(`Solicitud registrada para el pedido ${orderNumber}. Se ha enviado un correo con las instrucciones.`);
     } catch (err) {
       setErrorMsg('Ocurrió un error al procesar la solicitud.');
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (storeId && storeId !== 'undefined') {
+      navigate(`/cooppilot/${storeId}`);
+    } else {
+      navigate('/login');
     }
   };
 
@@ -70,7 +79,7 @@ function CoopPilotReturns() {
             El portal de <strong>Cambios y Devoluciones</strong> no se encuentra activo para la tienda <strong>{storeInfo?.name || storeId}</strong>.
           </p>
           <button 
-            onClick={() => navigate(`/cooppilot/${storeId}`)}
+            onClick={handleGoBack}
             style={{ backgroundColor: '#FFD700', color: '#111', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
           >
             Volver al Centro de Ayuda
@@ -84,8 +93,9 @@ function CoopPilotReturns() {
     <div style={{ minHeight: '100vh', backgroundColor: '#090a0f', color: '#f3f4f6', padding: '40px 20px', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ maxWidth: '650px', margin: '0 auto' }}>
         
+        {/* CORREGIDO AQUÍ */}
         <button 
-          onClick={() => navigate(`/cooppilot?store=${storeId}`)}
+          onClick={handleGoBack}
           style={{ backgroundColor: 'transparent', border: 'none', color: '#FFD700', fontSize: '13px', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           ← Volver al Centro de Ayuda
