@@ -37,7 +37,7 @@ router.get('/config/:store_id', async (req, res) => {
   }
 });
 
-// POST: Validar pedido (Rastreo)
+// POST: Validar pedido (Rastreo Real con Shopify API)
 router.post('/verify-order', async (req, res) => {
   try {
     const { store_id, order_number, email } = req.body;
@@ -46,22 +46,97 @@ router.post('/verify-order', async (req, res) => {
     if (!store) return res.status(404).json({ success: false, error: 'Tienda no encontrada.' });
     if (!store.has_cooppilot) return res.status(403).json({ success: false, disabled: true, error: 'Módulo inactivo.' });
 
-    if (!order_number || !order_number.startsWith('#')) {
-      return res.status(400).json({ success: false, error: 'El número de pedido debe incluir "#". Ej: #1024' });
+    if (!order_number) {
+      return res.status(400).json({ success: false, error: 'Ingresa un número de pedido válido (Ej: #1024).' });
     }
 
+    const cleanOrderNum = order_number.trim();
+    const cleanEmail = String(email || '').toLowerCase().trim();
+
+    // 🌟 SI LA TIENDA TIENE CONFIGURADO TOKEN DE SHOPIFY Y DOMINIO EN DB, CONSULTA LA API REAL
+    if (store.shopify_access_token && store.web) {
+      // Extraer dominio de la URL web
+      const storeDomain = store.web.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      const shopifyUrl = `https://${storeDomain}/admin/api/2024-01/orders.json?name=${encodeURIComponent(cleanOrderNum)}&status=any`;
+
+      try {
+        const shopifyRes = await fetch(shopifyUrl, {
+          headers: {
+            'X-Shopify-Access-Token': store.shopify_access_token,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (shopifyRes.ok) {
+          const shopifyData = await shopifyRes.json();
+          const orders = shopifyData.orders || [];
+
+          // Validar que coincida el email de la orden con el ingresado por el cliente
+          const matchedOrder = orders.find(o => 
+            (o.email && o.email.toLowerCase().trim() === cleanEmail) ||
+            (o.customer && o.customer.email && o.customer.email.toLowerCase().trim() === cleanEmail)
+          );
+
+          if (matchedOrder) {
+            const fulfillment = matchedOrder.fulfillments?.[0] || {};
+            const trackingCompany = fulfillment.tracking_company || 'Procesando Envío';
+            const trackingNumber = fulfillment.tracking_number || 'Pendiente de Guía';
+
+            let statusText = 'EN PREPARACIÓN';
+            if (matchedOrder.cancelled_at) {
+              statusText = 'CANCELADO';
+            } else if (matchedOrder.fulfillment_status === 'fulfilled') {
+              statusText = 'EN TRÁNSITO / ENTREGADO';
+            } else if (matchedOrder.financial_status === 'paid') {
+              statusText = 'PAGO CONFIRMADO - PREPARANDO PAQUETE';
+            }
+
+            return res.json({ 
+              success: true, 
+              data: {
+                order_number: matchedOrder.name,
+                customer_email: matchedOrder.email,
+                purchase_date: matchedOrder.created_at,
+                status: statusText,
+                tracking_company: trackingCompany,
+                tracking_number: trackingNumber,
+                items: (matchedOrder.line_items || []).map(i => ({
+                  id: i.id,
+                  name: i.title,
+                  size: i.variant_title || 'Estándar',
+                  price: i.price
+                }))
+              },
+              store_branding: { name: store.name, logo_url: store.logo_url }
+            });
+          } else {
+            return res.status(404).json({ 
+              success: false, 
+              error: 'No se encontró ningún pedido que coincida con ese número y correo.' 
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error consultando API de Shopify:", err);
+      }
+    }
+
+    // 🌟 SIMULACRO DE FALLBACK (Si la tienda aún no configura su token de Shopify)
     res.json({ 
       success: true, 
       data: {
-        order_number: order_number,
-        customer_email: email,
+        order_number: cleanOrderNum,
+        customer_email: cleanEmail,
         purchase_date: new Date().toISOString(),
-        status: 'DELIVERED',
-        items: [{ id: '1', name: 'Producto de prueba', size: 'M', price: 100 }]
+        status: 'ENTREGADO (Modo Simulacro)',
+        tracking_company: 'Courier Demo',
+        tracking_number: 'TRK-998877',
+        items: [{ id: '1', name: 'Producto Demo de Shopify', size: 'M', price: 100 }]
       },
       store_branding: { name: store.name, logo_url: store.logo_url }
     });
   } catch (error) {
+    console.error("Error en verify-order:", error);
     res.status(500).json({ success: false, error: 'Error al verificar la orden.' });
   }
 });
@@ -81,14 +156,12 @@ router.post('/chat', async (req, res) => {
     let knowledgeContext = "No hay políticas o documentos cargados para esta tienda aún.";
 
     if (process.env.OPENAI_API_KEY) {
-      // 1. Convertir la pregunta a Vector
       const embedRes = await openai.embeddings.create({
         model: "text-embedding-3-small",
         input: query,
       });
       const queryVector = `[${embedRes.data[0].embedding.join(',')}]`;
 
-      // 2. Buscar similitud en la BD (RAG)
       const kbRules = await db.raw(`
         SELECT category, question, answer, 1 - (embedding <=> ?) as similarity
         FROM knowledge_base
@@ -141,7 +214,7 @@ router.post('/ticket', async (req, res) => {
       store_id: store_id || 'enova.agency',
       priority: 'MEDIUM',
       task_type: 'CONSULTA',
-      is_b2c: true // 👈 ESTO LO ENVÍA AL CAJÓN DE CLIENTES FINALES
+      is_b2c: true
     });
 
     res.json({ success: true, data: newTicket });
