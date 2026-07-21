@@ -13,10 +13,12 @@ function KnowledgeItem({ item, onDelete }) {
       marginBottom: '12px',
       backgroundColor: '#ffffff',
       boxShadow: '3px 3px 0px #111',
-      transition: 'all 0.2s'
+      transition: 'all 0.2s',
+      overflow: 'hidden', // 👈 Evita que el contenido desborde la tarjeta
+      minWidth: 0
     }}>
       {/* CABECERA: CATEGORÍA Y BOTÓN BORRAR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
         <span style={{
           fontSize: '10px',
           fontWeight: '900',
@@ -25,7 +27,11 @@ function KnowledgeItem({ item, onDelete }) {
           padding: '3px 8px',
           borderRadius: '4px',
           textTransform: 'uppercase',
-          letterSpacing: '0.5px'
+          letterSpacing: '0.5px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          maxWidth: '70%'
         }}>
           {item.category || 'GENERAL'}
         </span>
@@ -42,7 +48,8 @@ function KnowledgeItem({ item, onDelete }) {
             fontWeight: '900',
             cursor: 'pointer',
             fontSize: '11px',
-            letterSpacing: '0.5px'
+            letterSpacing: '0.5px',
+            flexShrink: 0
           }}
         >
           [ BORRAR ]
@@ -52,14 +59,16 @@ function KnowledgeItem({ item, onDelete }) {
       {/* ÁREA CLICKEABLE PARA EXPANDIR / CONTRAER */}
       <div 
         onClick={() => setExpanded(!expanded)} 
-        style={{ cursor: 'pointer', userSelect: 'none' }}
+        style={{ cursor: 'pointer', userSelect: 'none', width: '100%', overflow: 'hidden' }}
       >
-        <h4 style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: 'bold', color: '#111', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>{item.question || 'Documento / Pregunta sin título'}</span>
-          <span style={{ fontSize: '11px', color: '#6b7280', backgroundColor: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', border: '1px solid #d1d5db', marginLeft: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px' }}>
+          <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+            {item.question || 'Documento / Pregunta sin título'}
+          </h4>
+          <span style={{ fontSize: '11px', color: '#6b7280', backgroundColor: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', border: '1px solid #d1d5db', flexShrink: 0 }}>
             {expanded ? '▲ Ocultar' : '▼ Expandir'}
           </span>
-        </h4>
+        </div>
 
         {expanded ? (
           <div style={{ 
@@ -67,6 +76,7 @@ function KnowledgeItem({ item, onDelete }) {
             color: '#374151', 
             lineHeight: '1.6', 
             whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-word',
             backgroundColor: '#f9fafb', 
             padding: '12px', 
             borderRadius: '6px', 
@@ -84,7 +94,8 @@ function KnowledgeItem({ item, onDelete }) {
             color: '#6b7280', 
             whiteSpace: 'nowrap', 
             overflow: 'hidden', 
-            textOverflow: 'ellipsis' 
+            textOverflow: 'ellipsis',
+            maxWidth: '100%'
           }}>
             {item.answer}
           </p>
@@ -195,7 +206,7 @@ function KnowledgeBase() {
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Base de Conocimiento IA</h1>
@@ -222,10 +233,10 @@ function KnowledgeBase() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', width: '100%' }}>
         
         {/* PANEL IZQUIERDO: FORMULARIO DE INYECCIÓN */}
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '20px', boxShadow: '4px 4px 0px #111' }}>
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '20px', boxShadow: '4px 4px 0px #111', minWidth: 0 }}>
           <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '900', color: '#111' }}>
             Inyectar Documento a la IA
           </h3>
@@ -255,7 +266,7 @@ function KnowledgeBase() {
                 value={question}
                 onChange={e => setQuestion(e.target.value)}
                 className="crm-input-text"
-                style={{ width: 'auto' }}
+                style={{ width: '100%', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -266,7 +277,7 @@ function KnowledgeBase() {
                 value={answer}
                 onChange={e => setAnswer(e.target.value)}
                 className="crm-input-text"
-                style={{ height: '220px', resize: 'vertical', width: 'auto', fontFamily: 'sans-serif' }}
+                style={{ height: '220px', resize: 'vertical', width: '100%', boxSizing: 'border-box', fontFamily: 'sans-serif' }}
                 required
               />
             </div>
@@ -283,7 +294,7 @@ function KnowledgeBase() {
         </div>
 
         {/* PANEL DERECHO: MEMORIA PROCESADA (LISTA DE ACCORDEONES) */}
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '20px', boxShadow: '4px 4px 0px #111', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', padding: '20px', boxShadow: '4px 4px 0px #111', display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '900', color: '#111' }}>
               Memoria Procesada en Sistema
