@@ -5,20 +5,32 @@ import crmApi from '../../api/crmApi';
 function TotalTickets() {
   const navigate = useNavigate();
   
-  // 1. PRIMERO LOS ESTADOS
+  // 1. ESTADOS
   const [tickets, setTickets] = useState([]);
   const [stores, setStores] = useState([]);
-  const [viewMode, setViewMode] = useState('KANBAN'); 
+  // 👈 1. VISTA POR DEFECTO: LISTA
+  const [viewMode, setViewMode] = useState('LIST'); 
   const [selectedDayTickets, setSelectedDayTickets] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [calendarDate, setCalendarDate] = useState(new Date());
 
-  // 2. LUEGO EL FILTRO DE PESTAÑAS
+  // ESTADO PARA SELECCIÓN MASIVA EN MODO LISTA
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  // ESTADO PARA PAGINACIÓN KANBAN (6 en 6 por columna)
+  const [kanbanPages, setKanbanPages] = useState({
+    OPEN: 1,
+    IN_PROGRESS: 1,
+    RESOLVED: 1,
+    CLOSED: 1
+  });
+
+  // 2. FILTRO DE PESTAÑAS (B2B / B2C)
   const [ticketView, setTicketView] = useState('B2B');
   const filteredTickets = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
 
-  // Estado del formulario
+  // Formulario de nuevo ticket
   const [formData, setFormData] = useState({ 
     name: '', 
     description: '', 
@@ -29,6 +41,8 @@ function TotalTickets() {
   });
 
   const statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+  const priorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+  const taskTypes = ['CONSULTA', 'CAMBIO', 'BUG_FIX', 'TASK_INTERNA'];
   const monthsNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
   const currentYear = calendarDate.getFullYear();
@@ -38,7 +52,6 @@ function TotalTickets() {
     try {
       const [ticketsRes, storesRes] = await Promise.all([crmApi.get('/tickets'), crmApi.get('/stores')]);
       
-      // Extracción segura (fallback para evitar arreglos vacíos)
       if (ticketsRes.data) {
         setTickets(Array.isArray(ticketsRes.data) ? ticketsRes.data : (ticketsRes.data.data || []));
       }
@@ -59,24 +72,77 @@ function TotalTickets() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleStatusChange = async (ticketId, newStatus) => {
+  // Limpiar seleccionados al cambiar de pestaña B2B / B2C
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [ticketView]);
+
+  // ==========================================
+  // EDICIÓN INDIVIDUAL EN LISTADO
+  // ==========================================
+  const handleSingleFieldChange = async (ticketId, field, value) => {
     try {
-      const response = await crmApi.patch(`/tickets/${ticketId}/status`, { status: newStatus });
-      if (response.data.success || response.status === 200) {
-        setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: newStatus } : t));
-        if (selectedDayTickets) {
-          setSelectedDayTickets(prev => ({ ...prev, list: prev.list.map(t => t.id === ticketId ? { ...t, status: newStatus } : t) }));
-        }
+      if (field === 'status') {
+        await crmApi.patch(`/tickets/${ticketId}/status`, { status: value });
+      } else {
+        await crmApi.patch(`/tickets/${ticketId}`, { [field]: value });
       }
-    } catch (error) { console.error(error); }
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, [field]: value } : t));
+    } catch (error) {
+      console.error(`Error actualizando ${field}:`, error);
+      // Fallback local
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, [field]: value } : t));
+    }
   };
 
+  // ==========================================
+  // SELECCIÓN Y EDICIÓN MASIVA
+  // ==========================================
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(filteredTickets.map(t => t.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (e, ticketId) => {
+    e.stopPropagation();
+    if (selectedIds.includes(ticketId)) {
+      setSelectedIds(selectedIds.filter(id => id !== ticketId));
+    } else {
+      setSelectedIds([...selectedIds, ticketId]);
+    }
+  };
+
+  const handleBulkUpdate = async (field, value) => {
+    if (!value || selectedIds.length === 0) return;
+    try {
+      await Promise.all(
+        selectedIds.map(id => {
+          if (field === 'status') {
+            return crmApi.patch(`/tickets/${id}/status`, { status: value });
+          }
+          return crmApi.patch(`/tickets/${id}`, { [field]: value });
+        })
+      );
+      setTickets(prev => prev.map(t => selectedIds.includes(t.id) ? { ...t, [field]: value } : t));
+      setSelectedIds([]);
+      alert(`Se actualizó ${field} en ${selectedIds.length} tickets seleccionados.`);
+    } catch (error) {
+      console.error('Error en actualización masiva:', error);
+      setTickets(prev => prev.map(t => selectedIds.includes(t.id) ? { ...t, [field]: value } : t));
+      setSelectedIds([]);
+    }
+  };
+
+  // Drag and Drop Kanban
   const handleDragStart = (e, ticketId) => { e.dataTransfer.setData('text/plain', ticketId); };
   
   const handleDrop = (e, newStatus) => {
     e.preventDefault();
     const ticketId = e.dataTransfer.getData('text/plain');
-    if (ticketId) handleStatusChange(ticketId, newStatus);
+    if (ticketId) handleSingleFieldChange(ticketId, 'status', newStatus);
   };
 
   const handleCreateTicket = async (e) => {
@@ -91,7 +157,6 @@ function TotalTickets() {
       if (response.data.success || response.status === 201) {
         alert('Ticket creado exitosamente');
         setShowCreateModal(false);
-        // Reseteo del formulario
         setFormData(prev => ({ 
           ...prev, 
           name: '', 
@@ -144,7 +209,7 @@ function TotalTickets() {
   return (
     <div>
       {/* =========================================
-          CABECERA Y CONTROLES (PESTAÑAS Y VISTAS)
+          CABECERA Y CONTROLES
           ========================================= */}
       <div className="crm-actions-bar" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
@@ -164,83 +229,276 @@ function TotalTickets() {
             </button>
           </div>
 
-          {/* SELECTORES DE VISTA */}
+          {/* SELECTORES DE VISTA (LISTA ES LA PRIMERA OPCIÓN) */}
           <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f3f4f6', padding: '4px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-            <button onClick={() => setViewMode('KANBAN')} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'KANBAN' ? '#fff' : 'transparent', boxShadow: viewMode === 'KANBAN' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>Kanban</button>
-            <button onClick={() => setViewMode('LIST')} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'LIST' ? '#fff' : 'transparent', boxShadow: viewMode === 'LIST' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>Lista</button>
-            <button onClick={() => setViewMode('CALENDAR')} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'CALENDAR' ? '#fff' : 'transparent', boxShadow: viewMode === 'CALENDAR' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>Calendario</button>
+            <button onClick={() => setViewMode('LIST')} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'LIST' ? '#111' : 'transparent', color: viewMode === 'LIST' ? '#FFD700' : '#4b5563', boxShadow: viewMode === 'LIST' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>Lista</button>
+            <button onClick={() => setViewMode('KANBAN')} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'KANBAN' ? '#111' : 'transparent', color: viewMode === 'KANBAN' ? '#FFD700' : '#4b5563', boxShadow: viewMode === 'KANBAN' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>Kanban</button>
+            <button onClick={() => setViewMode('CALENDAR')} style={{ padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: viewMode === 'CALENDAR' ? '#111' : 'transparent', color: viewMode === 'CALENDAR' ? '#FFD700' : '#4b5563', boxShadow: viewMode === 'CALENDAR' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>Calendario</button>
           </div>
         </div>
       </div>
 
       {/* =========================================
-          VISTA 1: KANBAN
+          BARRA DE ACCIONES MASIVAS (SÓLO MODO LISTA)
           ========================================= */}
-      {viewMode === 'KANBAN' && (
-        <div className="crm-kanban-grid">
-          {statuses.map(status => {
-            // 👈 AHORA FILTRA CORRECTAMENTE BASADO EN LA PESTAÑA
-            const filtered = filteredTickets.filter(t => t.status === status); 
-            return (
-              <div key={status} className="crm-kanban-column" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)}>
-                <div className="crm-kanban-column-title-box">
-                  <span>{status}</span>
-                  <span className="crm-badge">{filtered.length}</span>
-                </div>
-                {filtered.map(t => (
-                  <div key={t.id} className="crm-ticket-card" draggable onDragStart={(e) => handleDragStart(e, t.id)} onClick={() => navigate(`/admin/tickets/${t.id}`)}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666666' }}>{t.serial_number}</span>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#111111' }}>{t.priority}</span>
-                    </div>
-                    <h4 style={{ margin: '6px 0', fontSize: '14px', fontWeight: 'normal' }}>{t.name}</h4>
-                    <p style={{ margin: 0, fontSize: '11px', color: '#666666' }}>{t.task_type} {t.assigned_to && `| Resp: ${t.assigned_to}`}</p>
-                    
-                    <div style={{ display: 'flex', gap: '4px', marginTop: '12px' }} onClick={e => e.stopPropagation()}>
-                      {status !== 'OPEN' && <button onClick={() => handleStatusChange(t.id, statuses[statuses.indexOf(status) - 1])} className="crm-btn-border" style={{ padding: '4px 8px', fontSize: '11px', flex: 1 }}>Ant</button>}
-                      {status !== 'CLOSED' && <button onClick={() => handleStatusChange(t.id, statuses[statuses.indexOf(status) + 1])} className="crm-btn-black" style={{ padding: '4px 8px', fontSize: '11px', flex: 1 }}>Sig</button>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
+      {viewMode === 'LIST' && selectedIds.length > 0 && (
+        <div style={{ backgroundColor: '#111', color: '#FFD700', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '13px' }}>
+            ✓ {selectedIds.length} ticket(s) seleccionado(s)
+          </span>
+
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* CAMBIAR ESTADO MASIVO */}
+            <select 
+              defaultValue="" 
+              onChange={(e) => { handleBulkUpdate('status', e.target.value); e.target.value = ''; }}
+              style={{ padding: '6px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #FFD700', backgroundColor: '#222', color: '#fff', cursor: 'pointer' }}
+            >
+              <option value="" disabled>Cambiar Estado...</option>
+              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            {/* CAMBIAR PRIORIDAD MASIVA */}
+            <select 
+              defaultValue="" 
+              onChange={(e) => { handleBulkUpdate('priority', e.target.value); e.target.value = ''; }}
+              style={{ padding: '6px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #FFD700', backgroundColor: '#222', color: '#fff', cursor: 'pointer' }}
+            >
+              <option value="" disabled>Cambiar Prioridad...</option>
+              {priorities.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+
+            {/* CAMBIAR TIPO DE TAREA MASIVO */}
+            <select 
+              defaultValue="" 
+              onChange={(e) => { handleBulkUpdate('task_type', e.target.value); e.target.value = ''; }}
+              style={{ padding: '6px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #FFD700', backgroundColor: '#222', color: '#fff', cursor: 'pointer' }}
+            >
+              <option value="" disabled>Cambiar Tipo Tarea...</option>
+              {taskTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+
+            <button 
+              onClick={() => setSelectedIds([])}
+              style={{ backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 
       {/* =========================================
-          VISTA 2: LISTA (NUEVA)
+          VISTA 1: LISTA (EDICIÓN EN LÍNEA & MASIVA)
           ========================================= */}
       {viewMode === 'LIST' && (
-        <div style={{ overflowX: 'auto', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+        <div style={{ overflowX: 'auto', backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+            <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #111' }}>
               <tr>
-                <th style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>ID</th>
-                <th style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>Asunto</th>
-                <th style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>Tienda</th>
-                <th style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>Estado</th>
-                <th style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>Prioridad</th>
-                <th style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>Fecha</th>
+                <th style={{ padding: '12px 16px', width: '40px', textAlign: 'center' }}>
+                  <input 
+                    type="checkbox"
+                    checked={filteredTickets.length > 0 && selectedIds.length === filteredTickets.length}
+                    onChange={handleSelectAll}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                </th>
+                <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>ID</th>
+                <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Asunto</th>
+                <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Tienda</th>
+                <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Estado</th>
+                <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Prioridad</th>
+                <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Tipo de Tarea</th>
+                <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Fecha</th>
               </tr>
             </thead>
             <tbody>
               {filteredTickets.length === 0 ? (
-                <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#9ca3af' }}>No hay tickets en esta vista.</td></tr>
+                <tr><td colSpan="8" style={{ padding: '24px', textAlign: 'center', color: '#9ca3af' }}>No hay tickets registrados en esta vista.</td></tr>
               ) : (
-                filteredTickets.map(t => (
-                  <tr key={t.id} style={{ borderBottom: '1px solid #e5e7eb', cursor: 'pointer' }} onClick={() => navigate(`/admin/tickets/${t.id}`)} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 'bold', color: '#111' }}>{t.serial_number}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '13px', color: '#374151' }}>{t.name}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6b7280' }}>{t.store_id}</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', backgroundColor: t.status === 'CLOSED' ? '#d1fae5' : '#fef3c7', color: t.status === 'CLOSED' ? '#059669' : '#d97706', fontWeight: 'bold' }}>{t.status}</span></td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 'bold', color: t.priority === 'HIGH' ? '#ef4444' : '#4b5563' }}>{t.priority}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>{new Date(t.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))
+                filteredTickets.map(t => {
+                  const isSelected = selectedIds.includes(t.id);
+                  return (
+                    <tr 
+                      key={t.id} 
+                      onClick={() => navigate(`/admin/tickets/${t.id}`)}
+                      style={{ 
+                        borderBottom: '1px solid #e5e7eb', 
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? '#fefce8' : 'transparent',
+                        transition: 'background-color 0.15s'
+                      }} 
+                      onMouseEnter={e => { if(!isSelected) e.currentTarget.style.backgroundColor = '#f3f4f6'; }} 
+                      onMouseLeave={e => { if(!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      {/* CHECKBOX SELECCIÓN */}
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleSelectOne(e, t.id)}
+                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                        />
+                      </td>
+
+                      {/* ID */}
+                      <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 'bold', color: '#111' }}>
+                        {t.serial_number}
+                      </td>
+
+                      {/* ASUNTO */}
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#111', fontWeight: '500' }}>
+                        {t.name}
+                      </td>
+
+                      {/* TIENDA */}
+                      <td style={{ padding: '12px 16px', fontSize: '12px', color: '#4b5563' }}>
+                        {t.store_id}
+                      </td>
+
+                      {/* ESTADO EDITABLE */}
+                      <td style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
+                        <select 
+                          value={t.status || 'OPEN'}
+                          onChange={(e) => handleSingleFieldChange(t.id, 'status', e.target.value)}
+                          style={{ 
+                            padding: '4px 8px', 
+                            borderRadius: '12px', 
+                            fontSize: '11px', 
+                            fontWeight: 'bold',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: t.status === 'CLOSED' ? '#dcfce7' : t.status === 'RESOLVED' ? '#e0f2fe' : t.status === 'IN_PROGRESS' ? '#fef3c7' : '#f3f4f6',
+                            color: t.status === 'CLOSED' ? '#166534' : t.status === 'RESOLVED' ? '#0369a1' : t.status === 'IN_PROGRESS' ? '#92400e' : '#374151',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </td>
+
+                      {/* PRIORIDAD EDITABLE */}
+                      <td style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
+                        <select 
+                          value={t.priority || 'MEDIUM'}
+                          onChange={(e) => handleSingleFieldChange(t.id, 'priority', e.target.value)}
+                          style={{ 
+                            padding: '4px 8px', 
+                            borderRadius: '6px', 
+                            fontSize: '11px', 
+                            fontWeight: 'bold',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: t.priority === 'CRITICAL' || t.priority === 'HIGH' ? '#fee2e2' : '#f3f4f6',
+                            color: t.priority === 'CRITICAL' || t.priority === 'HIGH' ? '#991b1b' : '#374151',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {priorities.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </td>
+
+                      {/* TIPO DE TAREA EDITABLE */}
+                      <td style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
+                        <select 
+                          value={t.task_type || 'CONSULTA'}
+                          onChange={(e) => handleSingleFieldChange(t.id, 'task_type', e.target.value)}
+                          style={{ 
+                            padding: '4px 8px', 
+                            borderRadius: '6px', 
+                            fontSize: '11px', 
+                            fontWeight: 'bold',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: '#fff',
+                            color: '#111',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {taskTypes.map(tt => <option key={tt} value={tt}>{tt}</option>)}
+                        </select>
+                      </td>
+
+                      {/* FECHA */}
+                      <td style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>
+                        {new Date(t.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* =========================================
+          VISTA 2: KANBAN (PAGINACIÓN 6 EN 6)
+          ========================================= */}
+      {viewMode === 'KANBAN' && (
+        <div className="crm-kanban-grid">
+          {statuses.map(status => {
+            const statusTickets = filteredTickets.filter(t => t.status === status);
+            const currentPage = kanbanPages[status] || 1;
+            const itemsPerPage = 6;
+            const totalPages = Math.ceil(statusTickets.length / itemsPerPage) || 1;
+
+            const indexOfLast = currentPage * itemsPerPage;
+            const indexOfFirst = indexOfLast - itemsPerPage;
+            const currentKanbanTickets = statusTickets.slice(indexOfFirst, indexOfLast);
+
+            return (
+              <div key={status} className="crm-kanban-column" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)}>
+                <div className="crm-kanban-column-title-box">
+                  <span>{status}</span>
+                  <span className="crm-badge">{statusTickets.length}</span>
+                </div>
+
+                <div style={{ minHeight: '380px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {currentKanbanTickets.length === 0 ? (
+                    <p className="crm-text-muted" style={{ textAlign: 'center', padding: '20px 0', fontSize: '12px' }}>Sin tickets</p>
+                  ) : (
+                    currentKanbanTickets.map(t => (
+                      <div key={t.id} className="crm-ticket-card" draggable onDragStart={(e) => handleDragStart(e, t.id)} onClick={() => navigate(`/admin/tickets/${t.id}`)}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666666' }}>{t.serial_number}</span>
+                          <span style={{ fontSize: '10px', fontWeight: 'bold', color: t.priority === 'HIGH' || t.priority === 'CRITICAL' ? '#dc2626' : '#111111' }}>{t.priority}</span>
+                        </div>
+                        <h4 style={{ margin: '6px 0', fontSize: '14px', fontWeight: 'normal' }}>{t.name}</h4>
+                        <p style={{ margin: 0, fontSize: '11px', color: '#666666' }}>{t.task_type} {t.assigned_to && `| Resp: ${t.assigned_to}`}</p>
+                        
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '12px' }} onClick={e => e.stopPropagation()}>
+                          {status !== 'OPEN' && <button onClick={() => handleSingleFieldChange(t.id, 'status', statuses[statuses.indexOf(status) - 1])} className="crm-btn-border" style={{ padding: '4px 8px', fontSize: '11px', flex: 1 }}>Ant</button>}
+                          {status !== 'CLOSED' && <button onClick={() => handleSingleFieldChange(t.id, 'status', statuses[statuses.indexOf(status) + 1])} className="crm-btn-black" style={{ padding: '4px 8px', fontSize: '11px', flex: 1 }}>Sig</button>}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* CONTROLES DE PAGINACIÓN KANBAN (6 en 6) */}
+                {totalPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                    <button 
+                      disabled={currentPage === 1}
+                      onClick={() => setKanbanPages(prev => ({ ...prev, [status]: currentPage - 1 }))}
+                      className="crm-btn-border"
+                      style={{ padding: '2px 8px', fontSize: '10px' }}
+                    >
+                      Anterior
+                    </button>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold' }}>{currentPage} / {totalPages}</span>
+                    <button 
+                      disabled={currentPage === totalPages}
+                      onClick={() => setKanbanPages(prev => ({ ...prev, [status]: currentPage + 1 }))}
+                      className="crm-btn-border"
+                      style={{ padding: '2px 8px', fontSize: '10px' }}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -261,7 +519,7 @@ function TotalTickets() {
         </div>
       )}
 
-      {/* MODAL PARA CREAR TICKET - CAMPOS DE LA BD */}
+      {/* MODAL PARA CREAR TICKET */}
       {showCreateModal && (
         <div className="crm-modal-mask" onClick={() => setShowCreateModal(false)}>
           <div className="crm-modal-content" onClick={e => e.stopPropagation()}>
@@ -298,15 +556,14 @@ function TotalTickets() {
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-  <label className="crm-stat-label">Tipo de Tarea</label>
-  <select value={formData.task_type} onChange={e => setFormData({...formData, task_type: e.target.value})} className="crm-select-dropdown">
-    {/* El 'value' es lo que va a la BD, el texto en mayúsculas es lo que lee el usuario */}
-    <option value="CONSULTA">CONSULTA</option>
-    <option value="CAMBIO">CAMBIO</option>
-    <option value="BUG_FIX">BUG FIX</option>
-    <option value="TASK_INTERNA">TAREA INTERNA</option>
-  </select>
-</div>
+                  <label className="crm-stat-label">Tipo de Tarea</label>
+                  <select value={formData.task_type} onChange={e => setFormData({...formData, task_type: e.target.value})} className="crm-select-dropdown">
+                    <option value="CONSULTA">CONSULTA</option>
+                    <option value="CAMBIO">CAMBIO</option>
+                    <option value="BUG_FIX">BUG FIX</option>
+                    <option value="TASK_INTERNA">TAREA INTERNA</option>
+                  </select>
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
