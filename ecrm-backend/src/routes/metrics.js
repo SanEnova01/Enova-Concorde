@@ -129,9 +129,6 @@ router.get('/:store_id', async (req, res) => {
   }
 });
 
-// Variable global en memoria para rastrear el último latido del bot
-let lastBotHeartbeat = null;
-
 // === ESTADO DEL BOT EN MEMORIA ===
 let botStatusInfo = {
   last_heartbeat: null,
@@ -181,27 +178,6 @@ router.get('/bot-status', (req, res) => {
   });
 });
 
-
-// Variable en memoria para el estado
-let botStatusInfo = {
-  last_heartbeat: null,
-  is_running: false
-};
-
-router.post('/bot-heartbeat', (req, res) => {
-  const rawKey = req.headers['x-api-key'] || '';
-  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
-    return res.status(401).json({ success: false, error: 'API Key no autorizada' });
-  }
-
-  botStatusInfo.last_heartbeat = new Date().toISOString();
-  if (typeof req.body?.is_running !== 'undefined') {
-    botStatusInfo.is_running = !!req.body.is_running;
-  }
-
-  res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
-});
-
 // RUTA PARA FORZAR ANÁLISIS DESDE EL FRONTEND
 router.post('/force-run', async (req, res) => {
   try {
@@ -225,4 +201,5 @@ router.post('/force-run', async (req, res) => {
     });
   }
 });
+
 module.exports = router;
