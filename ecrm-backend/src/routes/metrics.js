@@ -213,4 +213,44 @@ router.get('/:store_id', async (req, res) => {
   }
 });
 
+
+router.post('/run-single-client', async (req, res) => {
+    try {
+        const { store_id, url } = req.body;
+        
+        // Llamar al Bot
+        const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
+        const botRes = await fetch(`${BOT_SERVICE_URL}/run-single`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.API_KEY
+            },
+            body: JSON.stringify({ url: url })
+        });
+        
+        const botData = await botRes.json();
+        if (!botData.success) throw new Error('Bot error');
+
+        // Formatear para insertar en tabla metrics
+        const newMetric = {
+            store_id: store_id,
+            load_ms: botData.data.load_ms,
+            dom_ms: botData.data.dom_ms,
+            ram_core_mb: botData.data.ram_core_mb,
+            ram_total_mb: botData.data.ram_total_mb,
+            total_requests: botData.data.total_requests,
+            total_weight_mb: botData.data.total_weight_mb,
+            trigger_type: 'MANUAL'
+        };
+
+        // Guardar en tabla metrics historica
+        const result = await MetricsRepository.create(newMetric);
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('[ERROR] Single client run:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 module.exports = router;

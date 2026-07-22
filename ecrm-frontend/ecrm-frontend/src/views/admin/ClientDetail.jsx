@@ -8,7 +8,7 @@ import ClientMemoryVu from './ClientDetail/ClientMemoryVu';
 import ClientTickets from './ClientDetail/ClientTickets';
 import ClientMetricsHistory from './ClientDetail/ClientMetricsHistory';
 import ClientExternalMonitor from './ClientDetail/ClientExternalMonitor';
-
+import QuickAnalysis from './ClientDetail/QuickAnalysis';
 function ClientDetail() {
   const { storeId } = useParams();
   const navigate = useNavigate();
@@ -196,6 +196,9 @@ function ClientDetail() {
         {userRole !== 'client' && <button onClick={() => navigate('/admin/clientes')} className="crm-btn-border">Volver a Clientes</button>}
         {(userRole === 'super admin' || userRole === 'admin') && <button onClick={openEditModal} className="crm-btn-black">Editar Datos del Cliente</button>}
       </div>
+
+      {/* AQUÍ INSERTAS EL COMPONENTE DE ANÁLISIS RÁPIDO */}
+      <QuickAnalysis storeId={client.id} storeUrl={client.web} />
 
       {/* HEADER DE LA TIENDA */}
       <div className="crm-card-paper" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '24px' }}>

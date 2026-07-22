@@ -18,7 +18,9 @@ import ClientTickets from './views/client/ClientTickets';
 import CoopPilotReturns from './views/public/CoopPilotReturns';
 import CoopPilotHub from './views/public/CoopPilotHub';
 import CoopPilotTracking from "./views/public/CoopPilotTracking";
-
+import PublicAuditForm from './views/public/PublicAuditForm';
+import PublicAuditReport from './views/public/PublicAuditReport';
+import AdminAuditRequests from './views/admin/AdminAuditRequests';    
 
 import ConcordeAnalyzerView from './views/admin/ConcordeAnalyzerView';
 // Autenticación y Protección
@@ -316,11 +318,20 @@ function App() {
           isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
         } />
 
+           {/* Nuevas rutas publicas */}
+<Route path="/auditoria" element={<PublicAuditForm />} />
+<Route path="/reporte/:id" element={<PublicAuditReport />} />
+
+{/* Nueva ruta protegida dentro de las rutas de Admin */}
+<Route path="/admin/auditorias" element={<ProtectedRoute><AdminAuditRequests /></ProtectedRoute>} />
+
+         
         <Route path="/admin/analyzer" element={
   <ProtectedRoute allowedRoles={['super admin', 'admin']}>
     <AdminLayout><ConcordeAnalyzerView /></AdminLayout>
   </ProtectedRoute>
 } />
+
       </Routes>
     </BrowserRouter>
   );

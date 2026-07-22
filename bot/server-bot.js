@@ -275,13 +275,108 @@ app.get('/status', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🤖 Bot escuchando comandos manuales en el puerto ${PORT}`);
+  console.log(`Bot escuchando comandos manuales en el puerto ${PORT}`);
 });
 
-// Cron programado a las 9:00 AM y 6:00 PM (America/Lima)
+// Cron programado a las 9:00 AM y 6:00 PM
 cron.schedule('0 9,18 * * *', () => {
-  console.log("⏰ [Cron] Ejecutando análisis automático programado...");
+  console.log("[Cron] Ejecutando analisis automatico programado...");
   ejecutarAnalisisAutomated();
 }, {
   timezone: "America/Lima"
 });
+
+// Endpoint para procesar una URL individual on-demand
+app.post('/run-single', async (req, res) => {
+    const rawKey = req.headers['x-api-key'] || '';
+    if (rawKey.trim() !== API_KEY) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { url } = req.body;
+    if (!url) {
+        return res.status(400).json({ success: false, error: 'URL is required' });
+    }
+
+    try {
+        console.log(`[INFO] Iniciando analisis individual para: ${url}`);
+        const metrics = await performPuppeteerAnalysis(url);
+        console.log(`[SUCCESS] Analisis individual completado.`);
+        return res.json({ success: true, data: metrics });
+    } catch (error) {
+        console.error(`[ERROR] Fallo el analisis individual:`, error.message);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+async function performPuppeteerAnalysis(targetUrl) {
+    let urlLimpia = targetUrl.trim();
+    if (!urlLimpia.startsWith('http')) {
+        urlLimpia = `https://${urlLimpia}`;
+    }
+
+    const browser = await puppeteer.launch({
+        headless: 'new',
+        args: [
+            '--enable-precise-memory-info',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled'
+        ]
+    });
+    
+    try {
+        const page = await browser.newPage();
+        
+        // Emulacion de red (3G Fast / 4G)
+        const client = await page.target().createCDPSession();
+        await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+        await client.send('Network.emulateNetworkConditions', {
+            offline: false,
+            downloadThroughput: (4 * 1024 * 1024) / 8,
+            uploadThroughput: (1.5 * 1024 * 1024) / 8,
+            latency: 150
+        });
+
+        await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
+        await page.setCacheEnabled(false);
+
+        const startLoad = Date.now();
+        await page.goto(urlLimpia, { waitUntil: 'load', timeout: 60000 });
+        await new Promise(r => setTimeout(r, 2000));
+        
+        const load_ms = Date.now() - startLoad;
+        
+        const pageMetrics = await page.evaluate(() => {
+            const nav = performance.getEntriesByType('navigation')[0];
+            const resources = performance.getEntriesByType('resource');
+            const memory = performance.memory;
+            let totalBytes = 0;
+            resources.forEach(res => { if (res.transferSize) totalBytes += res.transferSize; });
+            
+            return {
+                dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : 0,
+                ram_total_mb: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
+                ram_core_mb: memory ? parseFloat((memory.usedJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
+                total_requests: resources.length + 1,
+                total_weight_mb: parseFloat((totalBytes / 1024 / 1024).toFixed(2))
+            };
+        });
+
+        await browser.close();
+
+        return {
+            url: urlLimpia,
+            load_ms: load_ms,
+            dom_ms: pageMetrics.dom_interactive_ms,
+            ram_total_mb: pageMetrics.ram_total_mb,
+            ram_core_mb: pageMetrics.ram_core_mb,
+            total_requests: pageMetrics.total_requests,
+            total_weight_mb: pageMetrics.total_weight_mb
+        };
+    } catch (err) {
+        if (browser) await browser.close();
+        throw err;
+    }
+}
