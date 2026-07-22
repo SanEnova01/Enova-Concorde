@@ -132,40 +132,52 @@ router.get('/:store_id', async (req, res) => {
 // Variable global en memoria para rastrear el último latido del bot
 let lastBotHeartbeat = null;
 
-// POST: El bot llama a este endpoint periódicamente para decir "estoy activo"
+// === ESTADO DEL BOT EN MEMORIA ===
+let botStatusInfo = {
+  last_heartbeat: null,
+  is_running: false
+};
+
+// POST: El bot envía su latido cada 30 segundos
 router.post('/bot-heartbeat', (req, res) => {
   const rawKey = req.headers['x-api-key'] || '';
   if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
     return res.status(401).json({ success: false, error: 'API Key no autorizada' });
   }
 
-  lastBotHeartbeat = new Date().toISOString();
-  res.json({ success: true, timestamp: lastBotHeartbeat });
+  botStatusInfo.last_heartbeat = new Date().toISOString();
+  if (typeof req.body?.is_running !== 'undefined') {
+    botStatusInfo.is_running = !!req.body.is_running;
+  }
+
+  res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
 });
 
-// GET: El Frontend consulta este endpoint para saber si el bot está ONLINE u OFFLINE
+// GET: El Frontend consulta el estado cada 10 segundos
 router.get('/bot-status', (req, res) => {
-  if (!lastBotHeartbeat) {
-    return res.json({
-      success: true,
-      status: 'OFFLINE',
-      message: 'El bot aún no ha emitido ningún latido desde el inicio del servidor.',
-      last_heartbeat: null
+  // Si el bot nunca ha reportado
+  if (!botStatusInfo.last_heartbeat) {
+    return res.json({ 
+      success: true, 
+      status: 'OFFLINE', 
+      last_heartbeat: null, 
+      is_running: false 
     });
   }
 
   const now = new Date();
-  const lastBeat = new Date(lastBotHeartbeat);
+  const lastBeat = new Date(botStatusInfo.last_heartbeat);
   const diffMinutes = (now - lastBeat) / (1000 * 60);
 
-  // Si el bot no reporta hace más de 3 minutos, se considera caido/OFFLINE
+  // Consideramos ONLINE si reportó en los últimos 3 minutos
   const isOnline = diffMinutes <= 3;
 
   res.json({
     success: true,
     status: isOnline ? 'ONLINE' : 'OFFLINE',
-    last_heartbeat: lastBotHeartbeat,
-    minutes_ago: Math.floor(diffMinutes)
+    last_heartbeat: botStatusInfo.last_heartbeat,
+    minutes_ago: Math.floor(diffMinutes),
+    is_running: isOnline ? botStatusInfo.is_running : false
   });
 });
 
