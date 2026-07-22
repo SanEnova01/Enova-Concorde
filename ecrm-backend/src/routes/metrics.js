@@ -46,23 +46,20 @@ router.post('/bot-heartbeat', (req, res) => {
   res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
 });
 
-// GET: El Frontend consulta el estado del bot
+// GET: El Frontend consulta el estado
 router.get('/bot-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
   if (!botStatusInfo.last_heartbeat) {
-    return res.json({ 
-      success: true, 
-      status: 'OFFLINE', 
-      last_heartbeat: null, 
-      is_running: false 
-    });
+    return res.json({ success: true, status: 'OFFLINE', last_heartbeat: null, is_running: false });
   }
 
   const now = new Date();
   const lastBeat = new Date(botStatusInfo.last_heartbeat);
   const diffMinutes = (now - lastBeat) / (1000 * 60);
-  const isOnline = diffMinutes <= 3;
+
+  // 🌟 Margen de 70 minutos para dar espacio al latido de cada 30 minutos (tolerancia de 2 latidos)
+  const isOnline = diffMinutes <= 70;
 
   res.json({
     success: true,
@@ -72,6 +69,7 @@ router.get('/bot-status', (req, res) => {
     is_running: isOnline ? botStatusInfo.is_running : false
   });
 });
+
 
 // POST: Ruta para forzar análisis manual
 router.post('/force-run', async (req, res) => {

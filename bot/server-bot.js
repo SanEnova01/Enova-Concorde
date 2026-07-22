@@ -249,8 +249,9 @@ async function enviarHeartbeat() {
   }
 }
 
-setInterval(enviarHeartbeat, 30000);
-enviarHeartbeat();
+// Cambiar a 30 minutos (30 * 60 * 1000 = 1800000 ms)
+setInterval(enviarHeartbeat, 30 * 60 * 1000);
+enviarHeartbeat(); // Latido inicial al arrancar
 
 // 4. ENDPOINTS DEL BOT (Disparo manual)
 app.post('/run-force', async (req, res) => {
@@ -277,8 +278,9 @@ app.listen(PORT, () => {
   console.log(`🤖 Bot escuchando comandos manuales en el puerto ${PORT}`);
 });
 
-// Cron programado 9:00 AM (America/Lima)
-cron.schedule('0 9 * * *', () => {
+// Cron programado a las 9:00 AM y 6:00 PM (America/Lima)
+cron.schedule('0 9,18 * * *', () => {
+  console.log("⏰ [Cron] Ejecutando análisis automático programado...");
   ejecutarAnalisisAutomated();
 }, {
   timezone: "America/Lima"
