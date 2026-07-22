@@ -69,20 +69,26 @@ class MetricsRepository {
       if (period === 'monthly') dateFormat = 'YYYY-MM';
       if (period === 'yearly') dateFormat = 'YYYY';
 
+      // 1. Iniciamos la consulta seleccionando la fecha formateada y los promedios
       let query = db('daily_metrics')
         .select(
           db.raw(`TO_CHAR(date, '${dateFormat}') as period_date`),
-          'store_id'
+          'store_id' // <- Queremos saber de qué tienda son estos promedios
         )
         .avg('load_ms as avg_load_ms')
         .avg('dom_ms as avg_dom_ms')
         .avg('ram_core_mb as avg_ram_core')
         .avg('ram_total_mb as avg_ram_total')
         .avg('ttfb_ms as avg_ttfb_ms')
-        .count('id as total_analyses')
-        .groupBy(db.raw(`TO_CHAR(date, '${dateFormat}')`), 'store_id')
-        .orderBy('period_date', 'desc');
+        .count('id as total_analyses');
 
+      // 2. Agrupamos por la fecha formateada Y por el ID de la tienda (Obligatorio en Postgres)
+      query = query.groupBy(db.raw(`TO_CHAR(date, '${dateFormat}')`), 'store_id');
+
+      // 3. Ordenamos por fecha descendente
+      query = query.orderBy('period_date', 'desc');
+
+      // 4. Aplicamos el filtro de tienda si el usuario seleccionó una específica
       if (storeId && storeId !== 'ALL') {
         query = query.where({ store_id: storeId });
       }
@@ -90,14 +96,6 @@ class MetricsRepository {
       return await query;
     } catch (error) {
       throw new Error('Error al agrupar métricas: ' + error.message);
-    }
-  }
-
-  static async createBulk(metricsArray) {
-    try {
-      return await db('daily_metrics').insert(metricsArray);
-    } catch (error) {
-      throw new Error('Error en inserción masiva: ' + error.message);
     }
   }
 }
