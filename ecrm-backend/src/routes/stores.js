@@ -17,18 +17,18 @@ router.post('/', async (req, res) => {
     const result = await StoreRepository.create(storeData);
     res.status(201).json({ success: true, data: result });
   } catch (error) {
-    console.error(error);
+    console.error("Error en POST /stores:", error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });
 
-// GET: Listar todas las tiendas (Para los selectores del Admin)
+// GET: Listar todas las tiendas (Para el Admin y para el Bot de Concorde)
 router.get('/', async (req, res) => {
   try {
     const results = await StoreRepository.getAll();
     res.status(200).json({ success: true, data: results });
   } catch (error) {
-    console.error(error);
+    console.error("Error en GET /stores:", error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });

@@ -18,7 +18,7 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: '*', // Permite que tu frontend de Railway se conecte sin bloqueos
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-API-KEY']
 }));
 
 // ==========================================
@@ -47,14 +47,7 @@ const loginLimiter = rateLimit({
   message: { success: false, error: 'Demasiados intentos de sesión fallidos. Bloqueado por 5 minutos.' }
 });
 
-app.use(cors());
 app.use(express.json());
-
-// ==========================================
-// 🧠 MOTOR DE IA: BASE DE CONOCIMIENTO
-// ==========================================
-
-
 
 // ==========================================
 // 🚀 COOPPILOT (Rutas Públicas B2B2C)
@@ -62,9 +55,18 @@ app.use(express.json());
 app.use('/api/cooppilot', require('./routes/cooppilot'));
 
 // ==========================================
-// MIDDLEWARE: GUARDIÁN DE RUTAS INTERNAS
+// MIDDLEWARE: GUARDIÁN DE RUTAS INTERNAS (SOPORTA JWT Y API KEY DEL BOT)
 // ==========================================
 const verificarToken = (req, res, next) => {
+  // 🌟 1. PERMISO ESPECIAL PARA EL BOT MEDIANTE X-API-KEY
+  const rawKey = req.headers['x-api-key'] || req.headers['X-API-KEY'] || req.headers['X-Api-Key'] || '';
+  const apiKey = String(rawKey).trim();
+
+  if (apiKey === 'ENOVA_SECRET_API_KEY_2026' || apiKey === 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+    return next(); // Es el bot de Concorde, dar acceso inmediato
+  }
+
+  // 🌟 2. VALIDACIÓN TRADICIONAL POR TOKEN JWT PARA USUARIOS
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -288,12 +290,13 @@ app.post('/api/ingest', async (req, res) => {
 });
 
 // ==========================================
-// RUTAS PROTEGIDAS POR JWT
+// RUTAS PROTEGIDAS POR JWT / API KEY
 // ==========================================
 app.use('/api/metrics', verificarToken, require('./routes/metrics'));
 app.use('/api/tickets', verificarToken, require('./routes/tickets'));
 app.use('/api/stores', verificarToken, require('./routes/stores'));
 app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
+
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE SHOPIFY
 // ==========================================
@@ -323,7 +326,6 @@ app.get('/api/external/shopify-status', async (req, res) => {
     res.status(500).json({ success: false, error: 'No se pudo conectar con el monitor de Shopify.' });
   }
 });
-
 
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE VTEX
@@ -432,13 +434,11 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
 // ==========================================
 // NUEVAS RUTAS: GESTIÓN COMPLETA DE USUARIOS
 // ==========================================
-// Obtener todos los usuarios
 app.get('/api/users', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
       return res.status(403).json({ success: false, error: 'Permiso denegado.' });
     }
-    // 🌟 Consulta simplificada para evitar errores de columnas de fecha
     const users = await db('users').select('id', 'name', 'email', 'role');
     res.json({ success: true, data: users });
   } catch (error) {
