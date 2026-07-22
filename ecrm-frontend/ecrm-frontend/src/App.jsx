@@ -75,18 +75,20 @@ function AdminLayout({ children }) {
   // Definición de menú lateral por roles
   const allNavItems = [
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
+    { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] }, // 👈 NUEVO ENLACE EN SIDEBAR
-    { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
-    { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
-    // RUTA DE IA PARA LA AGENCIA
-    { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
     
+    // RUTA DE IA PARA LA AGENCIA
+    
+    
+    
+    { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
+    { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
+    { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
     // RUTA DE IA PARA EL CLIENTE (Solo visible si pagó el adicional)
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
-    
-    { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
     { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
   ];
 

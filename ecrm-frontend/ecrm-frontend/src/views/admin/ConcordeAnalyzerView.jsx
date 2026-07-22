@@ -6,15 +6,34 @@ function ConcordeAnalyzerView() {
   const navigate = useNavigate();
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState('ALL');
-  const [period, setPeriod] = useState('daily'); // 'daily' | 'monthly' | 'yearly'
+  const [period, setPeriod] = useState('daily');
   const [aggregatedData, setAggregatedData] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estado de ejecución manual
+  const [triggering, setTriggering] = useState(false);
+  const [botStatus, setBotStatus] = useState({ status: 'LOADING', last_heartbeat: null, is_running: false });
 
   useEffect(() => {
     crmApi.get('/stores')
       .then(res => setStores(res.data.data || res.data || []))
       .catch(err => console.error(err));
+
+    checkBotStatus();
+    const interval = setInterval(checkBotStatus, 10000);
+    return () => clearInterval(interval);
   }, []);
+
+  const checkBotStatus = async () => {
+    try {
+      const res = await crmApi.get('/metrics/bot-status');
+      if (res.data?.success) {
+        setBotStatus(res.data);
+      }
+    } catch (error) {
+      setBotStatus({ status: 'OFFLINE', last_heartbeat: null, is_running: false });
+    }
+  };
 
   const fetchAggregatedData = async () => {
     try {
@@ -34,6 +53,26 @@ function ConcordeAnalyzerView() {
     fetchAggregatedData();
   }, [selectedStore, period]);
 
+  // Handler para el botón de disparo forzado
+  const handleForceRun = async () => {
+    if (!window.confirm("¿Deseas iniciar un análisis forzado en todas las tiendas con plan activo?")) return;
+    
+    try {
+      setTriggering(true);
+      const res = await crmApi.post('/metrics/force-run');
+      if (res.data?.success) {
+        alert("🚀 " + res.data.message);
+        checkBotStatus();
+      } else {
+        alert("⚠️ " + (res.data?.message || res.data?.error || "Error al iniciar el análisis."));
+      }
+    } catch (error) {
+      alert("❌ Error de comunicación con el servidor.");
+    } finally {
+      setTriggering(false);
+    }
+  };
+
   const getStoreName = (storeId) => {
     const found = stores.find(s => String(s.id) === String(storeId));
     return found ? found.name : storeId;
@@ -41,18 +80,68 @@ function ConcordeAnalyzerView() {
 
   return (
     <div>
-      <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>🛸 Concorde Analyzer Hub</h1>
-        <button onClick={() => navigate('/admin/metricas')} className="crm-btn-border">
-          Volver a Métricas
-        </button>
+        
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {/* ⚡ BOTÓN DE ANÁLISIS FORZADO */}
+          <button 
+            onClick={handleForceRun} 
+            disabled={triggering || botStatus.is_running || botStatus.status === 'OFFLINE'}
+            style={{ 
+              padding: '8px 16px', 
+              backgroundColor: botStatus.is_running ? '#d97706' : '#16a34a', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: '4px', 
+              fontWeight: 'bold', 
+              cursor: (triggering || botStatus.is_running) ? 'not-allowed' : 'pointer' 
+            }}
+          >
+            {botStatus.is_running ? '⏳ Análisis en Curso...' : '⚡ Ejecutar Análisis Forzado'}
+          </button>
+
+          <button onClick={() => navigate('/admin/metricas')} className="crm-btn-border">
+            Volver a Métricas
+          </button>
+        </div>
       </div>
 
-      {/* FILTROS Y PESTAÑAS */}
+      {/* WIDGET DE ESTADO */}
+      <div className="crm-card-paper" style={{ marginBottom: '20px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: botStatus.status === 'ONLINE' ? '6px solid #16a34a' : '6px solid #dc2626' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '14px',
+            height: '14px',
+            borderRadius: '50%',
+            backgroundColor: botStatus.status === 'ONLINE' ? '#16a34a' : '#dc2626',
+            boxShadow: botStatus.status === 'ONLINE' ? '0 0 10px #16a34a' : '0 0 10px #dc2626'
+          }} />
+          <div>
+            <h3 style={{ margin: 0, fontSize: '16px', textTransform: 'uppercase' }}>
+              Estado del Motor: <strong>{botStatus.status}</strong> {botStatus.is_running && ' (ANALIZANDO TIENDAS...)'}
+            </h3>
+            <span style={{ fontSize: '12px', color: '#666' }}>
+              {botStatus.last_heartbeat 
+                ? `Último latido: ${new Date(botStatus.last_heartbeat).toLocaleString()}`
+                : 'Sin señal del bot'}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', color: '#111' }}>
+            Filtro de Planes Automáticos
+          </span>
+          <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>
+            Go, Growth, Escale & Scale
+          </span>
+        </div>
+      </div>
+
+      {/* PESTAÑAS VISTAS Y TABLA */}
       <div className="crm-card-paper" style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-          
-          {/* SELECTOR DE PERÍODO */}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button 
               onClick={() => setPeriod('daily')} 
@@ -74,7 +163,6 @@ function ConcordeAnalyzerView() {
             </button>
           </div>
 
-          {/* FILTRO DE TIENDA */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label className="crm-stat-label">Filtrar Tienda:</label>
             <select 
@@ -89,18 +177,16 @@ function ConcordeAnalyzerView() {
               ))}
             </select>
           </div>
-
         </div>
       </div>
 
-      {/* TABLA DE RESULTADOS HISTÓRICOS */}
       <div className="crm-card-paper">
         <h3 className="crm-section-title" style={{ marginTop: 0 }}>
-          Análisis de Telemetría Registrados ({period === 'daily' ? 'Por Día' : period === 'monthly' ? 'Por Mes' : 'Por Año'})
+          Análisis Registrados ({period === 'daily' ? 'Por Día' : period === 'monthly' ? 'Por Mes' : 'Por Año'})
         </h3>
 
         {loading ? (
-          <div className="crm-text-loading">Cargando consolidado de análisis...</div>
+          <div className="crm-text-loading">Cargando métricas...</div>
         ) : (
           <div className="crm-table-container">
             <table className="crm-table-data">
@@ -118,7 +204,7 @@ function ConcordeAnalyzerView() {
               <tbody>
                 {aggregatedData.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="crm-text-loading">No se registraron análisis para la selección de filtro elegida.</td>
+                    <td colSpan="7" className="crm-text-loading">No hay análisis para este filtro.</td>
                   </tr>
                 ) : (
                   aggregatedData.map((row, idx) => {

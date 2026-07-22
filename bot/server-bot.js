@@ -1,27 +1,46 @@
+const express = require('express');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const pidusage = require('pidusage');
 const cron = require('node-cron');
 
-// Ocultar firma de bot para evitar bloqueos por WAF (Cloudflare/Sucuri)
 puppeteer.use(StealthPlugin());
 
-const API_BASE_URL = process.env.API_BASE_URL || 'https://enova-concorde-staging.up.railway.app/api';
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT || 3001;
+const API_BASE_URL = process.env.API_BASE_URL || 'https://enova-concorde-staging-2027.up.railway.app/api';
 const API_KEY = process.env.API_KEY || 'ENOVA_SECRET_API_KEY_2026';
 
-// Lista de tiendas por defecto (También puedes consumirlas de tu API si prefieres)
-const tiendasDefault = [
-  { store_id: 'enova-digital', nombre: 'Enova Agency', url: 'https://enova.agency' },
-  { store_id: 'alpaca_111', nombre: 'Alpaca 111', url: 'https://alpaca111.com/' },
-  { store_id: 'Yarnalia', nombre: 'Yarnalia', url: 'https://yarnalia.com/' },
-  { store_id: 'Catitejas', nombre: 'Catitejas', url: 'https://catitejas.pe' },
-  { store_id: 'Clementine&Bastien', nombre: 'Clementine&Bastien', url: 'https://www.clebastien.com' },
-  { store_id: 'DJJ', nombre: 'DJJ', url: 'https://grupodjj.pe' },
-  { store_id: 'Donna_Cativa', nombre: 'Donna Cativa', url: 'https://donnacattiva.com/' },
-  { store_id: 'Electroenchufe', nombre: 'Electroenchufe', url: 'https://electroenchufe.com/' },
-  { store_id: 'Floreria_San_Borja', nombre: 'Floreria San Borja', url: 'https://floreriasb.com.pe' },
-  { store_id: 'Ibero', nombre: 'Ibero', url: 'https://www.iberolibrerias.com' }
-];
+// Planes permitidos para ser analizados
+const PLANES_VALIDOS = ['go', 'growth', 'escale', 'scale', 'scale_plus'];
+
+let estaEjecutando = false;
+
+// 1. Obtener tiendas dinámicamente desde la BD de Concorde
+async function obtenerTiendasFiltradas() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/stores`, {
+      headers: { 'x-api-key': API_KEY }
+    });
+    const data = await res.json();
+    const tiendas = data.data || data || [];
+
+    // Filtrar solo tiendas con web y con planes válidos
+    const filtradas = tiendas.filter(t => {
+      const planLimpio = String(t.plan_type || '').toLowerCase().trim();
+      const tieneWeb = t.web && String(t.web).trim() !== '';
+      return tieneWeb && PLANES_VALIDOS.includes(planLimpio);
+    });
+
+    console.log(`📋 [Filtro] Se encontraron ${filtradas.length} tiendas con plan elegible (${PLANES_VALIDOS.join(', ')}).`);
+    return filtradas;
+  } catch (error) {
+    console.error("❌ Error obteniendo tiendas de la API:", error.message);
+    return [];
+  }
+}
 
 async function enviarMetricasAPI(payload) {
   try {
@@ -57,22 +76,42 @@ async function notificarFinalizacion(total, exitosos, fallidos, fechaActual) {
     });
     console.log("📧 Correo de notificación enviado con éxito.");
   } catch (error) {
-    console.error("Error al enviar notificación por correo:", error.message);
+    console.error("Error enviando correo de notificación:", error.message);
   }
 }
 
+// 2. Función principal de auditoría
 async function ejecutarAnalisisAutomated() {
+  if (estaEjecutando) {
+    console.log("⚠️ Ya hay un análisis en curso. Solicitud omitida.");
+    return { success: false, message: 'Un análisis ya se encuentra en ejecución.' };
+  }
+
+  estaEjecutando = true;
   const fechaActual = new Date().toISOString();
-  console.log(`\n▶ [${new Date().toLocaleTimeString()}] INICIANDO ANÁLISIS AUTOMÁTICO CON HANDICAP MÓVIL...`);
+  const tiendas = await obtenerTiendasFiltradas();
+
+  if (tiendas.length === 0) {
+    console.log("⚠️ No se encontraron tiendas activas para analizar.");
+    estaEjecutando = false;
+    return { success: false, message: 'No hay tiendas activas registradas con los planes permitidos.' };
+  }
+
+  console.log(`\n▶ [${new Date().toLocaleTimeString()}] INICIANDO ANÁLISIS AUTOMÁTICO EN ${tiendas.length} TIENDAS...`);
 
   let exitosos = 0;
   let fallidos = 0;
 
-  for (let i = 0; i < tiendasDefault.length; i++) {
-    const web = tiendasDefault[i];
+  for (let i = 0; i < tiendas.length; i++) {
+    const web = tiendas[i];
     let browser;
 
     try {
+      let urlLimpia = web.web.trim();
+      if (!urlLimpia.startsWith('http')) {
+        urlLimpia = `https://${urlLimpia}`;
+      }
+
       browser = await puppeteer.launch({
         headless: 'new',
         args: [
@@ -86,7 +125,6 @@ async function ejecutarAnalisisAutomated() {
       const browserPid = browser.process().pid;
       const page = await browser.newPage();
 
-      // 🎯 HANDICAP: Emular Móvil Gama Media + Red 4G
       const client = await page.target().createCDPSession();
       await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
       await client.send('Network.emulateNetworkConditions', {
@@ -100,7 +138,7 @@ async function ejecutarAnalisisAutomated() {
       await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
 
       await page.setCacheEnabled(false);
-      await page.goto(web.url, { waitUntil: 'load', timeout: 60000 });
+      await page.goto(urlLimpia, { waitUntil: 'load', timeout: 60000 });
       await new Promise(r => setTimeout(r, 2000));
 
       const datosReporte = await page.evaluate(() => {
@@ -127,7 +165,7 @@ async function ejecutarAnalisisAutomated() {
       const ramTotalMB = parseFloat((statsOS.memory / 1024 / 1024).toFixed(2));
 
       const payload = {
-        store_id: web.store_id,
+        store_id: web.id,
         date: fechaActual,
         server_status: 'ONLINE',
         web_flow: 'Auto-Mobile-4G',
@@ -147,14 +185,14 @@ async function ejecutarAnalisisAutomated() {
       const apiResponse = await enviarMetricasAPI(payload);
       if (apiResponse.status === 'success') exitosos++; else fallidos++;
 
-      console.log(`✔ [${i + 1}/${tiendasDefault.length}] ${web.nombre} | ${ramTotalMB}MB RAM | ${datosReporte.loadTime}ms | API: ${apiResponse.status}`);
+      console.log(`✔ [${i + 1}/${tiendas.length}] ${web.name} (${web.plan_type}) | ${ramTotalMB}MB RAM | ${datosReporte.loadTime}ms`);
 
       await browser.close();
     } catch (error) {
-      console.error(`✖ ${web.nombre} | ERROR: ${error.message}`);
+      console.error(`✖ ${web.name} | ERROR: ${error.message}`);
       fallidos++;
       await enviarMetricasAPI({ 
-        store_id: web.store_id, date: fechaActual, server_status: 'OFFLINE', 
+        store_id: web.id, date: fechaActual, server_status: 'OFFLINE', 
         web_flow: 'Crash', ram_core_mb: 0, ram_total_mb: 0, redirect_ms: 0, 
         dns_ms: 0, tcp_ms: 0, ttfb_ms: 0, dom_interactive_ms: 0, dom_ms: 0, 
         load_ms: 0, total_weight_mb: 0, total_requests: 0 
@@ -163,18 +201,61 @@ async function ejecutarAnalisisAutomated() {
     }
     pidusage.clear();
 
-    // Pausa aleatoria entre 3 y 6 segundos entre tienda y tienda
-    const jitter = Math.floor(Math.random() * 3000) + 3000;
+    const jitter = Math.floor(Math.random() * 3000) + 2000;
     await new Promise(r => setTimeout(r, jitter));
   }
 
   console.log(`\n✅ ANÁLISIS FINALIZADO.`);
-  await notificarFinalizacion(tiendasDefault.length, exitosos, fallidos, fechaActual);
+  estaEjecutando = false;
+  await notificarFinalizacion(tiendas.length, exitosos, fallidos, fechaActual);
+  return { success: true, message: 'Análisis finalizado exitosamente' };
 }
 
-console.log("🤖 Servicio de monitoreo en segundo plano iniciado.");
+// 3. Heartbeat periódico
+async function enviarHeartbeat() {
+  try {
+    await fetch(`${API_BASE_URL}/metrics/bot-heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY
+      },
+      body: JSON.stringify({ is_running: estaEjecutando })
+    });
+  } catch (error) {
+    console.error("Error enviando heartbeat:", error.message);
+  }
+}
 
-// ⏰ PROGRAMAR A LAS 9:00 AM (Zona horaria Peru/America/Lima)
+setInterval(enviarHeartbeat, 30000);
+enviarHeartbeat();
+
+// 4. ENDPOINTS DEL BOT (Disparo manual)
+app.post('/run-force', async (req, res) => {
+  const rawKey = req.headers['x-api-key'] || '';
+  if (rawKey.trim() !== API_KEY) {
+    return res.status(401).json({ success: false, error: 'API Key no autorizada' });
+  }
+
+  if (estaEjecutando) {
+    return res.json({ success: false, message: 'El bot ya está ejecutando un análisis actualmente.' });
+  }
+
+  // Ejecutar en segundo plano para no bloquear la respuesta HTTP
+  ejecutarAnalisisAutomated();
+
+  res.json({ success: true, message: 'Análisis forzado iniciado correctamente.' });
+});
+
+app.get('/status', (req, res) => {
+  res.json({ running: estaEjecutando });
+});
+
+app.listen(PORT, () => {
+  console.log(`🤖 Bot escuchando comandos manuales en el puerto ${PORT}`);
+});
+
+// Cron programado 9:00 AM (America/Lima)
 cron.schedule('0 9 * * *', () => {
   ejecutarAnalisisAutomated();
 }, {

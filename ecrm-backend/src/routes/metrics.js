@@ -129,4 +129,88 @@ router.get('/:store_id', async (req, res) => {
   }
 });
 
+// Variable global en memoria para rastrear el último latido del bot
+let lastBotHeartbeat = null;
+
+// POST: El bot llama a este endpoint periódicamente para decir "estoy activo"
+router.post('/bot-heartbeat', (req, res) => {
+  const rawKey = req.headers['x-api-key'] || '';
+  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+    return res.status(401).json({ success: false, error: 'API Key no autorizada' });
+  }
+
+  lastBotHeartbeat = new Date().toISOString();
+  res.json({ success: true, timestamp: lastBotHeartbeat });
+});
+
+// GET: El Frontend consulta este endpoint para saber si el bot está ONLINE u OFFLINE
+router.get('/bot-status', (req, res) => {
+  if (!lastBotHeartbeat) {
+    return res.json({
+      success: true,
+      status: 'OFFLINE',
+      message: 'El bot aún no ha emitido ningún latido desde el inicio del servidor.',
+      last_heartbeat: null
+    });
+  }
+
+  const now = new Date();
+  const lastBeat = new Date(lastBotHeartbeat);
+  const diffMinutes = (now - lastBeat) / (1000 * 60);
+
+  // Si el bot no reporta hace más de 3 minutos, se considera caido/OFFLINE
+  const isOnline = diffMinutes <= 3;
+
+  res.json({
+    success: true,
+    status: isOnline ? 'ONLINE' : 'OFFLINE',
+    last_heartbeat: lastBotHeartbeat,
+    minutes_ago: Math.floor(diffMinutes)
+  });
+});
+
+
+// Variable en memoria para el estado
+let botStatusInfo = {
+  last_heartbeat: null,
+  is_running: false
+};
+
+router.post('/bot-heartbeat', (req, res) => {
+  const rawKey = req.headers['x-api-key'] || '';
+  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+    return res.status(401).json({ success: false, error: 'API Key no autorizada' });
+  }
+
+  botStatusInfo.last_heartbeat = new Date().toISOString();
+  if (typeof req.body?.is_running !== 'undefined') {
+    botStatusInfo.is_running = !!req.body.is_running;
+  }
+
+  res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
+});
+
+// RUTA PARA FORZAR ANÁLISIS DESDE EL FRONTEND
+router.post('/force-run', async (req, res) => {
+  try {
+    const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
+    
+    const botRes = await fetch(`${BOT_SERVICE_URL}/run-force`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'ENOVA_SECRET_API_KEY_2026'
+      }
+    });
+
+    const data = await botRes.json();
+    return res.json(data);
+  } catch (error) {
+    console.error("Error llamando al servicio del bot:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'No se pudo conectar con el servicio del Bot. Verifica que esté activo.' 
+    });
+  }
+});
 module.exports = router;
