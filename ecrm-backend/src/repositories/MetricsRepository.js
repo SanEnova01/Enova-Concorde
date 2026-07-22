@@ -69,11 +69,11 @@ class MetricsRepository {
       if (period === 'monthly') dateFormat = 'YYYY-MM';
       if (period === 'yearly') dateFormat = 'YYYY';
 
-      // 1. Iniciamos la consulta seleccionando la fecha formateada y los promedios
+      // 1. Iniciamos la consulta
       let query = db('daily_metrics')
         .select(
           db.raw(`TO_CHAR(date, '${dateFormat}') as period_date`),
-          'store_id' // <- Queremos saber de qué tienda son estos promedios
+          'store_id'
         )
         .avg('load_ms as avg_load_ms')
         .avg('dom_ms as avg_dom_ms')
@@ -82,13 +82,13 @@ class MetricsRepository {
         .avg('ttfb_ms as avg_ttfb_ms')
         .count('id as total_analyses');
 
-      // 2. Agrupamos por la fecha formateada Y por el ID de la tienda (Obligatorio en Postgres)
-      query = query.groupBy(db.raw(`TO_CHAR(date, '${dateFormat}')`), 'store_id');
+      // 2. 🌟 EL FIX ESTÁ AQUÍ: Usamos groupByRaw para forzar a Postgres a leer ambas columnas
+      query = query.groupByRaw(`TO_CHAR(date, '${dateFormat}'), store_id`);
 
       // 3. Ordenamos por fecha descendente
       query = query.orderBy('period_date', 'desc');
 
-      // 4. Aplicamos el filtro de tienda si el usuario seleccionó una específica
+      // 4. Aplicamos el filtro de tienda
       if (storeId && storeId !== 'ALL') {
         query = query.where({ store_id: storeId });
       }
