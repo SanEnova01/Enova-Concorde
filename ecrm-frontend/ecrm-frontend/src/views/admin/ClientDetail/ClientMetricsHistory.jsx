@@ -1,20 +1,5 @@
 import React, { useState } from 'react';
 
-// Funciones evaluadoras de rendimiento
-const getLoadColor = (ms) => {
-  if (!ms) return 'inherit';
-  const sec = ms / 1000;
-  if (sec < 2.5) return '#16a34a'; // Verde (Óptimo)
-  if (sec < 4.0) return '#eab308'; // Amarillo (Aceptable)
-  return '#dc2626'; // Rojo (Crítico)
-};
-
-const getRamColor = (mb) => {
-  if (!mb) return 'inherit';
-  if (mb < 150) return '#16a34a'; // Verde
-  if (mb < 300) return '#eab308'; // Amarillo
-  return '#dc2626'; // Rojo
-};
 
 function ClientMetricsHistory({ metrics }) {
   const [metricCurrentPage, setMetricCurrentPage] = useState(1);
