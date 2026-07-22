@@ -135,10 +135,13 @@ let botStatusInfo = {
   is_running: false
 };
 
-// POST: El bot envía su latido cada 30 segundos
+// POST: El bot envía su latido
 router.post('/bot-heartbeat', (req, res) => {
+  console.log('🟢 [BACKEND] RECIBÍ UN LATIDO DEL BOT. Datos:', req.body);
+  
   const rawKey = req.headers['x-api-key'] || '';
   if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+    console.log('🔴 [BACKEND] RECHAZADO: API KEY INCORRECTA');
     return res.status(401).json({ success: false, error: 'API Key no autorizada' });
   }
 
@@ -146,32 +149,20 @@ router.post('/bot-heartbeat', (req, res) => {
   if (typeof req.body?.is_running !== 'undefined') {
     botStatusInfo.is_running = !!req.body.is_running;
   }
-
   res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
 });
 
-// GET: El Frontend consulta el estado cada 10 segundos
+// GET: El Frontend consulta el estado
 router.get('/bot-status', (req, res) => {
-  // 🚫 Evitamos que el navegador o Cloudflare guarden esta respuesta en caché (Fix para el 304)
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-
-  // Si el bot nunca ha reportado
+  res.setHeader('Cache-Control', 'no-store, no-cache');
+  
   if (!botStatusInfo.last_heartbeat) {
-    return res.json({ 
-      success: true, 
-      status: 'OFFLINE', 
-      last_heartbeat: null, 
-      is_running: false 
-    });
+    return res.json({ success: true, status: 'OFFLINE', last_heartbeat: null, is_running: false });
   }
 
   const now = new Date();
   const lastBeat = new Date(botStatusInfo.last_heartbeat);
   const diffMinutes = (now - lastBeat) / (1000 * 60);
-
-  // Consideramos ONLINE si reportó en los últimos 3 minutos
   const isOnline = diffMinutes <= 3;
 
   res.json({
@@ -183,10 +174,12 @@ router.get('/bot-status', (req, res) => {
   });
 });
 
-// RUTA PARA FORZAR ANÁLISIS DESDE EL FRONTEND
+// RUTA PARA FORZAR ANÁLISIS
 router.post('/force-run', async (req, res) => {
+  console.log('⚡ [BACKEND] FRONTEND PIDIÓ FORZAR ANÁLISIS');
   try {
     const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
+    console.log(`⚡ [BACKEND] INTENTANDO LLAMAR AL BOT EN: ${BOT_SERVICE_URL}/run-force`);
     
     const botRes = await fetch(`${BOT_SERVICE_URL}/run-force`, {
       method: 'POST',
@@ -196,14 +189,12 @@ router.post('/force-run', async (req, res) => {
       }
     });
 
+    console.log(`⚡ [BACKEND] RESPUESTA DEL BOT RECIBIDA. Status: ${botRes.status}`);
     const data = await botRes.json();
     return res.json(data);
   } catch (error) {
-    console.error("Error llamando al servicio del bot:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'No se pudo conectar con el servicio del Bot. Verifica que esté activo.' 
-    });
+    console.error("🔴 [BACKEND] ERROR FATAL CONECTANDO AL BOT:", error.message);
+    res.status(500).json({ success: false, error: 'Error interno: ' + error.message });
   }
 });
 
