@@ -152,6 +152,11 @@ router.post('/bot-heartbeat', (req, res) => {
 
 // GET: El Frontend consulta el estado cada 10 segundos
 router.get('/bot-status', (req, res) => {
+  // 🚫 Evitamos que el navegador o Cloudflare guarden esta respuesta en caché (Fix para el 304)
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   // Si el bot nunca ha reportado
   if (!botStatusInfo.last_heartbeat) {
     return res.json({ 
