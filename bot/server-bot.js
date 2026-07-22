@@ -24,8 +24,18 @@ async function obtenerTiendasFiltradas() {
     const res = await fetch(`${API_BASE_URL}/stores`, {
       headers: { 'x-api-key': API_KEY }
     });
-    const data = await res.json();
-    const tiendas = data.data || data || [];
+    const jsonResponse = await res.json();
+    
+    // 🌟 FIX: Buscar exhaustivamente el Array, venga como venga
+    let tiendas = [];
+    if (Array.isArray(jsonResponse.data)) {
+      tiendas = jsonResponse.data;
+    } else if (Array.isArray(jsonResponse)) {
+      tiendas = jsonResponse;
+    } else {
+      console.error("❌ El backend no devolvió una lista válida. Formato recibido:", typeof jsonResponse);
+      return [];
+    }
 
     // Filtrar solo tiendas con web y con planes válidos
     const filtradas = tiendas.filter(t => {
