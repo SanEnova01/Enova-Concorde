@@ -83,7 +83,7 @@ function AdminLayout({ children }) {
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     
     // 🌟 AQUÍ AGREGAMOS LA NUEVA PESTAÑA AL MENÚ
-    { path: '/admin/auditorias', label: '🚀 Auditorías Prospectos', allowed: ['super admin', 'admin'] },
+    { path: '/admin/auditorias', label: 'Auditorías Prospectos', allowed: ['super admin', 'admin'] },
     
     { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },

@@ -251,7 +251,11 @@ async function enviarHeartbeat() {
 
 // Cambiar a 30 minutos (30 * 60 * 1000 = 1800000 ms)
 setInterval(enviarHeartbeat, 30 * 60 * 1000);
-enviarHeartbeat(); // Latido inicial al arrancar
+
+// 🔥 EL FIX DEL HEARTBEAT: Esperar 15 segundos para dar tiempo al backend de encender 🔥
+setTimeout(() => {
+    enviarHeartbeat();
+}, 15000);
 
 // 4. ENDPOINTS DEL BOT (Disparo manual)
 app.post('/run-force', async (req, res) => {
