@@ -24,16 +24,19 @@ function ConcordeAnalyzerView() {
     return () => clearInterval(interval);
   }, []);
 
-  const checkBotStatus = async () => {
-    try {
-      const res = await crmApi.get('/metrics/bot-status');
-      if (res.data?.success) {
-        setBotStatus(res.data);
-      }
-    } catch (error) {
-      setBotStatus({ status: 'OFFLINE', last_heartbeat: null, is_running: false });
+  // ✅ CÓDIGO CORREGIDO:
+const checkBotStatus = async () => {
+  try {
+    const res = await crmApi.get('/metrics/bot-status');
+    if (res.data?.success) {
+      // Extraemos la información interna (res.data.data) o caemos en res.data
+      const statusInfo = res.data.data || res.data;
+      setBotStatus(statusInfo);
     }
-  };
+  } catch (error) {
+    setBotStatus({ status: 'OFFLINE', last_heartbeat: null, is_running: false });
+  }
+};
 
   const fetchAggregatedData = async () => {
     try {
@@ -81,7 +84,7 @@ function ConcordeAnalyzerView() {
   return (
     <div>
       <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>🛸 Concorde Analyzer Hub</h1>
+        <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Concorde Analyzer Hub</h1>
         
         <div style={{ display: 'flex', gap: '10px' }}>
           {/* ⚡ BOTÓN DE ANÁLISIS FORZADO */}
@@ -98,7 +101,7 @@ function ConcordeAnalyzerView() {
               cursor: (triggering || botStatus.is_running) ? 'not-allowed' : 'pointer' 
             }}
           >
-            {botStatus.is_running ? '⏳ Análisis en Curso...' : '⚡ Ejecutar Análisis Forzado'}
+            {botStatus.is_running ? '⏳ Análisis en Curso...' : 'Ejecutar Análisis Forzado'}
           </button>
 
           <button onClick={() => navigate('/admin/metricas')} className="crm-btn-border">
