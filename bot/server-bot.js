@@ -230,7 +230,7 @@ async function ejecutarAnalisisAutomated() {
 // 3. Heartbeat periódico
 async function enviarHeartbeat() {
   try {
-    await fetch(`${API_BASE_URL}/metrics/bot-heartbeat`, {
+    const res = await fetch(`${API_BASE_URL}/metrics/bot-heartbeat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -238,8 +238,14 @@ async function enviarHeartbeat() {
       },
       body: JSON.stringify({ is_running: estaEjecutando })
     });
+    
+    if (res.ok) {
+      console.log("💓 [Heartbeat] Latido enviado con éxito al Backend.");
+    } else {
+      console.error(`⚠️ [Heartbeat] Servidor respondió con estado: ${res.status}`);
+    }
   } catch (error) {
-    console.error("Error enviando heartbeat:", error.message);
+    console.error("❌ Error enviando heartbeat:", error.message);
   }
 }
 
