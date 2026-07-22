@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 
-
-function ClientMetricsHistory({ metrics }) {
+function ClientMetricsHistory({ metrics = [] }) {
   const [metricCurrentPage, setMetricCurrentPage] = useState(1);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -42,21 +41,23 @@ function ClientMetricsHistory({ metrics }) {
             </thead>
             <tbody>
               {currentMetrics.map(metric => (
-                <tr key={metric.id}>
+                <tr key={metric.id || Math.random()}>
                   <td>{metric.date ? new Date(metric.date).toLocaleDateString() : (metric.created_at ? new Date(metric.created_at).toLocaleDateString() : '—')}</td>
                   <td>{metric.total_requests || '—'}</td>
-                  <td>{metric.total_weight_mb !== null ? `${metric.total_weight_mb} MB` : '—'}</td>
-                  <td style={{ color: getRamColor(metric.ram_core_mb), fontWeight: 'bold' }}>
-                    {metric.ram_core_mb !== null ? `${metric.ram_core_mb} MB` : '—'}
+                  <td>{metric.total_weight_mb !== null && metric.total_weight_mb !== undefined ? `${metric.total_weight_mb} MB` : '—'}</td>
+                  
+                  {/* 🌟 Removidas las referencias a getRamColor y getLoadColor */}
+                  <td style={{ fontWeight: 'bold' }}>
+                    {metric.ram_core_mb !== null && metric.ram_core_mb !== undefined ? `${metric.ram_core_mb} MB` : '—'}
                   </td>
-                  <td style={{ color: getRamColor(metric.ram_total_mb), fontWeight: 'bold' }}>
-                    {metric.ram_total_mb !== null ? `${metric.ram_total_mb} MB` : '—'}
+                  <td style={{ fontWeight: 'bold' }}>
+                    {metric.ram_total_mb !== null && metric.ram_total_mb !== undefined ? `${metric.ram_total_mb} MB` : '—'}
                   </td>
-                  <td style={{ color: getLoadColor(metric.load_ms), fontWeight: 'bold' }}>
-                    {metric.load_ms !== null ? `${(metric.load_ms / 1000).toFixed(2)}s` : '—'}
+                  <td style={{ fontWeight: 'bold' }}>
+                    {metric.load_ms !== null && metric.load_ms !== undefined ? `${(metric.load_ms / 1000).toFixed(2)}s` : '—'}
                   </td>
-                  <td style={{ color: getLoadColor(metric.dom_ms), fontWeight: 'bold' }}>
-                    {metric.dom_ms !== null ? `${(metric.dom_ms / 1000).toFixed(2)}s` : '—'}
+                  <td style={{ fontWeight: 'bold' }}>
+                    {metric.dom_ms !== null && metric.dom_ms !== undefined ? `${(metric.dom_ms / 1000).toFixed(2)}s` : '—'}
                   </td>
                 </tr>
               ))}
