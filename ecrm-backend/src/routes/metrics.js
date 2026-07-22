@@ -8,7 +8,7 @@ const MetricsRepository = require('../repositories/MetricsRepository');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Configuración Transporter Nodemailer (Usa tus credenciales SMTP en producción)
+// Configuración Transporter Nodemailer
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587'),
@@ -19,7 +19,85 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// 📧 ENDPOINT PARA NOTIFICAR FIN DE ANÁLISIS AUTOMÁTICO
+// === ESTADO DEL BOT EN MEMORIA ===
+let botStatusInfo = {
+  last_heartbeat: null,
+  is_running: false
+};
+
+// ======================================================
+// 1. RUTAS ESTÁTICAS DEL BOT Y ACCIONES (DEBEN IR ARRIBA)
+// ======================================================
+
+// POST: El bot envía su latido
+router.post('/bot-heartbeat', (req, res) => {
+  console.log('🟢 [BACKEND] RECIBÍ UN LATIDO DEL BOT. Datos:', req.body);
+  
+  const rawKey = req.headers['x-api-key'] || '';
+  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+    console.log('🔴 [BACKEND] RECHAZADO: API KEY INCORRECTA');
+    return res.status(401).json({ success: false, error: 'API Key no autorizada' });
+  }
+
+  botStatusInfo.last_heartbeat = new Date().toISOString();
+  if (typeof req.body?.is_running !== 'undefined') {
+    botStatusInfo.is_running = !!req.body.is_running;
+  }
+  res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
+});
+
+// GET: El Frontend consulta el estado del bot
+router.get('/bot-status', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+
+  if (!botStatusInfo.last_heartbeat) {
+    return res.json({ 
+      success: true, 
+      status: 'OFFLINE', 
+      last_heartbeat: null, 
+      is_running: false 
+    });
+  }
+
+  const now = new Date();
+  const lastBeat = new Date(botStatusInfo.last_heartbeat);
+  const diffMinutes = (now - lastBeat) / (1000 * 60);
+  const isOnline = diffMinutes <= 3;
+
+  res.json({
+    success: true,
+    status: isOnline ? 'ONLINE' : 'OFFLINE',
+    last_heartbeat: botStatusInfo.last_heartbeat,
+    minutes_ago: Math.floor(diffMinutes),
+    is_running: isOnline ? botStatusInfo.is_running : false
+  });
+});
+
+// POST: Ruta para forzar análisis manual
+router.post('/force-run', async (req, res) => {
+  console.log('⚡ [BACKEND] FRONTEND PIDIÓ FORZAR ANÁLISIS');
+  try {
+    const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
+    console.log(`⚡ [BACKEND] INTENTANDO LLAMAR AL BOT EN: ${BOT_SERVICE_URL}/run-force`);
+    
+    const botRes = await fetch(`${BOT_SERVICE_URL}/run-force`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'ENOVA_SECRET_API_KEY_2026'
+      }
+    });
+
+    console.log(`⚡ [BACKEND] RESPUESTA DEL BOT RECIBIDA. Status: ${botRes.status}`);
+    const data = await botRes.json();
+    return res.json(data);
+  } catch (error) {
+    console.error("🔴 [BACKEND] ERROR FATAL CONECTANDO AL BOT:", error.message);
+    res.status(500).json({ success: false, error: 'Error interno: ' + error.message });
+  }
+});
+
+// POST: Notificar fin de análisis automático
 router.post('/notify-completion', async (req, res) => {
   const rawKey = req.headers['x-api-key'] || '';
   if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
@@ -56,7 +134,7 @@ router.post('/notify-completion', async (req, res) => {
   }
 });
 
-// GET: MÉTRICAS AGRUPADAS (DIARIA, MENSUAL, ANUAL)
+// GET: Métricas agregadas (Diaria, Mensual, Anual)
 router.get('/aggregated', async (req, res) => {
   try {
     const { store_id, period } = req.query; // period: 'daily' | 'monthly' | 'yearly'
@@ -68,6 +146,7 @@ router.get('/aggregated', async (req, res) => {
   }
 });
 
+// POST: Carga masiva mediante CSV
 router.post('/upload-csv', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
   const results = [];
@@ -99,6 +178,11 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
     });
 });
 
+// ======================================================
+// 2. RUTAS DE BÚSQUEDA GENERAL Y DINÁMICAS (HASTA ABAJO)
+// ======================================================
+
+// POST: Registrar métrica individual
 router.post('/', async (req, res) => {
   try {
     const metricData = req.body;
@@ -110,6 +194,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET: Obtener todas las métricas
 router.get('/', async (req, res) => {
   try {
     const results = await MetricsRepository.getAll();
@@ -119,6 +204,7 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET: Obtener métricas por ID de tienda (SIEMPRE DEBE IR AL FINAL DE LOS GETs)
 router.get('/:store_id', async (req, res) => {
   try {
     const storeId = req.params.store_id;
@@ -126,75 +212,6 @@ router.get('/:store_id', async (req, res) => {
     res.status(200).json({ success: true, data: results });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
-  }
-});
-
-// === ESTADO DEL BOT EN MEMORIA ===
-let botStatusInfo = {
-  last_heartbeat: null,
-  is_running: false
-};
-
-// POST: El bot envía su latido
-router.post('/bot-heartbeat', (req, res) => {
-  console.log('🟢 [BACKEND] RECIBÍ UN LATIDO DEL BOT. Datos:', req.body);
-  
-  const rawKey = req.headers['x-api-key'] || '';
-  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
-    console.log('🔴 [BACKEND] RECHAZADO: API KEY INCORRECTA');
-    return res.status(401).json({ success: false, error: 'API Key no autorizada' });
-  }
-
-  botStatusInfo.last_heartbeat = new Date().toISOString();
-  if (typeof req.body?.is_running !== 'undefined') {
-    botStatusInfo.is_running = !!req.body.is_running;
-  }
-  res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
-});
-
-// GET: El Frontend consulta el estado
-router.get('/bot-status', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache');
-  
-  if (!botStatusInfo.last_heartbeat) {
-    return res.json({ success: true, status: 'OFFLINE', last_heartbeat: null, is_running: false });
-  }
-
-  const now = new Date();
-  const lastBeat = new Date(botStatusInfo.last_heartbeat);
-  const diffMinutes = (now - lastBeat) / (1000 * 60);
-  const isOnline = diffMinutes <= 3;
-
-  res.json({
-    success: true,
-    status: isOnline ? 'ONLINE' : 'OFFLINE',
-    last_heartbeat: botStatusInfo.last_heartbeat,
-    minutes_ago: Math.floor(diffMinutes),
-    is_running: isOnline ? botStatusInfo.is_running : false
-  });
-});
-
-// RUTA PARA FORZAR ANÁLISIS
-router.post('/force-run', async (req, res) => {
-  console.log('⚡ [BACKEND] FRONTEND PIDIÓ FORZAR ANÁLISIS');
-  try {
-    const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
-    console.log(`⚡ [BACKEND] INTENTANDO LLAMAR AL BOT EN: ${BOT_SERVICE_URL}/run-force`);
-    
-    const botRes = await fetch(`${BOT_SERVICE_URL}/run-force`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'ENOVA_SECRET_API_KEY_2026'
-      }
-    });
-
-    console.log(`⚡ [BACKEND] RESPUESTA DEL BOT RECIBIDA. Status: ${botRes.status}`);
-    const data = await botRes.json();
-    return res.json(data);
-  } catch (error) {
-    console.error("🔴 [BACKEND] ERROR FATAL CONECTANDO AL BOT:", error.message);
-    res.status(500).json({ success: false, error: 'Error interno: ' + error.message });
   }
 });
 
