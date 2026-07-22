@@ -3,21 +3,77 @@ const router = express.Router();
 const multer = require('multer');
 const csv = require('csv-parser');
 const streamifier = require('streamifier');
+const nodemailer = require('nodemailer');
 const MetricsRepository = require('../repositories/MetricsRepository');
 
-// Configuración de multer en memoria (no guarda el archivo en el disco, lo procesa directo en RAM)
 const upload = multer({ storage: multer.memoryStorage() });
 
-// NUEVA RUTA: Recibir y procesar el CSV
+// Configuración Transporter Nodemailer (Usa tus credenciales SMTP en producción)
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || ''
+  }
+});
+
+// 📧 ENDPOINT PARA NOTIFICAR FIN DE ANÁLISIS AUTOMÁTICO
+router.post('/notify-completion', async (req, res) => {
+  const rawKey = req.headers['x-api-key'] || '';
+  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+    return res.status(401).json({ success: false, error: 'API Key no autorizada' });
+  }
+
+  const { total_stores, success_count, failed_count, date } = req.body;
+
+  try {
+    if (process.env.SMTP_USER) {
+      await transporter.sendMail({
+        from: `"Concorde Analyzer Bot" <${process.env.SMTP_USER}>`,
+        to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
+        subject: `✅ Reporte de Análisis Ejecutado - ${new Date().toLocaleDateString()}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #111; color: #fff; border-radius: 8px;">
+            <h2 style="color: #FFD700;">🚀 Concorde Analyzer Report</h2>
+            <p>Se ha completado la ronda de análisis de rendimiento diario.</p>
+            <ul>
+              <li><strong>Fecha:</strong> ${new Date(date).toLocaleString()}</li>
+              <li><strong>Tiendas Analizadas:</strong> ${total_stores}</li>
+              <li><strong>Exitosas:</strong> <span style="color: #16a34a;">${success_count}</span></li>
+              <li><strong>Fallidas / Crash:</strong> <span style="color: #dc2626;">${failed_count}</span></li>
+            </ul>
+            <p>Puedes revisar el tablero detallado directamente en la plataforma Concorde.</p>
+          </div>
+        `
+      });
+    }
+    res.json({ success: true, message: 'Notificación procesada' });
+  } catch (error) {
+    console.error('Error enviando mail de reporte:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET: MÉTRICAS AGRUPADAS (DIARIA, MENSUAL, ANUAL)
+router.get('/aggregated', async (req, res) => {
+  try {
+    const { store_id, period } = req.query; // period: 'daily' | 'monthly' | 'yearly'
+    const results = await MetricsRepository.getAggregatedMetrics(store_id, period || 'daily');
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Error al agrupar métricas' });
+  }
+});
+
 router.post('/upload-csv', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
-
   const results = [];
-  
   streamifier.createReadStream(req.file.buffer)
     .pipe(csv())
     .on('data', (data) => {
-      // Mapeo exacto a las 13 columnas de tu CSV y tu nueva BD
       results.push({
         store_id: data['store_id'],
         redirect_ms: parseInt(data['redirect_ms']) || 0,
@@ -29,7 +85,6 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
         load_ms: parseInt(data['load_ms']) || 0,
         total_weight_mb: parseFloat(data['total_weight_mb']) || 0,
         total_requests: parseInt(data['total_requests']) || 0,
-        // Aquí capturamos las dos métricas por separado
         ram_core_mb: parseFloat(data['ram_core_mb']) || 0, 
         ram_total_mb: parseFloat(data['ram_total_mb']) || 0
       });
@@ -37,51 +92,39 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
     .on('end', async () => {
       try {
         await MetricsRepository.createBulk(results);
-        res.status(200).json({ success: true, message: 'Data procesada exitosamente con doble métrica de RAM' });
+        res.status(200).json({ success: true, message: 'Data procesada exitosamente' });
       } catch (error) {
-        console.error('Error de base de datos:', error);
         res.status(500).json({ error: 'Fallo al insertar en DB' });
       }
     });
 });
 
-// POST: Crear una nueva revisión diaria
 router.post('/', async (req, res) => {
   try {
     const metricData = req.body;
-
-    // Validación básica: el ID de la tienda es obligatorio
-    if (!metricData.store_id) {
-      return res.status(400).json({ error: 'El campo store_id es obligatorio.' });
-    }
-
+    if (!metricData.store_id) return res.status(400).json({ error: 'El campo store_id es obligatorio.' });
     const result = await MetricsRepository.create(metricData);
     res.status(201).json({ success: true, data: result });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });
 
-// NUEVO GET: Obtener TODAS las métricas (Ruta que generaba el error 404)
 router.get('/', async (req, res) => {
   try {
     const results = await MetricsRepository.getAll();
     res.status(200).json({ success: true, data: results });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });
 
-// GET: Obtener métricas de una tienda específica para la vista de ClientDetail
 router.get('/:store_id', async (req, res) => {
   try {
     const storeId = req.params.store_id;
     const results = await MetricsRepository.getAllByStore(storeId);
     res.status(200).json({ success: true, data: results });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });

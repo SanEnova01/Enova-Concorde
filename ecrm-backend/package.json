@@ -21,6 +21,7 @@
     "jsonwebtoken": "^9.0.3",
     "knex": "^3.2.10",
     "multer": "^2.1.1",
+    "nodemailer": "^9.0.3",
     "openai": "^6.48.0",
     "pg": "^8.21.0",
     "streamifier": "^0.1.1"

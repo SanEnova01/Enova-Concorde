@@ -1,0 +1,16 @@
+{
+  "name": "concorde-bot",
+  "version": "1.0.0",
+  "description": "Bot automatizado de análisis de rendimiento para Concorde",
+  "main": "server-bot.js",
+  "scripts": {
+    "start": "node server-bot.js"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "pidusage": "^3.0.0",
+    "puppeteer": "^22.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

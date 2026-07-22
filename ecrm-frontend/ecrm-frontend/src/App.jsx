@@ -19,6 +19,8 @@ import CoopPilotReturns from './views/public/CoopPilotReturns';
 import CoopPilotHub from './views/public/CoopPilotHub';
 import CoopPilotTracking from "./views/public/CoopPilotTracking";
 
+
+import ConcordeAnalyzerView from './views/admin/ConcordeAnalyzerView';
 // Autenticación y Protección
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -77,7 +79,7 @@ function AdminLayout({ children }) {
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] }, // 👈 NUEVO ENLACE EN SIDEBAR
     { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
-    
+    { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
     // RUTA DE IA PARA LA AGENCIA
     { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
     
@@ -311,6 +313,12 @@ function App() {
         <Route path="*" element={
           isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
         } />
+
+        <Route path="/admin/analyzer" element={
+  <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+    <AdminLayout><ConcordeAnalyzerView /></AdminLayout>
+  </ProtectedRoute>
+} />
       </Routes>
     </BrowserRouter>
   );

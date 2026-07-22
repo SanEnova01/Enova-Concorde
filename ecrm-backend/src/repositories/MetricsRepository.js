@@ -17,13 +17,11 @@ class MetricsRepository {
         total_requests,
         ram_core_mb,
         ram_total_mb,
-        // Parámetros heredados del formulario manual del frontend
         ram_usage,
         load_s,
         dom_s
       } = metricData;
 
-      // Insertamos mapeando los campos existentes de tu PostgreSQL
       const [newMetric] = await db('daily_metrics').insert({
         store_id,
         date: date ? new Date(date).toISOString() : db.fn.now(),
@@ -32,7 +30,6 @@ class MetricsRepository {
         tcp_ms: parseInt(tcp_ms) || 0,
         ttfb_ms: parseInt(ttfb_ms) || 0,
         dom_interactive_ms: parseInt(dom_interactive_ms) || 0,
-        // Si vienen del formulario manual (en segundos), convertimos a ms. Si vienen del bot, directo en ms.
         dom_ms: dom_ms ? parseInt(dom_ms) : (dom_s ? Math.round(parseFloat(dom_s) * 1000) : 0),
         load_ms: load_ms ? parseInt(load_ms) : (load_s ? Math.round(parseFloat(load_s) * 1000) : 0),
         total_weight_mb: parseFloat(total_weight_mb) || 0,
@@ -62,6 +59,37 @@ class MetricsRepository {
         .orderBy('date', 'desc');
     } catch (error) {
       throw new Error('Error al obtener las métricas de la tienda: ' + error.message);
+    }
+  }
+
+  // 🌟 CONSULTAS AGRUPADAS POR PERÍODO (Diario, Mensual, Anual)
+  static async getAggregatedMetrics(storeId, period) {
+    try {
+      let dateFormat = 'YYYY-MM-DD';
+      if (period === 'monthly') dateFormat = 'YYYY-MM';
+      if (period === 'yearly') dateFormat = 'YYYY';
+
+      let query = db('daily_metrics')
+        .select(
+          db.raw(`TO_CHAR(date, '${dateFormat}') as period_date`),
+          'store_id'
+        )
+        .avg('load_ms as avg_load_ms')
+        .avg('dom_ms as avg_dom_ms')
+        .avg('ram_core_mb as avg_ram_core')
+        .avg('ram_total_mb as avg_ram_total')
+        .avg('ttfb_ms as avg_ttfb_ms')
+        .count('id as total_analyses')
+        .groupBy(db.raw(`TO_CHAR(date, '${dateFormat}')`), 'store_id')
+        .orderBy('period_date', 'desc');
+
+      if (storeId && storeId !== 'ALL') {
+        query = query.where({ store_id: storeId });
+      }
+
+      return await query;
+    } catch (error) {
+      throw new Error('Error al agrupar métricas: ' + error.message);
     }
   }
 
