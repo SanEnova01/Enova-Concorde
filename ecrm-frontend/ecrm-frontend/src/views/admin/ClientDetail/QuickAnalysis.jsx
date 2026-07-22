@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import crmApi from '../../../api/crmApi'; // Importamos tu instancia de Axios configurada
 
 function QuickAnalysis({ storeId, storeUrl }) {
     const [loading, setLoading] = useState(false);
@@ -8,24 +9,22 @@ function QuickAnalysis({ storeId, storeUrl }) {
     const runAnalysis = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('crm_token');
-            const res = await fetch('/api/metrics/run-single-client', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ store_id: storeId, url: storeUrl })
+            // 🌟 1. Usamos crmApi.post para evitar el error 405 y asegurar los headers
+            // 🌟 2. Solo enviamos la URL específica de ESTA tienda
+            const response = await crmApi.post('/metrics/run-single-client', { 
+                store_id: storeId, 
+                url: storeUrl 
             });
-            const data = await res.json();
-            if (data.success) {
-                setResult(data.data);
+            
+            if (response.data && response.data.success) {
+                setResult(response.data.data);
                 setShowModal(true);
             } else {
-                alert("Error: " + data.error);
+                alert("Error: " + (response.data?.error || "Ocurrió un error en el servidor."));
             }
         } catch (error) {
-            console.error("Error ejecutando analisis individual", error);
+            console.error("Error ejecutando análisis individual:", error);
+            alert("Error de conexión. Si acabas de subir código, espera un minuto a que Railway termine de compilar.");
         }
         setLoading(false);
     };
@@ -38,7 +37,7 @@ function QuickAnalysis({ storeId, storeUrl }) {
                 className="crm-btn-border"
                 style={{ width: '100%', padding: '10px', fontWeight: 'bold' }}
             >
-                {loading ? 'Analizando en segundo plano (30s)...' : 'Analisis Rapido On-Demand'}
+                {loading ? 'Analizando en segundo plano (30s)...' : '⚡ Análisis Rápido On-Demand'}
             </button>
 
             {showModal && result && (

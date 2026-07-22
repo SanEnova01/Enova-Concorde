@@ -80,16 +80,14 @@ function AdminLayout({ children }) {
     { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
-    { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] }, // 👈 NUEVO ENLACE EN SIDEBAR
+    { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     
-    // RUTA DE IA PARA LA AGENCIA
-    
-    
+    // 🌟 AQUÍ AGREGAMOS LA NUEVA PESTAÑA AL MENÚ
+    { path: '/admin/auditorias', label: '🚀 Auditorías Prospectos', allowed: ['super admin', 'admin'] },
     
     { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
     { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
-    // RUTA DE IA PARA EL CLIENTE (Solo visible si pagó el adicional)
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
     { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
   ];
@@ -318,14 +316,17 @@ function App() {
           isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
         } />
 
-           {/* Nuevas rutas publicas */}
-<Route path="/auditoria" element={<PublicAuditForm />} />
-<Route path="/reporte/:id" element={<PublicAuditReport />} />
+  {/* Nuevas rutas publicas */}
+        <Route path="/auditoria" element={<PublicAuditForm />} />
+        <Route path="/reporte/:id" element={<PublicAuditReport />} />
 
-{/* Nueva ruta protegida dentro de las rutas de Admin */}
-<Route path="/admin/auditorias" element={<ProtectedRoute><AdminAuditRequests /></ProtectedRoute>} />
-
-         
+        {/* Nueva ruta protegida dentro de las rutas de Admin */}
+        <Route path="/admin/auditorias" element={
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <AdminLayout><AdminAuditRequests /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        
         <Route path="/admin/analyzer" element={
   <ProtectedRoute allowedRoles={['super admin', 'admin']}>
     <AdminLayout><ConcordeAnalyzerView /></AdminLayout>
