@@ -134,7 +134,7 @@ function ConcordeAnalyzerView() {
             Filtro de Planes Automáticos
           </span>
           <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 'bold' }}>
-            Go, Growth, Escale & Scale
+            Go, Growth, Escale 
           </span>
         </div>
       </div>
