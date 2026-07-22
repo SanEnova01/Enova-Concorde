@@ -26,21 +26,27 @@ async function obtenerTiendasFiltradas() {
     });
     const jsonResponse = await res.json();
     
-    // 🌟 FIX: Buscar exhaustivamente el Array, venga como venga
+    // 🔍 Imprimimos la respuesta exacta en los logs para auditarla
+    console.log("🔍 [DEBUG] Respuesta de /stores:", JSON.stringify(jsonResponse));
+
     let tiendas = [];
-    if (Array.isArray(jsonResponse.data)) {
-      tiendas = jsonResponse.data;
-    } else if (Array.isArray(jsonResponse)) {
+    if (Array.isArray(jsonResponse)) {
       tiendas = jsonResponse;
+    } else if (Array.isArray(jsonResponse.data)) {
+      tiendas = jsonResponse.data;
+    } else if (Array.isArray(jsonResponse.stores)) {
+      tiendas = jsonResponse.stores;
+    } else if (jsonResponse.data && Array.isArray(jsonResponse.data.stores)) {
+      tiendas = jsonResponse.data.stores;
     } else {
-      console.error("❌ El backend no devolvió una lista válida. Formato recibido:", typeof jsonResponse);
+      console.error("❌ El backend no devolvió un Array. Estructura recibida:", jsonResponse);
       return [];
     }
 
     // Filtrar solo tiendas con web y con planes válidos
     const filtradas = tiendas.filter(t => {
-      const planLimpio = String(t.plan_type || '').toLowerCase().trim();
-      const tieneWeb = t.web && String(t.web).trim() !== '';
+      const planLimpio = String(t.plan_type || t.plan || '').toLowerCase().trim();
+      const tieneWeb = (t.web || t.url) && String(t.web || t.url).trim() !== '';
       return tieneWeb && PLANES_VALIDOS.includes(planLimpio);
     });
 
