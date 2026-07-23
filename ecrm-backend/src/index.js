@@ -54,6 +54,9 @@ app.use(express.json());
 // ==========================================
 app.use('/api/cooppilot', require('./routes/cooppilot'));
 
+// 🌟 RUTA PÚBLICA DE AUDITORÍAS REUBICADA AQUÍ
+app.use('/api/audits', require('./routes/audits'));
+
 // ==========================================
 // MIDDLEWARE: GUARDIÁN DE RUTAS INTERNAS (SOPORTA JWT Y API KEY DEL BOT)
 // ==========================================
@@ -490,8 +493,6 @@ app.delete('/api/users/:id', verificarToken, async (req, res) => {
 // ==========================================
 const reactBuildPath = path.join(__dirname, 'dist');  
 
-// 🌟 QUITAMOS 'verificarToken' AQUÍ
-app.use('/api/audits', require('./routes/audits'));
 app.use(express.static(reactBuildPath));
 app.use('/assets', express.static(path.join(reactBuildPath, 'assets')));
 app.get(/.*/, (req, res) => {

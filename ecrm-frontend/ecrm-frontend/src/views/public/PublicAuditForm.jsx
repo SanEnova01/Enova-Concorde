@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import crmApi from '../../api/crmApi'; // 🌟 Importación corregida de tu API
 
 function PublicAuditForm() {
     const [formData, setFormData] = useState({ prospect_name: '', email: '', company_name: '', store_url: '' });
@@ -9,16 +10,14 @@ function PublicAuditForm() {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await fetch('/api/audits/request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-            if (res.ok) {
+            // 🌟 Petición corregida usando crmApi
+            const res = await crmApi.post('/audits/request', formData);
+            if (res.data && res.data.success) {
                 setSubmitted(true);
             }
         } catch (error) {
             console.error("Error enviando formulario", error);
+            alert("Ocurrió un problema de conexión. Intenta nuevamente.");
         }
         setLoading(false);
     };
@@ -87,13 +86,13 @@ function PublicAuditForm() {
                     
                     <div>
                         <div style={{ display: 'inline-block', border: '2px solid #111', padding: '4px 12px', fontSize: '13px', fontWeight: '900', letterSpacing: '1px', marginBottom: '20px', backgroundColor: '#fff' }}>
-                            DIAGNÓSTICO E-COMMERCE
+                             ANÁLISIS DE PERFORMANCE
                         </div>
                         <h2 style={{ fontSize: '56px', fontWeight: '900', lineHeight: '1', margin: '0 0 25px 0', letterSpacing: '-2px' }}>
-                            Descubre qué frena tus ventas.
+                            Tu tienda lenta te está costando clientes.
                         </h2>
                         <p style={{ fontSize: '18px', color: '#444', lineHeight: '1.6', margin: 0, fontWeight: '500' }}>
-                            La velocidad técnica de tu tienda dicta tus conversiones. Solicita un escaneo gratuito con el motor <strong style={{ color: '#111' }}>Concorde</strong> y conoce tus métricas reales de impacto en dispositivos móviles.
+                            La velocidad técnica de tu tienda dicta tus conversiones. Solicita un escaneo gratuito con el motor <strong style={{ color: '#111' }}>Concorde</strong> y conoce tus métricas reales de impacto en todos los dispositivos.
                         </p>
                     </div>
 
