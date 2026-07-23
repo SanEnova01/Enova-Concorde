@@ -317,7 +317,7 @@ function App() {
         } />
 
   {/* Nuevas rutas publicas */}
-        <Route path="/auditoria" element={<PublicAuditForm />} />
+        <Route path="/performance-radar" element={<PublicAuditForm />} />
         <Route path="/reporte/:id" element={<PublicAuditReport />} />
 
         {/* Nueva ruta protegida dentro de las rutas de Admin */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import crmApi from '../../api/crmApi'; // 🌟 Importación corregida de tu API
+import crmApi from '../../api/crmApi';
 
 function PublicAuditForm() {
     const [formData, setFormData] = useState({ prospect_name: '', email: '', company_name: '', store_url: '' });
@@ -10,7 +10,6 @@ function PublicAuditForm() {
         e.preventDefault();
         setLoading(true);
         try {
-            // 🌟 Petición corregida usando crmApi
             const res = await crmApi.post('/audits/request', formData);
             if (res.data && res.data.success) {
                 setSubmitted(true);

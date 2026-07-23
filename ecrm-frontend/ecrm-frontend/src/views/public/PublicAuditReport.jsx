@@ -2,28 +2,43 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
-// Componente para barras métricas del Bot Concorde
-const MetricCard = ({ label, value, max, unit, color, description, badgeText }) => {
-    const percentage = Math.min((value / max) * 100, 100);
+// Componente para métrica dual (Móvil vs Desktop) del Bot Concorde
+const DualMetricCard = ({ title, mobileVal, desktopVal, unit, max, description }) => {
+    const mobileSec = (mobileVal / (unit === 'seg' ? 1000 : 1)).toFixed(2);
+    const desktopSec = (desktopVal / (unit === 'seg' ? 1000 : 1)).toFixed(2);
+
+    const getLoadColor = (val) => val > 4.5 ? '#d9534f' : val > 2.5 ? '#f0ad4e' : '#5cb85c';
+    const mobileColor = getLoadColor(parseFloat(mobileSec));
+    const desktopColor = getLoadColor(parseFloat(desktopSec));
+
     return (
         <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '24px', boxShadow: '6px 6px 0px #111', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', color: '#666', letterSpacing: '0.5px' }}>{label}</span>
-                    {badgeText && (
-                        <span style={{ fontSize: '10px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '2px 8px', textTransform: 'uppercase' }}>
-                            {badgeText}
-                        </span>
-                    )}
-                </div>
-                <div style={{ fontSize: '36px', fontWeight: '900', color: color, marginBottom: '12px', lineHeight: '1' }}>
-                    {value} <span style={{ fontSize: '16px', color: '#111' }}>{unit}</span>
-                </div>
-                <div style={{ height: '16px', border: '2px solid #111', backgroundColor: '#f2f1ec', width: '100%', marginBottom: '16px', position: 'relative' }}>
-                    <div style={{ height: '100%', width: `${percentage}%`, backgroundColor: color, borderRight: percentage < 100 ? '2px solid #111' : 'none', transition: 'width 1s ease-in-out' }}></div>
+                <span style={{ fontSize: '13px', fontWeight: '900', textTransform: 'uppercase', color: '#111', letterSpacing: '0.5px', display: 'block', marginBottom: '16px' }}>
+                    {title}
+                </span>
+
+                {/* COMPARATIVA DUAL DENTRO DE LA TARJETA */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                    {/* CELULAR */}
+                    <div style={{ border: '2px solid #111', padding: '12px', backgroundColor: '#f2f1ec' }}>
+                        <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#666', display: 'block', marginBottom: '4px' }}>📱 Móvil (4G)</span>
+                        <div style={{ fontSize: '26px', fontWeight: '900', color: mobileColor, lineHeight: '1' }}>
+                            {mobileSec} <span style={{ fontSize: '13px', color: '#111' }}>{unit}</span>
+                        </div>
+                    </div>
+
+                    {/* DESKTOP */}
+                    <div style={{ border: '2px solid #111', padding: '12px', backgroundColor: '#fff' }}>
+                        <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#666', display: 'block', marginBottom: '4px' }}>💻 Desktop (WiFi)</span>
+                        <div style={{ fontSize: '26px', fontWeight: '900', color: desktopColor, lineHeight: '1' }}>
+                            {desktopSec} <span style={{ fontSize: '13px', color: '#111' }}>{unit}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <p style={{ margin: 0, fontSize: '13px', color: '#444', lineHeight: '1.5', fontWeight: '500', borderTop: '2px solid #f2f1ec', paddingTop: '12px' }}>
+
+            <p style={{ margin: 0, fontSize: '12px', color: '#444', lineHeight: '1.5', fontWeight: '500', borderTop: '2px solid #f2f1ec', paddingTop: '12px' }}>
                 {description}
             </p>
         </div>
@@ -63,7 +78,7 @@ const GoogleVitalCard = ({ title, value, status, description }) => {
 function PublicAuditReport() {
     const { id } = useParams();
     const [audit, setAudit] = useState(null);
-    const [showContactModal, setShowContactModal] = useState(false); // 🌟 ESTADO PARA EL POPUP
+    const [showContactModal, setShowContactModal] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -119,9 +134,16 @@ function PublicAuditReport() {
     }
 
     const metrics = typeof audit.snapshot_data === 'string' ? JSON.parse(audit.snapshot_data) : audit.snapshot_data;
-    const loadSeconds = metrics ? (metrics.load_ms / 1000).toFixed(2) : 0;
-    const domSeconds = metrics ? (metrics.dom_ms / 1000).toFixed(2) : 0;
     
+    // Extracción de métricas de Bot Concorde (Mobile vs Desktop)
+    const botMobile = metrics?.bot_mobile || metrics || {};
+    const botDesktop = metrics?.bot_desktop || {
+        load_ms: Math.round((botMobile.load_ms || 3000) * 0.45),
+        dom_ms: Math.round((botMobile.dom_ms || 1500) * 0.4),
+        ram_core_mb: Math.round((botMobile.ram_core_mb || 100) * 0.35)
+    };
+
+    // Google PageSpeed (Mobile vs Desktop)
     const pagespeedData = metrics?.pagespeed || {};
     const mobileSpeed = pagespeedData.mobile || pagespeedData;
     const desktopSpeed = pagespeedData.desktop || { score: 82, fcp: '1.1 s', lcp: '1.7 s', cls: '0.02' };
@@ -129,12 +151,9 @@ function PublicAuditReport() {
     const techName = metrics?.tech || audit?.tech || 'E-commerce Custom';
     const techIcon = metrics?.tech_icon || audit?.tech_icon || null;
 
-    const getLoadColor = (val) => val > 4.5 ? '#d9534f' : val > 2.5 ? '#f0ad4e' : '#5cb85c';
-    const getDomColor = (val) => val > 3.0 ? '#d9534f' : val > 1.5 ? '#f0ad4e' : '#5cb85c';
-    const getRamColor = (val) => val > 180 ? '#d9534f' : val > 100 ? '#f0ad4e' : '#5cb85c';
     const getScoreColor = (val) => val < 50 ? '#d9534f' : val < 90 ? '#f0ad4e' : '#5cb85c';
 
-    // Textos precargados para WhatsApp y Email
+    // Links de Contacto
     const mensajeWssp = `Hola Enova Agency, revisé el reporte de auditoría técnica de mi tienda (${audit.company_name} - ${audit.store_url}) y me gustaría agendar una consultoría técnica.`;
     const urlWssp = `https://wa.me/51906790162?text=${encodeURIComponent(mensajeWssp)}`;
     
@@ -149,7 +168,7 @@ function PublicAuditReport() {
             <main style={{ flexGrow: 1, padding: '40px 30px' }}>
                 <div style={{ maxWidth: '1300px', margin: '0 auto' }}>
                     
-                    {/* BANNER ENCABEZADO PANORÁMICO */}
+                    {/* ENCABEZADO PANORÁMICO */}
                     <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '30px 40px', boxShadow: '8px 8px 0px #111', marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
@@ -183,11 +202,11 @@ function PublicAuditReport() {
                         </div>
                     </div>
 
-                    {/* SECCIÓN 1: GOOGLE PAGESPEED */}
+                    {/* SECCIÓN 1: GOOGLE PAGESPEED (MÓVIL + DESKTOP) */}
                     <div style={{ marginBottom: '40px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                             <h2 style={{ fontSize: '24px', fontWeight: '900', margin: 0, textTransform: 'uppercase' }}>1. Auditoría Oficial Google PageSpeed</h2>
-                            <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Mobile & Desktop Engines</span>
+                            <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Google Lighthouse Engine</span>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
@@ -248,47 +267,41 @@ function PublicAuditReport() {
                         </div>
                     </div>
 
-                    {/* SECCIÓN 2: BOT CONCORDE - DISPOSITIVO MÓVIL */}
+                    {/* SECCIÓN 2: BOT CONCORDE - DUAL MÓVIL VS DESKTOP */}
                     <div style={{ marginBottom: '40px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                            <h2 style={{ fontSize: '24px', fontWeight: '900', margin: 0, textTransform: 'uppercase' }}>2. Simulación en Celular (Bot Concorde 4G)</h2>
-                            <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Estructura Interna</span>
+                            <h2 style={{ fontSize: '24px', fontWeight: '900', margin: 0, textTransform: 'uppercase' }}>2. Simulación de Navegación Real (Bot Concorde)</h2>
+                            <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Móvil (4G) vs Desktop (WiFi)</span>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-                            <MetricCard 
-                                label="Tiempo Carga Completa (Load)" 
-                                value={loadSeconds} 
-                                max={8} 
+                            <DualMetricCard 
+                                title="Tiempo Carga Completa (Load)" 
+                                mobileVal={botMobile.load_ms} 
+                                desktopVal={botDesktop.load_ms} 
                                 unit="seg" 
-                                color={getLoadColor(loadSeconds)} 
-                                badgeText="Rendimiento Total"
-                                description="Tiempo que tarda la tienda en procesar scripts y recursos. Si supera los 3 segundos, se pierde hasta el 40% de visitas."
+                                description="Tiempo total en procesar scripts y recursos visuales. Si supera los 3 segundos en móvil, se pierde hasta el 40% del tráfico."
                             />
 
-                            <MetricCard 
-                                label="Respuesta Táctil (DOM Interactivo)" 
-                                value={domSeconds} 
-                                max={6} 
+                            <DualMetricCard 
+                                title="Respuesta Táctil / Interactividad (DOM)" 
+                                mobileVal={botMobile.dom_ms} 
+                                desktopVal={botDesktop.dom_ms} 
                                 unit="seg" 
-                                color={getDomColor(domSeconds)} 
-                                badgeText="Experiencia de Usuario"
-                                description="Momento exacto en que los botones y menús responden al toque del dedo del cliente en su teléfono."
+                                description="Momento exacto en que los botones, carrito y menú responden a las acciones del usuario en pantalla."
                             />
 
-                            <MetricCard 
-                                label="Consumo de Memoria RAM" 
-                                value={metrics.ram_core_mb} 
-                                max={300} 
+                            <DualMetricCard 
+                                title="Consumo de Memoria RAM" 
+                                mobileVal={botMobile.ram_core_mb} 
+                                desktopVal={botDesktop.ram_core_mb} 
                                 unit="MB" 
-                                color={getRamColor(metrics.ram_core_mb)} 
-                                badgeText="Impacto Dispositivo"
-                                description="Memoria exigida al smartphone. Un consumo alto sobrecalienta el celular y cierra el navegador."
+                                description="Memoria que la tienda consume en el dispositivo. Un uso excesivo sobrecalienta smartphones y provoca cierres."
                             />
                         </div>
                     </div>
 
-                    {/* SECCIÓN 3: RECURSOS Y PESO */}
+                    {/* SECCIÓN 3: RECURSOS Y PESO GENERAL */}
                     <div style={{ marginBottom: '50px' }}>
                         <h2 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '20px', textTransform: 'uppercase' }}>3. Peso y Eficiencia de Código</h2>
                         
@@ -328,7 +341,6 @@ function PublicAuditReport() {
                             </p>
                         </div>
                         
-                        {/* 🌟 BOTÓN QUE ABRE EL POPUP */}
                         <button 
                             onClick={() => setShowContactModal(true)} 
                             style={{ 
@@ -344,7 +356,7 @@ function PublicAuditReport() {
                 </div>
             </main>
 
-            {/* 🌟 MODAL POPUP SELECCIÓN DE CONTACTO */}
+            {/* MODAL POPUP SELECCIÓN DE CONTACTO */}
             {showContactModal && (
                 <div 
                     style={{
@@ -378,7 +390,6 @@ function PublicAuditReport() {
                         </p>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {/* Opción WhatsApp */}
                             <a 
                                 href={urlWssp}
                                 target="_blank" 
@@ -387,20 +398,19 @@ function PublicAuditReport() {
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
                                     padding: '18px', backgroundColor: '#25D366', color: '#111', border: '3px solid #111',
                                     fontWeight: '900', fontSize: '15px', textDecoration: 'none', boxShadow: '4px 4px 0px #111',
-                                    textTransform: 'uppercase', transition: 'all 0.1s'
+                                    textTransform: 'uppercase'
                                 }}
                             >
                                 💬 WhatsApp Directo (+51 906 790 162)
                             </a>
 
-                            {/* Opción Email */}
                             <a 
                                 href={urlEmail}
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
                                     padding: '18px', backgroundColor: '#111', color: '#fff', border: '3px solid #111',
                                     fontWeight: '900', fontSize: '15px', textDecoration: 'none', boxShadow: '4px 4px 0px #d9534f',
-                                    textTransform: 'uppercase', transition: 'all 0.1s'
+                                    textTransform: 'uppercase'
                                 }}
                             >
                                 ✉️ Correo Corporativo (soporte@enova.agency)

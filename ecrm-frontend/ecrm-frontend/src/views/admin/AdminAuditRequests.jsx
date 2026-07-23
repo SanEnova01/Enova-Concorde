@@ -97,14 +97,14 @@ function AdminAuditRequests() {
                     )}
                     
                     <a 
-                        href="/auditoria" 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="crm-btn-black"
-                        style={{ textDecoration: 'none', display: 'inline-block' }}
-                    >
-                        Ver Formulario Público ↗
-                    </a>
+    href="/performance-radar" 
+    target="_blank" 
+    rel="noreferrer" 
+    className="crm-btn-black"
+    style={{ textDecoration: 'none', display: 'inline-block' }}
+>
+    Ver Formulario Público ↗
+</a>
                 </div>
             </div>
 
