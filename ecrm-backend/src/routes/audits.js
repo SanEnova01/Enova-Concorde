@@ -19,22 +19,68 @@ const verificarTokenAdmin = (req, res, next) => {
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
 
-// 🌟 FUNCIÓN AUXILIAR: Consultar Google PageSpeed Insights API
+// 🌟 DETECTOR DE TECNOLOGÍA E-COMMERCE
+async function detectEcommerceTech(targetUrl) {
+    try {
+        let urlLimpia = targetUrl.trim();
+        if (!urlLimpia.startsWith('http')) urlLimpia = `https://${urlLimpia}`;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
+        const res = await fetch(urlLimpia, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        const html = (await res.text()).toLowerCase();
+
+        if (html.includes('cdn.shopify.com') || html.includes('shopify.theme')) {
+            return { tech: 'Shopify', icon: '/assets/shopify.svg' };
+        }
+        if (html.includes('vtex.img') || html.includes('vtexassets') || html.includes('vtex.cm')) {
+            return { tech: 'VTEX', icon: '/assets/vtex.svg' };
+        }
+        if (html.includes('wp-content') || html.includes('woocommerce')) {
+            return { tech: 'WooCommerce', icon: '/assets/woocommerce.svg' };
+        }
+        if (html.includes('mage/cookies') || html.includes('magento')) {
+            return { tech: 'Magento', icon: '/assets/magento.svg' };
+        }
+        if (html.includes('prestashop')) {
+            return { tech: 'PrestaShop', icon: '/assets/prestashop.svg' };
+        }
+
+        return { tech: 'E-commerce Custom', icon: null };
+    } catch (e) {
+        return { tech: 'E-commerce', icon: null };
+    }
+}
+
+// 🌟 Consulta a Google PageSpeed API
 async function getPageSpeedMetrics(targetUrl) {
     try {
         let urlLimpia = targetUrl.trim();
-        if (!urlLimpia.startsWith('http')) {
-            urlLimpia = `https://${urlLimpia}`;
-        }
-        
+        if (!urlLimpia.startsWith('http')) urlLimpia = `https://${urlLimpia}`;
+
         const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(urlLimpia)}&category=PERFORMANCE&strategy=mobile`;
-        
-        const res = await fetch(apiUrl);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 25000);
+
+        const res = await fetch(apiUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+
         if (!res.ok) return null;
-        
+
         const data = await res.json();
         const lh = data.lighthouseResult;
-        
+
+        if (!lh || !lh.categories || !lh.categories.performance) return null;
+
         return {
             score: Math.round((lh.categories.performance.score || 0) * 100),
             fcp: lh.audits['first-contentful-paint']?.displayValue || 'N/A',
@@ -42,42 +88,35 @@ async function getPageSpeedMetrics(targetUrl) {
             cls: lh.audits['cumulative-layout-shift']?.displayValue || 'N/A'
         };
     } catch (err) {
-        console.error("Error obteniendo Google PageSpeed:", err.message);
         return null;
     }
 }
 
-// 🌟 PÚBLICO: Crear solicitud desde la landing (SIN TOKEN)
+// PÚBLICO: Crear solicitud desde landing
 router.post('/request', async (req, res) => {
     try {
         const { prospect_name, email, company_name, store_url } = req.body;
         const [result] = await db('audit_requests').insert({
-            prospect_name, 
-            email, 
-            company_name, 
-            store_url
+            prospect_name, email, company_name, store_url
         }).returning('id');
-        
         res.status(201).json({ success: true, id: result.id || result });
     } catch (error) {
-        console.error('[ERROR] Guardando petición de auditoría:', error);
         res.status(500).json({ success: false, error: 'Error interno del servidor' });
     }
 });
 
-// 🌟 PÚBLICO: Obtener reporte único por ID (SIN TOKEN)
+// PÚBLICO: Obtener reporte por ID
 router.get('/:id', async (req, res) => {
     try {
         const result = await db('audit_requests').where({ id: req.params.id }).first();
         if (!result) return res.status(404).json({ success: false, error: 'No encontrado' });
         res.json({ success: true, data: result });
     } catch (error) {
-        console.error('[ERROR] Obteniendo auditoría por ID:', error);
         res.status(500).json({ success: false, error: 'Error interno del servidor' });
     }
 });
 
-// 🔒 PROTEGIDO: Listar todas las solicitudes (Para el panel CRM)
+// PROTEGIDO: Listar solicitudes
 router.get('/', verificarTokenAdmin, async (req, res) => {
     try {
         const results = await db('audit_requests').orderBy('created_at', 'desc');
@@ -87,7 +126,7 @@ router.get('/', verificarTokenAdmin, async (req, res) => {
     }
 });
 
-// 🔒 PROTEGIDO: Forzar análisis desde el panel (Ejecuta Bot + Google PageSpeed)
+// PROTEGIDO: Ejecutar análisis completo (Bot + Google + Tech Detector en paralelo)
 router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
     try {
         const audit = await db('audit_requests').where({ id: req.params.id }).first();
@@ -95,8 +134,8 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
 
         const targetUrl = audit.store_url;
 
-        // 🚀 Ejecutamos el Bot interno Y Google PageSpeed en paralelo
-        const [botRes, googleData] = await Promise.all([
+        // 🚀 Ejecución simultánea de Bot, PageSpeed y Detector de Tecnología
+        const [botRes, googleData, techInfo] = await Promise.all([
             fetch(`${BOT_SERVICE_URL}/run-single`, {
                 method: 'POST',
                 headers: {
@@ -105,19 +144,20 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
                 },
                 body: JSON.stringify({ url: targetUrl })
             }),
-            getPageSpeedMetrics(targetUrl)
+            getPageSpeedMetrics(targetUrl),
+            detectEcommerceTech(targetUrl)
         ]);
 
         const botData = await botRes.json();
-        
         if (!botRes.ok || !botData.success) {
             throw new Error(botData.error || 'Fallo en el motor del Bot');
         }
 
-        // Unimos los datos del bot con los de Google
         const snapshotCompleto = {
             ...botData.data,
-            pagespeed: googleData
+            pagespeed: googleData,
+            tech: techInfo.tech,
+            tech_icon: techInfo.icon
         };
 
         const [result] = await db('audit_requests')
