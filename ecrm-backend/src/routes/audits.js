@@ -19,6 +19,34 @@ const verificarTokenAdmin = (req, res, next) => {
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
 
+// 🌟 FUNCIÓN AUXILIAR: Consultar Google PageSpeed Insights API
+async function getPageSpeedMetrics(targetUrl) {
+    try {
+        let urlLimpia = targetUrl.trim();
+        if (!urlLimpia.startsWith('http')) {
+            urlLimpia = `https://${urlLimpia}`;
+        }
+        
+        const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(urlLimpia)}&category=PERFORMANCE&strategy=mobile`;
+        
+        const res = await fetch(apiUrl);
+        if (!res.ok) return null;
+        
+        const data = await res.json();
+        const lh = data.lighthouseResult;
+        
+        return {
+            score: Math.round((lh.categories.performance.score || 0) * 100),
+            fcp: lh.audits['first-contentful-paint']?.displayValue || 'N/A',
+            lcp: lh.audits['largest-contentful-paint']?.displayValue || 'N/A',
+            cls: lh.audits['cumulative-layout-shift']?.displayValue || 'N/A'
+        };
+    } catch (err) {
+        console.error("Error obteniendo Google PageSpeed:", err.message);
+        return null;
+    }
+}
+
 // 🌟 PÚBLICO: Crear solicitud desde la landing (SIN TOKEN)
 router.post('/request', async (req, res) => {
     try {
@@ -59,7 +87,7 @@ router.get('/', verificarTokenAdmin, async (req, res) => {
     }
 });
 
-// 🔒 PROTEGIDO: Forzar análisis desde el panel y guardar snapshot
+// 🔒 PROTEGIDO: Forzar análisis desde el panel (Ejecuta Bot + Google PageSpeed)
 router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
     try {
         const audit = await db('audit_requests').where({ id: req.params.id }).first();
@@ -67,26 +95,36 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
 
         const targetUrl = audit.store_url;
 
-        const botRes = await fetch(`${BOT_SERVICE_URL}/run-single`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.API_KEY || 'ENOVA_SECRET_API_KEY_2026'
-            },
-            body: JSON.stringify({ url: targetUrl })
-        });
-        
+        // 🚀 Ejecutamos el Bot interno Y Google PageSpeed en paralelo
+        const [botRes, googleData] = await Promise.all([
+            fetch(`${BOT_SERVICE_URL}/run-single`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': process.env.API_KEY || 'ENOVA_SECRET_API_KEY_2026'
+                },
+                body: JSON.stringify({ url: targetUrl })
+            }),
+            getPageSpeedMetrics(targetUrl)
+        ]);
+
         const botData = await botRes.json();
         
         if (!botRes.ok || !botData.success) {
             throw new Error(botData.error || 'Fallo en el motor del Bot');
         }
 
+        // Unimos los datos del bot con los de Google
+        const snapshotCompleto = {
+            ...botData.data,
+            pagespeed: googleData
+        };
+
         const [result] = await db('audit_requests')
             .where({ id: req.params.id })
             .update({
                 status: 'COMPLETED',
-                snapshot_data: JSON.stringify(botData.data),
+                snapshot_data: JSON.stringify(snapshotCompleto),
                 updated_at: db.fn.now()
             })
             .returning('*');

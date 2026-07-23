@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import crmApi from '../../api/crmApi'; // 🌟 1. Importamos crmApi
+import crmApi from '../../api/crmApi';
 
 // Componente para barras gráficas nativas
 const MetricBar = ({ label, value, max, unit, color, description }) => {
@@ -25,7 +25,6 @@ function PublicAuditReport() {
 
     useEffect(() => {
         if (!id) return;
-        // 🌟 2. Usamos crmApi.get en lugar de fetch crudo
         crmApi.get(`/audits/${id}`)
             .then(res => {
                 if (res.data && res.data.success) {
@@ -79,11 +78,13 @@ function PublicAuditReport() {
     const metrics = typeof audit.snapshot_data === 'string' ? JSON.parse(audit.snapshot_data) : audit.snapshot_data;
     const loadSeconds = metrics ? (metrics.load_ms / 1000).toFixed(2) : 0;
     const domSeconds = metrics ? (metrics.dom_ms / 1000).toFixed(2) : 0;
+    const pagespeed = metrics?.pagespeed;
 
     // Colores tipo semáforo
     const getLoadColor = (val) => val > 4.5 ? '#d9534f' : val > 2.5 ? '#f0ad4e' : '#5cb85c';
     const getDomColor = (val) => val > 3.0 ? '#d9534f' : val > 1.5 ? '#f0ad4e' : '#5cb85c';
     const getRamColor = (val) => val > 180 ? '#d9534f' : val > 100 ? '#f0ad4e' : '#5cb85c';
+    const getScoreColor = (val) => val < 50 ? '#d9534f' : val < 90 ? '#f0ad4e' : '#5cb85c';
 
     return (
         <div style={{ backgroundColor: '#f2f1ec', color: '#111', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif' }}>
@@ -104,6 +105,24 @@ function PublicAuditReport() {
                             🔗 {audit.store_url}
                         </a>
                     </div>
+
+                    {/* 🌟 TARJETA DE GOOGLE PAGESPEED SCORE (SI EXISTE) */}
+                    {pagespeed && (
+                        <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '30px', boxShadow: '8px 8px 0px #111', marginBottom: '50px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px' }}>
+                            <div>
+                                <span style={{ fontSize: '12px', fontWeight: '900', color: '#666', textTransform: 'uppercase', letterSpacing: '1px' }}>Auditoría Oficial </span>
+                                <h3 style={{ margin: '5px 0 0 0', fontSize: '24px', fontWeight: '900' }}>Puntuación Móvil PageSpeed</h3>
+                            </div>
+                            <div style={{ 
+                                width: '90px', height: '90px', borderRadius: '50%', border: '4px solid #111', 
+                                backgroundColor: getScoreColor(pagespeed.score), color: '#fff', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                fontSize: '36px', fontWeight: '900', boxShadow: '3px 3px 0px #111' 
+                            }}>
+                                {pagespeed.score}
+                            </div>
+                        </div>
+                    )}
                     
                     {/* Gráficas de Rendimiento */}
                     <div style={{ marginBottom: '60px' }}>
@@ -115,7 +134,7 @@ function PublicAuditReport() {
                             max={8} 
                             unit="segundos" 
                             color={getLoadColor(loadSeconds)} 
-                            description="Mide cuánto tarda la página en cargar todos sus recursos visuales. Si es mayor a 3 segundos, los clientes tienden a abandonar la tienda por desesperación."
+                            description="Mide cuánto tarda la página en cargar todos sus recursos visuales. Reducir este tiempo previene el abandono temprano de usuarios."
                         />
 
                         <MetricBar 
@@ -124,7 +143,7 @@ function PublicAuditReport() {
                             max={6} 
                             unit="segundos" 
                             color={getDomColor(domSeconds)} 
-                            description="El momento en el que el comprador finalmente puede hacer clic en un botón o deslizar los productos. Es crucial que este número sea lo más bajo posible."
+                            description="El momento en el que el comprador puede hacer clic o interactuar. A mayor velocidad de respuesta, mayor tasa de conversión."
                         />
 
                         <MetricBar 
@@ -133,7 +152,7 @@ function PublicAuditReport() {
                             max={300} 
                             unit="MB" 
                             color={getRamColor(metrics.ram_core_mb)} 
-                            description="Indica la memoria que tu tienda 'roba' al celular del cliente. Un número alto calienta el dispositivo móvil y hace que la navegación se sienta 'pesada' y lenta."
+                            description="Indica el consumo de memoria en el celular del comprador. Optimizar este consumo evita ralentizaciones y cierres de pestañas."
                         />
                     </div>
 
@@ -149,11 +168,11 @@ function PublicAuditReport() {
                         </div>
                     </div>
 
-                    {/* Call To Action */}
+                    {/* Call To Action Universal */}
                     <div style={{ border: '3px solid #111', backgroundColor: '#fff', padding: '50px', textAlign: 'center', boxShadow: '8px 8px 0px #111' }}>
-                        <h2 style={{ fontSize: '32px', fontWeight: '900', margin: '0 0 15px 0' }}>¿Tus métricas están en naranja o rojo?</h2>
+                        <h2 style={{ fontSize: '32px', fontWeight: '900', margin: '0 0 15px 0' }}>¿Quieres maximizar el rendimiento de tu e-commerce?</h2>
                         <p style={{ fontSize: '18px', color: '#444', margin: '0 auto 30px auto', maxWidth: '600px', lineHeight: '1.6', fontWeight: '500' }}>
-                            Nuestro equipo en Enova Agency se especializa en refactorizar tiendas online para que sean ultra rápidas, ayudándote a recuperar hasta un 40% de conversiones perdidas.
+                            Reducir los tiempos de carga y optimizar recursos puede ayudarte a recuperar e incrementar hasta un <strong>40% de conversiones</strong>. En Enova Agency optimizamos la arquitectura técnica de tu tienda para llevarla al siguiente nivel.
                         </p>
                         <a href="https://enova.agency/contacto" target="_blank" rel="noreferrer" style={{ display: 'inline-block', padding: '18px 36px', backgroundColor: '#111', color: '#fff', fontSize: '16px', fontWeight: '900', textTransform: 'uppercase', textDecoration: 'none', border: '3px solid #111', boxShadow: '4px 4px 0px #d9534f' }}>
                             Agendar Consultoría Técnica
