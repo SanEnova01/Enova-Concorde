@@ -89,7 +89,7 @@ function PublicAuditForm() {
                              ANÁLISIS DE PERFORMANCE
                         </div>
                         <h2 style={{ fontSize: '56px', fontWeight: '900', lineHeight: '1', margin: '0 0 25px 0', letterSpacing: '-2px' }}>
-                            Tu tienda lenta te está costando clientes.
+                            La salud de tu ecommerce te puede estar costando clientes.
                         </h2>
                         <p style={{ fontSize: '18px', color: '#444', lineHeight: '1.6', margin: 0, fontWeight: '500' }}>
                             La velocidad técnica de tu tienda dicta tus conversiones. Solicita un escaneo gratuito con el motor <strong style={{ color: '#111' }}>Concorde</strong> y conoce tus métricas reales de impacto en todos los dispositivos.
