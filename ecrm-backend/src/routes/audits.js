@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../config/db');
 const jwt = require('jsonwebtoken');
 
-// Middleware de seguridad exclusivo para las acciones del CRM
+// Middleware de seguridad exclusivo para las acciones privadas del CRM
 const verificarTokenAdmin = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -32,23 +32,24 @@ router.post('/request', async (req, res) => {
         
         res.status(201).json({ success: true, id: result.id || result });
     } catch (error) {
-        console.error('[ERROR] Guardando peticion de auditoria:', error);
+        console.error('[ERROR] Guardando petición de auditoría:', error);
         res.status(500).json({ success: false, error: 'Error interno del servidor' });
     }
 });
 
-// 🌟 PÚBLICO: Obtener reporte único (Para el prospecto, SIN TOKEN)
+// 🌟 PÚBLICO: Obtener reporte único por ID (SIN TOKEN)
 router.get('/:id', async (req, res) => {
     try {
         const result = await db('audit_requests').where({ id: req.params.id }).first();
         if (!result) return res.status(404).json({ success: false, error: 'No encontrado' });
         res.json({ success: true, data: result });
     } catch (error) {
+        console.error('[ERROR] Obteniendo auditoría por ID:', error);
         res.status(500).json({ success: false, error: 'Error interno del servidor' });
     }
 });
 
-// 🔒 PROTEGIDO: Listar todas las solicitudes (Para panel CRM)
+// 🔒 PROTEGIDO: Listar todas las solicitudes (Para el panel CRM)
 router.get('/', verificarTokenAdmin, async (req, res) => {
     try {
         const results = await db('audit_requests').orderBy('created_at', 'desc');
@@ -92,7 +93,7 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
 
         res.json({ success: true, data: result });
     } catch (error) {
-        console.error('[ERROR] Ejecutando auditoria:', error);
+        console.error('[ERROR] Ejecutando auditoría:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

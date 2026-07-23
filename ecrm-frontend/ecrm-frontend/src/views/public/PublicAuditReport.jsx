@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import crmApi from '../../api/crmApi'; // 🌟 1. Importamos crmApi
 
 // Componente para barras gráficas nativas
 const MetricBar = ({ label, value, max, unit, color, description }) => {
@@ -24,10 +25,15 @@ function PublicAuditReport() {
 
     useEffect(() => {
         if (!id) return;
-        fetch(`/api/audits/${id}`)
-            .then(res => res.json())
-            .then(data => {
-                if(data.success) setAudit(data.data);
+        // 🌟 2. Usamos crmApi.get en lugar de fetch crudo
+        crmApi.get(`/audits/${id}`)
+            .then(res => {
+                if (res.data && res.data.success) {
+                    setAudit(res.data.data);
+                }
+            })
+            .catch(err => {
+                console.error("Error cargando reporte de auditoría:", err);
             });
     }, [id]);
 
