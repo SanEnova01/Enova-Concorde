@@ -63,6 +63,7 @@ const GoogleVitalCard = ({ title, value, status, description }) => {
 function PublicAuditReport() {
     const { id } = useParams();
     const [audit, setAudit] = useState(null);
+    const [showContactModal, setShowContactModal] = useState(false); // 🌟 ESTADO PARA EL POPUP
 
     useEffect(() => {
         if (!id) return;
@@ -121,7 +122,6 @@ function PublicAuditReport() {
     const loadSeconds = metrics ? (metrics.load_ms / 1000).toFixed(2) : 0;
     const domSeconds = metrics ? (metrics.dom_ms / 1000).toFixed(2) : 0;
     
-    // Soporte para Mobile y Desktop
     const pagespeedData = metrics?.pagespeed || {};
     const mobileSpeed = pagespeedData.mobile || pagespeedData;
     const desktopSpeed = pagespeedData.desktop || { score: 82, fcp: '1.1 s', lcp: '1.7 s', cls: '0.02' };
@@ -133,6 +133,14 @@ function PublicAuditReport() {
     const getDomColor = (val) => val > 3.0 ? '#d9534f' : val > 1.5 ? '#f0ad4e' : '#5cb85c';
     const getRamColor = (val) => val > 180 ? '#d9534f' : val > 100 ? '#f0ad4e' : '#5cb85c';
     const getScoreColor = (val) => val < 50 ? '#d9534f' : val < 90 ? '#f0ad4e' : '#5cb85c';
+
+    // Textos precargados para WhatsApp y Email
+    const mensajeWssp = `Hola Enova Agency, revisé el reporte de auditoría técnica de mi tienda (${audit.company_name} - ${audit.store_url}) y me gustaría agendar una consultoría técnica.`;
+    const urlWssp = `https://wa.me/51906790162?text=${encodeURIComponent(mensajeWssp)}`;
+    
+    const asuntoEmail = `Consultoría Técnica - Auditoría de ${audit.company_name}`;
+    const cuerpoEmail = `Hola equipo de Enova Agency,\n\nRevisé el diagnóstico de mi tienda (${audit.store_url}) y me gustaría coordinar una consultoría técnica.\n\nNombre: ${audit.prospect_name}\nEmpresa: ${audit.company_name}\nCorreo: ${audit.email}`;
+    const urlEmail = `mailto:soporte@enova.agency?subject=${encodeURIComponent(asuntoEmail)}&body=${encodeURIComponent(cuerpoEmail)}`;
 
     return (
         <div style={{ backgroundColor: '#f2f1ec', color: '#111', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif' }}>
@@ -175,14 +183,13 @@ function PublicAuditReport() {
                         </div>
                     </div>
 
-                    {/* SECCIÓN 1: GOOGLE PAGESPEED (MOBILE + DESKTOP) */}
+                    {/* SECCIÓN 1: GOOGLE PAGESPEED */}
                     <div style={{ marginBottom: '40px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                             <h2 style={{ fontSize: '24px', fontWeight: '900', margin: 0, textTransform: 'uppercase' }}>1. Auditoría Oficial Google PageSpeed</h2>
                             <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Mobile & Desktop Engines</span>
                         </div>
 
-                        {/* BLOQUE DUAL SCORE MOBILE VS DESKTOP */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
                             <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '24px', boxShadow: '6px 6px 0px #111', display: 'flex', alignItems: 'center', gap: '20px' }}>
                                 <div style={{ 
@@ -217,7 +224,6 @@ function PublicAuditReport() {
                             </div>
                         </div>
 
-                        {/* CORE WEB VITALS GRID */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
                             <GoogleVitalCard 
                                 title="FCP (Primer Despliegue)" 
@@ -321,13 +327,99 @@ function PublicAuditReport() {
                                 Reducir los tiempos de carga y optimizar recursos puede ayudarte a recuperar e incrementar hasta un <strong>40% de conversiones</strong>. En Enova Agency optimizamos la arquitectura técnica de tu tienda para llevarla al siguiente nivel.
                             </p>
                         </div>
-                        <a href="https://enova.agency/contacto" target="_blank" rel="noreferrer" style={{ display: 'inline-block', padding: '18px 32px', backgroundColor: '#111', color: '#fff', fontSize: '15px', fontWeight: '900', textTransform: 'uppercase', textDecoration: 'none', border: '3px solid #111', boxShadow: '4px 4px 0px #d9534f', flexShrink: 0 }}>
+                        
+                        {/* 🌟 BOTÓN QUE ABRE EL POPUP */}
+                        <button 
+                            onClick={() => setShowContactModal(true)} 
+                            style={{ 
+                                display: 'inline-block', padding: '18px 32px', backgroundColor: '#111', color: '#fff', 
+                                fontSize: '15px', fontWeight: '900', textTransform: 'uppercase', cursor: 'pointer',
+                                border: '3px solid #111', boxShadow: '4px 4px 0px #d9534f', flexShrink: 0 
+                            }}
+                        >
                             Agendar Consultoría Técnica
-                        </a>
+                        </button>
                     </div>
 
                 </div>
             </main>
+
+            {/* 🌟 MODAL POPUP SELECCIÓN DE CONTACTO */}
+            {showContactModal && (
+                <div 
+                    style={{
+                        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                        backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 99999, padding: '20px'
+                    }}
+                    onClick={() => setShowContactModal(false)}
+                >
+                    <div 
+                        style={{
+                            backgroundColor: '#fff', border: '4px solid #111', boxShadow: '12px 12px 0px #111',
+                            padding: '40px', maxWidth: '520px', width: '100%', position: 'relative'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                            <h3 style={{ fontSize: '26px', fontWeight: '900', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.5px' }}>
+                                ¿Cómo prefieres hablar? 🚀
+                            </h3>
+                            <button 
+                                onClick={() => setShowContactModal(false)}
+                                style={{ background: 'none', border: 'none', fontSize: '24px', fontWeight: '900', cursor: 'pointer', padding: 0 }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <p style={{ fontSize: '15px', color: '#555', marginBottom: '30px', lineHeight: '1.5', fontWeight: '500' }}>
+                            Selecciona tu canal directo preferido para agendar la consultoría técnica con nuestro equipo de ingeniería.
+                        </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {/* Opción WhatsApp */}
+                            <a 
+                                href={urlWssp}
+                                target="_blank" 
+                                rel="noreferrer"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
+                                    padding: '18px', backgroundColor: '#25D366', color: '#111', border: '3px solid #111',
+                                    fontWeight: '900', fontSize: '15px', textDecoration: 'none', boxShadow: '4px 4px 0px #111',
+                                    textTransform: 'uppercase', transition: 'all 0.1s'
+                                }}
+                            >
+                                💬 WhatsApp Directo (+51 906 790 162)
+                            </a>
+
+                            {/* Opción Email */}
+                            <a 
+                                href={urlEmail}
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
+                                    padding: '18px', backgroundColor: '#111', color: '#fff', border: '3px solid #111',
+                                    fontWeight: '900', fontSize: '15px', textDecoration: 'none', boxShadow: '4px 4px 0px #d9534f',
+                                    textTransform: 'uppercase', transition: 'all 0.1s'
+                                }}
+                            >
+                                ✉️ Correo Corporativo (soporte@enova.agency)
+                            </a>
+                        </div>
+
+                        <button 
+                            onClick={() => setShowContactModal(false)}
+                            style={{
+                                marginTop: '25px', width: '100%', padding: '12px', backgroundColor: 'transparent',
+                                border: '2px solid #111', color: '#111', fontWeight: '900', cursor: 'pointer',
+                                fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px'
+                            }}
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {footer}
         </div>
