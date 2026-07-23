@@ -50,10 +50,10 @@ const loginLimiter = rateLimit({
 app.use(express.json());
 
 // ==========================================
-// 🚀 RUTAS PÚBLICAS (B2B2C Y AUDITORÍAS)
+// 🚀 RUTAS PÚBLICAS Y AUDITORÍAS (REGISTRADAS AQUÍ)
 // ==========================================
 app.use('/api/cooppilot', require('./routes/cooppilot'));
-app.use('/api/audits', require('./routes/audits')); // 🌟 REGISTRADA AQUÍ EN ZONA PÚBLICA
+app.use('/api/audits', require('./routes/audits'));
 
 // ==========================================
 // MIDDLEWARE: GUARDIÁN DE RUTAS INTERNAS (SOPORTA JWT Y API KEY DEL BOT)

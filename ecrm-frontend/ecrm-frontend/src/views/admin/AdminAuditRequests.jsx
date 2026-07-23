@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import crmApi from '../../api/crmApi';
 
 function AdminAuditRequests() {
     const [requests, setRequests] = useState([]);
@@ -9,14 +10,10 @@ function AdminAuditRequests() {
     }, []);
 
     const fetchRequests = async () => {
-        const token = localStorage.getItem('crm_token');
         try {
-            const res = await fetch('/api/audits', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.success) {
-                setRequests(data.data);
+            const res = await crmApi.get('/audits');
+            if (res.data && res.data.success) {
+                setRequests(res.data.data);
             }
         } catch (error) {
             console.error("Error obteniendo solicitudes", error);
@@ -25,20 +22,16 @@ function AdminAuditRequests() {
 
     const runAudit = async (id) => {
         setLoadingId(id);
-        const token = localStorage.getItem('crm_token');
         try {
-            const res = await fetch(`/api/audits/${id}/run`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.success) {
+            const res = await crmApi.post(`/audits/${id}/run`);
+            if (res.data && res.data.success) {
                 fetchRequests();
             } else {
-                alert("Error al ejecutar auditoria: " + data.error);
+                alert("Error al ejecutar auditoría: " + (res.data?.error || "Error desconocido"));
             }
         } catch (error) {
-            console.error("Error", error);
+            console.error("Error ejecutando auditoría:", error);
+            alert("Ocurrió un error al intentar ejecutar el Bot.");
         }
         setLoadingId(null);
     };
