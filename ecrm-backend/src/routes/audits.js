@@ -1,10 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const jwt = require('jsonwebtoken');
+
+// Middleware de seguridad exclusivo para las acciones del CRM
+const verificarTokenAdmin = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ success: false, error: 'Acceso denegado.' });
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026');
+        req.adminUser = decoded;
+        next();
+    } catch (error) {
+        return res.status(403).json({ success: false, error: 'Sesión expirada.' });
+    }
+};
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
 
-// POST: Crear solicitud desde la landing publica
+// 🌟 PÚBLICO: Crear solicitud desde la landing (SIN TOKEN)
 router.post('/request', async (req, res) => {
     try {
         const { prospect_name, email, company_name, store_url } = req.body;
@@ -22,17 +37,7 @@ router.post('/request', async (req, res) => {
     }
 });
 
-// GET: Listar todas las solicitudes (Para panel CRM)
-router.get('/', async (req, res) => {
-    try {
-        const results = await db('audit_requests').orderBy('created_at', 'desc');
-        res.json({ success: true, data: results });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Error interno del servidor' });
-    }
-});
-
-// GET: Obtener reporte unico publico (Para el prospecto)
+// 🌟 PÚBLICO: Obtener reporte único (Para el prospecto, SIN TOKEN)
 router.get('/:id', async (req, res) => {
     try {
         const result = await db('audit_requests').where({ id: req.params.id }).first();
@@ -43,8 +48,18 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// POST: Forzar analisis desde el panel y guardar snapshot
-router.post('/:id/run', async (req, res) => {
+// 🔒 PROTEGIDO: Listar todas las solicitudes (Para panel CRM)
+router.get('/', verificarTokenAdmin, async (req, res) => {
+    try {
+        const results = await db('audit_requests').orderBy('created_at', 'desc');
+        res.json({ success: true, data: results });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Error interno del servidor' });
+    }
+});
+
+// 🔒 PROTEGIDO: Forzar análisis desde el panel y guardar snapshot
+router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
     try {
         const audit = await db('audit_requests').where({ id: req.params.id }).first();
         if (!audit) return res.status(404).json({ success: false, error: 'No encontrado' });

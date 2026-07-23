@@ -490,8 +490,8 @@ app.delete('/api/users/:id', verificarToken, async (req, res) => {
 // ==========================================
 const reactBuildPath = path.join(__dirname, 'dist');  
 
-
-app.use('/api/audits', verificarToken, require('./routes/audits'));
+// 🌟 QUITAMOS 'verificarToken' AQUÍ
+app.use('/api/audits', require('./routes/audits'));
 app.use(express.static(reactBuildPath));
 app.use('/assets', express.static(path.join(reactBuildPath, 'assets')));
 app.get(/.*/, (req, res) => {
