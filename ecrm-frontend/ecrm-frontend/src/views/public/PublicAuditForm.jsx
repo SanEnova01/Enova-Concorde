@@ -26,9 +26,9 @@ function PublicAuditForm() {
         <header style={{ borderBottom: '3px solid #111', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 <img src="/favicon.svg" alt="Concorde Logo" style={{ width: '35px', height: '35px' }} />
-                <div>
+                <div>   
                     <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '900', letterSpacing: '-0.5px', color: '#111', textTransform: 'uppercase' }}>Enova Agency</h1>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', color: '#666' }}>CONCORDE ECOSYSTEM</span>
+                    <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', color: '#666' }}>CONCORDE RADAR</span>
                 </div>
             </div>
             <a href="https://enova.agency" target="_blank" rel="noreferrer" style={{ color: '#111', fontWeight: 'bold', textDecoration: 'none', borderBottom: '2px solid #111', paddingBottom: '2px' }}>
