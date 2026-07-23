@@ -77,13 +77,13 @@ function AdminLayout({ children }) {
   // Definición de menú lateral por roles
   const allNavItems = [
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
-    { path: '/admin/clientes', label: 'Clientes / Tiendas', allowed: ['super admin', 'admin'] },
+    { path: '/admin/clientes', label: 'Tiendas', allowed: ['super admin', 'admin'] },
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     
     // 🌟 AQUÍ AGREGAMOS LA NUEVA PESTAÑA AL MENÚ
-    { path: '/admin/auditorias', label: 'Auditorías Prospectos', allowed: ['super admin', 'admin'] },
+    { path: '/admin/auditorias', label: 'Concorde Radar', allowed: ['super admin', 'admin'] },
     
     { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
