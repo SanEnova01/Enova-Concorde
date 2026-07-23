@@ -3,13 +3,18 @@ import { useParams } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 // Componente para métrica dual (Móvil vs Desktop) del Bot Concorde
-const DualMetricCard = ({ title, mobileVal, desktopVal, unit, max, description }) => {
+const DualMetricCard = ({ title, mobileVal, desktopVal, unit, description }) => {
     const mobileSec = (mobileVal / (unit === 'seg' ? 1000 : 1)).toFixed(2);
     const desktopSec = (desktopVal / (unit === 'seg' ? 1000 : 1)).toFixed(2);
 
-    const getLoadColor = (val) => val > 4.5 ? '#d9534f' : val > 2.5 ? '#f0ad4e' : '#5cb85c';
-    const mobileColor = getLoadColor(parseFloat(mobileSec));
-    const desktopColor = getLoadColor(parseFloat(desktopSec));
+    // Umbrales calibrados para E-commerce
+    const getEcomColor = (val) => {
+        if (unit === 'seg') return val > 5.5 ? '#d9534f' : val > 3.0 ? '#f0ad4e' : '#5cb85c';
+        return val > 250 ? '#d9534f' : val > 120 ? '#f0ad4e' : '#5cb85c';
+    };
+
+    const mobileColor = getEcomColor(parseFloat(mobileSec));
+    const desktopColor = getEcomColor(parseFloat(desktopSec));
 
     return (
         <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '24px', boxShadow: '6px 6px 0px #111', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -18,9 +23,7 @@ const DualMetricCard = ({ title, mobileVal, desktopVal, unit, max, description }
                     {title}
                 </span>
 
-                {/* COMPARATIVA DUAL DENTRO DE LA TARJETA */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    {/* CELULAR */}
                     <div style={{ border: '2px solid #111', padding: '12px', backgroundColor: '#f2f1ec' }}>
                         <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#666', display: 'block', marginBottom: '4px' }}>📱 Móvil (4G)</span>
                         <div style={{ fontSize: '26px', fontWeight: '900', color: mobileColor, lineHeight: '1' }}>
@@ -28,7 +31,6 @@ const DualMetricCard = ({ title, mobileVal, desktopVal, unit, max, description }
                         </div>
                     </div>
 
-                    {/* DESKTOP */}
                     <div style={{ border: '2px solid #111', padding: '12px', backgroundColor: '#fff' }}>
                         <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: '#666', display: 'block', marginBottom: '4px' }}>💻 Desktop (WiFi)</span>
                         <div style={{ fontSize: '26px', fontWeight: '900', color: desktopColor, lineHeight: '1' }}>
@@ -49,7 +51,7 @@ const DualMetricCard = ({ title, mobileVal, desktopVal, unit, max, description }
 const GoogleVitalCard = ({ title, value, status, description }) => {
     const getStatusInfo = (st) => {
         if (st === 'good') return { bg: '#e6f4ea', text: '#16a34a', label: 'ÓPTIMO' };
-        if (st === 'needs-improvement') return { bg: '#fef3c7', text: '#d97706', label: 'MEJORABLE' };
+        if (st === 'needs-improvement') return { bg: '#fef3c7', text: '#d97706', label: 'ACEPTABLE' };
         return { bg: '#fde8e8', text: '#dc2626', label: 'CRÍTICO' };
     };
 
@@ -135,7 +137,6 @@ function PublicAuditReport() {
 
     const metrics = typeof audit.snapshot_data === 'string' ? JSON.parse(audit.snapshot_data) : audit.snapshot_data;
     
-    // Extracción de métricas de Bot Concorde (Mobile vs Desktop)
     const botMobile = metrics?.bot_mobile || metrics || {};
     const botDesktop = metrics?.bot_desktop || {
         load_ms: Math.round((botMobile.load_ms || 3000) * 0.45),
@@ -143,7 +144,6 @@ function PublicAuditReport() {
         ram_core_mb: Math.round((botMobile.ram_core_mb || 100) * 0.35)
     };
 
-    // Google PageSpeed (Mobile vs Desktop)
     const pagespeedData = metrics?.pagespeed || {};
     const mobileSpeed = pagespeedData.mobile || pagespeedData;
     const desktopSpeed = pagespeedData.desktop || { score: 82, fcp: '1.1 s', lcp: '1.7 s', cls: '0.02' };
@@ -151,7 +151,8 @@ function PublicAuditReport() {
     const techName = metrics?.tech || audit?.tech || 'E-commerce Custom';
     const techIcon = metrics?.tech_icon || audit?.tech_icon || null;
 
-    const getScoreColor = (val) => val < 50 ? '#d9534f' : val < 90 ? '#f0ad4e' : '#5cb85c';
+    // 🌟 ESCALA RE-CALIBRADA EXCLUSIVAMENTE PARA E-COMMERCE
+    const getEcomScoreColor = (val) => val < 35 ? '#d9534f' : val < 65 ? '#f0ad4e' : '#5cb85c';
 
     // Links de Contacto
     const mensajeWssp = `Hola Enova Agency, revisé el reporte de auditoría técnica de mi tienda (${audit.company_name} - ${audit.store_url}) y me gustaría agendar una consultoría técnica.`;
@@ -202,43 +203,45 @@ function PublicAuditReport() {
                         </div>
                     </div>
 
-                    {/* SECCIÓN 1: GOOGLE PAGESPEED (MÓVIL + DESKTOP) */}
+                    {/* SECCIÓN 1: GOOGLE PAGESPEED (ESTÁNDAR E-COMMERCE) */}
                     <div style={{ marginBottom: '40px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                             <h2 style={{ fontSize: '24px', fontWeight: '900', margin: 0, textTransform: 'uppercase' }}>1. Auditoría Oficial Google PageSpeed</h2>
-                            <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Google Lighthouse Engine</span>
+                            <span style={{ fontSize: '11px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '3px 8px', letterSpacing: '0.5px' }}>
+                                UMBRALES CALIBRADOS PARA E-COMMERCE
+                            </span>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
                             <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '24px', boxShadow: '6px 6px 0px #111', display: 'flex', alignItems: 'center', gap: '20px' }}>
                                 <div style={{ 
                                     width: '80px', height: '80px', borderRadius: '50%', border: '4px solid #111', 
-                                    backgroundColor: getScoreColor(mobileSpeed.score), color: '#fff', 
+                                    backgroundColor: getEcomScoreColor(mobileSpeed.score), color: '#fff', 
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', 
                                     fontSize: '32px', fontWeight: '900', flexShrink: 0, boxShadow: '3px 3px 0px #111' 
                                 }}>
                                     {mobileSpeed.score}
                                 </div>
                                 <div>
-                                    <span style={{ fontSize: '10px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '2px 6px', textTransform: 'uppercase' }}>📱 Móvil</span>
+                                    <span style={{ fontSize: '10px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '2px 6px', textTransform: 'uppercase' }}>📱 Móvil (4G)</span>
                                     <h3 style={{ margin: '4px 0 2px 0', fontSize: '18px', fontWeight: '900' }}>Score Dispositivos Móviles</h3>
-                                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.3' }}>Experiencia de compra con conexiones 4G/Móviles.</p>
+                                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.3' }}>Basado en la complejidad media de tiendas online.</p>
                                 </div>
                             </div>
 
                             <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '24px', boxShadow: '6px 6px 0px #111', display: 'flex', alignItems: 'center', gap: '20px' }}>
                                 <div style={{ 
                                     width: '80px', height: '80px', borderRadius: '50%', border: '4px solid #111', 
-                                    backgroundColor: getScoreColor(desktopSpeed.score), color: '#fff', 
+                                    backgroundColor: getEcomScoreColor(desktopSpeed.score), color: '#fff', 
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', 
                                     fontSize: '32px', fontWeight: '900', flexShrink: 0, boxShadow: '3px 3px 0px #111' 
                                 }}>
                                     {desktopSpeed.score}
                                 </div>
                                 <div>
-                                    <span style={{ fontSize: '10px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '2px 6px', textTransform: 'uppercase' }}>💻 Desktop</span>
+                                    <span style={{ fontSize: '10px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '2px 6px', textTransform: 'uppercase' }}>💻 Desktop (WiFi)</span>
                                     <h3 style={{ margin: '4px 0 2px 0', fontSize: '18px', fontWeight: '900' }}>Score Computadores</h3>
-                                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.3' }}>Velocidad en navegadores de escritorio (WiFi/Fibra).</p>
+                                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.3' }}>Velocidad en navegadores de escritorio.</p>
                                 </div>
                             </div>
                         </div>
@@ -247,22 +250,22 @@ function PublicAuditReport() {
                             <GoogleVitalCard 
                                 title="FCP (Primer Despliegue)" 
                                 value={mobileSpeed.fcp} 
-                                status={parseFloat(mobileSpeed.fcp) < 1.8 ? 'good' : 'needs-improvement'} 
-                                description="Tiempo en que el usuario ve la primera imagen o texto. Evita pantallas en blanco."
+                                status={parseFloat(mobileSpeed.fcp) < 2.2 ? 'good' : 'needs-improvement'} 
+                                description="Tiempo en que el usuario ve la primera imagen o producto. Evita pantallas en blanco."
                             />
 
                             <GoogleVitalCard 
                                 title="LCP (Carga Foto Principal)" 
                                 value={mobileSpeed.lcp} 
-                                status={parseFloat(mobileSpeed.lcp) < 2.5 ? 'good' : 'bad'} 
+                                status={parseFloat(mobileSpeed.lcp) < 3.2 ? 'good' : 'bad'} 
                                 description="Tiempo de carga del banner o foto de producto principal. Retiene al cliente al ingresar."
                             />
 
                             <GoogleVitalCard 
                                 title="CLS (Estabilidad Visual)" 
                                 value={mobileSpeed.cls} 
-                                status={parseFloat(mobileSpeed.cls) < 0.1 ? 'good' : 'bad'} 
-                                description="Mide si la página 'salta' mientras carga. Evita clics erróneos en el checkout o menú."
+                                status={parseFloat(mobileSpeed.cls) < 0.15 ? 'good' : 'bad'} 
+                                description="Mide si la página 'salta' mientras carga. Evita clics erróneos en el carrito o menú."
                             />
                         </div>
                     </div>
@@ -280,7 +283,7 @@ function PublicAuditReport() {
                                 mobileVal={botMobile.load_ms} 
                                 desktopVal={botDesktop.load_ms} 
                                 unit="seg" 
-                                description="Tiempo total en procesar scripts y recursos visuales. Si supera los 3 segundos en móvil, se pierde hasta el 40% del tráfico."
+                                description="Tiempo total en procesar scripts y recursos. En e-commerce, valores bajo 4 segundos se consideran altamente eficientes."
                             />
 
                             <DualMetricCard 
@@ -296,7 +299,7 @@ function PublicAuditReport() {
                                 mobileVal={botMobile.ram_core_mb} 
                                 desktopVal={botDesktop.ram_core_mb} 
                                 unit="MB" 
-                                description="Memoria que la tienda consume en el dispositivo. Un uso excesivo sobrecalienta smartphones y provoca cierres."
+                                description="Memoria consumida en el dispositivo. Las tiendas pesadas pueden ralentizar smartphones gama media."
                             />
                         </div>
                     </div>
@@ -313,7 +316,7 @@ function PublicAuditReport() {
                                 <div>
                                     <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: '900', textTransform: 'uppercase' }}>Peticiones de Red (Requests)</h4>
                                     <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.4' }}>
-                                        Cantidad de archivos independientes cargados. Un número elevado satura las conexiones móviles 4G.
+                                        Archivos y scripts cargados (píxeles, apps, catálogo). Mantenerlo optimizado evita la saturación de conexiones 4G.
                                     </p>
                                 </div>
                             </div>
@@ -325,7 +328,7 @@ function PublicAuditReport() {
                                 <div>
                                     <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: '900', textTransform: 'uppercase' }}>Peso Total de la Página</h4>
                                     <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.4' }}>
-                                        Total de datos descargados. Reducir el peso de imágenes acelera drásticamente la navegación.
+                                        Suma total de assets y fotos descargadas al ingresar a la tienda.
                                     </p>
                                 </div>
                             </div>
