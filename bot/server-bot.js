@@ -346,11 +346,10 @@ async function performPuppeteerAnalysis(targetUrl) {
         await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
         await page.setCacheEnabled(false);
 
-        const startLoad = Date.now();
         await page.goto(urlLimpia, { waitUntil: 'load', timeout: 60000 });
-        await new Promise(r => setTimeout(r, 2000));
         
-        const load_ms = Date.now() - startLoad;
+        // Pausa de estabilizacion visual (YA NO AFECTA LA METRICA)
+        await new Promise(r => setTimeout(r, 2000));
         
         const pageMetrics = await page.evaluate(() => {
             const nav = performance.getEntriesByType('navigation')[0];
@@ -360,6 +359,7 @@ async function performPuppeteerAnalysis(targetUrl) {
             resources.forEach(res => { if (res.transferSize) totalBytes += res.transferSize; });
             
             return {
+                load_ms: nav ? Math.round(nav.loadEventEnd - nav.startTime) : 0,
                 dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : 0,
                 ram_total_mb: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
                 ram_core_mb: memory ? parseFloat((memory.usedJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
@@ -372,7 +372,7 @@ async function performPuppeteerAnalysis(targetUrl) {
 
         return {
             url: urlLimpia,
-            load_ms: load_ms,
+            load_ms: pageMetrics.load_ms,
             dom_ms: pageMetrics.dom_interactive_ms,
             ram_total_mb: pageMetrics.ram_total_mb,
             ram_core_mb: pageMetrics.ram_core_mb,

@@ -33,7 +33,7 @@ function AdminAuditRequests() {
             });
             const data = await res.json();
             if (data.success) {
-                fetchRequests(); // Recargar la lista para mostrar estado completado
+                fetchRequests();
             } else {
                 alert("Error al ejecutar auditoria: " + data.error);
             }
@@ -45,7 +45,19 @@ function AdminAuditRequests() {
 
     return (
         <div className="crm-admin-container">
-            <h1 className="crm-page-title">Solicitudes de Auditoria (Prospectos)</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h1 className="crm-page-title" style={{ margin: 0 }}>Solicitudes de Auditoría</h1>
+                <a 
+                    href="/auditoria" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="crm-btn-black"
+                    style={{ textDecoration: 'none', display: 'inline-block' }}
+                >
+                    Ver Formulario Público ↗
+                </a>
+            </div>
+
             <div className="crm-card-paper">
                 <table className="crm-table-data" style={{ width: '100%' }}>
                     <thead>
@@ -55,38 +67,53 @@ function AdminAuditRequests() {
                             <th>Contacto</th>
                             <th>URL</th>
                             <th>Estado</th>
-                            <th>Accion</th>
+                            <th>Acción</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {requests.map(req => (
-                            <tr key={req.id}>
-                                <td>{new Date(req.created_at).toLocaleDateString()}</td>
-                                <td>{req.company_name}</td>
-                                <td>{req.prospect_name} ({req.email})</td>
-                                <td><a href={req.store_url} target="_blank" rel="noreferrer" style={{ color: '#00c2ff' }}>Ver web</a></td>
-                                <td>
-                                    <span style={{ color: req.status === 'COMPLETED' ? '#22c55e' : '#f97316', fontWeight: 'bold' }}>
-                                        {req.status}
-                                    </span>
-                                </td>
-                                <td>
-                                    {req.status === 'PENDING' ? (
-                                        <button 
-                                            className="crm-btn-border" 
-                                            onClick={() => runAudit(req.id)}
-                                            disabled={loadingId === req.id}
-                                        >
-                                            {loadingId === req.id ? 'Analizando...' : 'Ejecutar Bot'}
-                                        </button>
-                                    ) : (
-                                        <a href={`/reporte/${req.id}`} target="_blank" rel="noreferrer" className="crm-btn-border" style={{ textDecoration: 'none' }}>
-                                            Ver Reporte
-                                        </a>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
+                        {requests.length === 0 ? (
+                            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px' }}>No hay solicitudes pendientes.</td></tr>
+                        ) : (
+                            requests.map(req => (
+                                <tr key={req.id}>
+                                    <td>{new Date(req.created_at).toLocaleDateString()}</td>
+                                    <td><strong>{req.company_name}</strong></td>
+                                    <td>{req.prospect_name}<br/><span style={{ fontSize: '12px', color: '#666' }}>{req.email}</span></td>
+                                    <td><a href={req.store_url} target="_blank" rel="noreferrer" style={{ color: '#111', fontWeight: 'bold' }}>Link</a></td>
+                                    <td>
+                                        <span style={{ 
+                                            backgroundColor: req.status === 'COMPLETED' ? '#e6f4ea' : '#fcf8e3', 
+                                            color: req.status === 'COMPLETED' ? '#16a34a' : '#f97316', 
+                                            padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold', border: '1px solid currentColor' 
+                                        }}>
+                                            {req.status}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {req.status === 'PENDING' ? (
+                                            <button 
+                                                className="crm-btn-black" 
+                                                onClick={() => runAudit(req.id)}
+                                                disabled={loadingId === req.id}
+                                                style={{ padding: '6px 12px', fontSize: '12px' }}
+                                            >
+                                                {loadingId === req.id ? 'Analizando...' : 'Ejecutar Bot'}
+                                            </button>
+                                        ) : (
+                                            <a 
+                                                href={`/reporte/${req.id}`} 
+                                                target="_blank" 
+                                                rel="noreferrer" 
+                                                className="crm-btn-border" 
+                                                style={{ textDecoration: 'none', padding: '6px 12px', fontSize: '12px', display: 'inline-block' }}
+                                            >
+                                                Ver Resultados
+                                            </a>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
