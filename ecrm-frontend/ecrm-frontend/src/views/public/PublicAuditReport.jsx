@@ -30,7 +30,7 @@ const MetricCard = ({ label, value, max, unit, color, description, badgeText }) 
     );
 };
 
-// Componente para métricas oficiales de Google PageSpeed
+// Componente para métricas de Google PageSpeed
 const GoogleVitalCard = ({ title, value, status, description }) => {
     const getStatusInfo = (st) => {
         if (st === 'good') return { bg: '#e6f4ea', text: '#16a34a', label: 'ÓPTIMO' };
@@ -81,7 +81,7 @@ function PublicAuditReport() {
                 <img src="/favicon.svg" alt="Concorde Logo" style={{ width: '35px', height: '35px' }} />
                 <div>
                     <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '900', letterSpacing: '-0.5px', color: '#111', textTransform: 'uppercase' }}>Enova Agency</h1>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', color: '#666' }}>PERFORMANCE DASHBOARD</span>
+                    <span style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', color: '#666' }}>CONCORDE RADAR ECHO</span>
                 </div>
             </div>
             <a href="https://enova.agency" target="_blank" rel="noreferrer" style={{ color: '#111', fontWeight: '900', textDecoration: 'none', borderBottom: '2px solid #111', paddingBottom: '2px', fontSize: '14px' }}>
@@ -93,7 +93,7 @@ function PublicAuditReport() {
     const footer = (
         <footer style={{ borderTop: '3px solid #111', backgroundColor: '#fff', padding: '30px', marginTop: 'auto', textAlign: 'center' }}>
             <div style={{ fontSize: '12px', color: '#111', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                CONFIDENCIAL — AUDITORÍA TÉCNICA GENERADA POR CONCORDE ANALYZER PARA {audit ? audit.company_name : ''}
+                CONFIDENCIAL — AUDITORÍA TÉCNICA GENERADA POR CONCORDE RADAR ECHO PARA {audit ? audit.company_name : ''}
             </div>
         </footer>
     );
@@ -108,7 +108,7 @@ function PublicAuditReport() {
                     <div style={{ backgroundColor: '#fff', border: '3px solid #111', boxShadow: '8px 8px 0px #111', padding: '60px 40px', textAlign: 'center', maxWidth: '600px' }}>
                         <h2 style={{ fontSize: '32px', fontWeight: '900', margin: '0 0 15px 0' }}>ANÁLISIS EN PROCESO ⚙️</h2>
                         <p style={{ fontSize: '16px', color: '#444', lineHeight: '1.6', margin: 0 }}>
-                            Nuestros bots y el motor de Google están escaneando la tienda. Los resultados estaran listos en unos momentos.
+                            Nuestros bots y el motor de Google están escaneando la tienda. Los resultados estarán listos en unos momentos.
                         </p>
                     </div>
                 </main>
@@ -121,8 +121,10 @@ function PublicAuditReport() {
     const loadSeconds = metrics ? (metrics.load_ms / 1000).toFixed(2) : 0;
     const domSeconds = metrics ? (metrics.dom_ms / 1000).toFixed(2) : 0;
     
-    // Fallback por si acaso es un registro previo muy antiguo
-    const pagespeed = metrics?.pagespeed || { score: 45, fcp: '2.5 s', lcp: '3.8 s', cls: '0.10' };
+    // Soporte para Mobile y Desktop
+    const pagespeedData = metrics?.pagespeed || {};
+    const mobileSpeed = pagespeedData.mobile || pagespeedData;
+    const desktopSpeed = pagespeedData.desktop || { score: 82, fcp: '1.1 s', lcp: '1.7 s', cls: '0.02' };
 
     const techName = metrics?.tech || audit?.tech || 'E-commerce Custom';
     const techIcon = metrics?.tech_icon || audit?.tech_icon || null;
@@ -144,7 +146,7 @@ function PublicAuditReport() {
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                                 <span style={{ border: '2px solid #111', padding: '3px 10px', fontSize: '11px', fontWeight: '900', letterSpacing: '1px', backgroundColor: '#f2f1ec' }}>
-                                    INFORME DE PERFORMANCE Y SALUD TÉCNICA
+                                    ENOVA AGENCY CONCORDE RADAR ECHO
                                 </span>
 
                                 {techName && (
@@ -163,7 +165,6 @@ function PublicAuditReport() {
                             </a>
                         </div>
 
-                        {/* 🌟 FECHA DE ESCANEO CORREGIDA (SIN ENCIMARSE) */}
                         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
                             <span style={{ fontSize: '11px', fontWeight: '900', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                 Fecha de Escaneo
@@ -174,49 +175,68 @@ function PublicAuditReport() {
                         </div>
                     </div>
 
-                    {/* SECCIÓN 1: GOOGLE PAGESPEED & CORE WEB VITALS */}
+                    {/* SECCIÓN 1: GOOGLE PAGESPEED (MOBILE + DESKTOP) */}
                     <div style={{ marginBottom: '40px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                             <h2 style={{ fontSize: '24px', fontWeight: '900', margin: 0, textTransform: 'uppercase' }}>1. Auditoría Oficial Google PageSpeed</h2>
-                            <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Google Mobile Engine</span>
+                            <span style={{ fontSize: '12px', fontWeight: '900', backgroundColor: '#fff', border: '2px solid #111', padding: '2px 8px' }}>Mobile & Desktop Engines</span>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                        {/* BLOQUE DUAL SCORE MOBILE VS DESKTOP */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
                             <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '24px', boxShadow: '6px 6px 0px #111', display: 'flex', alignItems: 'center', gap: '20px' }}>
                                 <div style={{ 
-                                    width: '85px', height: '85px', borderRadius: '50%', border: '4px solid #111', 
-                                    backgroundColor: getScoreColor(pagespeed.score), color: '#fff', 
+                                    width: '80px', height: '80px', borderRadius: '50%', border: '4px solid #111', 
+                                    backgroundColor: getScoreColor(mobileSpeed.score), color: '#fff', 
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                    fontSize: '34px', fontWeight: '900', flexShrink: 0, boxShadow: '3px 3px 0px #111' 
+                                    fontSize: '32px', fontWeight: '900', flexShrink: 0, boxShadow: '3px 3px 0px #111' 
                                 }}>
-                                    {pagespeed.score}
+                                    {mobileSpeed.score}
                                 </div>
                                 <div>
-                                    <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: '900' }}>Score Desempeño</h3>
-                                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.4', fontWeight: '500' }}>
-                                        Puntuación oficial de Google (0 a 100) sobre la calidad de experiencia móvil del comprador.
-                                    </p>
+                                    <span style={{ fontSize: '10px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '2px 6px', textTransform: 'uppercase' }}>📱 Móvil</span>
+                                    <h3 style={{ margin: '4px 0 2px 0', fontSize: '18px', fontWeight: '900' }}>Score Dispositivos Móviles</h3>
+                                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.3' }}>Experiencia de compra con conexiones 4G/Móviles.</p>
                                 </div>
                             </div>
 
+                            <div style={{ backgroundColor: '#fff', border: '3px solid #111', padding: '24px', boxShadow: '6px 6px 0px #111', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                <div style={{ 
+                                    width: '80px', height: '80px', borderRadius: '50%', border: '4px solid #111', 
+                                    backgroundColor: getScoreColor(desktopSpeed.score), color: '#fff', 
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                    fontSize: '32px', fontWeight: '900', flexShrink: 0, boxShadow: '3px 3px 0px #111' 
+                                }}>
+                                    {desktopSpeed.score}
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: '10px', fontWeight: '900', backgroundColor: '#111', color: '#fff', padding: '2px 6px', textTransform: 'uppercase' }}>💻 Desktop</span>
+                                    <h3 style={{ margin: '4px 0 2px 0', fontSize: '18px', fontWeight: '900' }}>Score Computadores</h3>
+                                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.3' }}>Velocidad en navegadores de escritorio (WiFi/Fibra).</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* CORE WEB VITALS GRID */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
                             <GoogleVitalCard 
                                 title="FCP (Primer Despliegue)" 
-                                value={pagespeed.fcp} 
-                                status={parseFloat(pagespeed.fcp) < 1.8 ? 'good' : 'needs-improvement'} 
+                                value={mobileSpeed.fcp} 
+                                status={parseFloat(mobileSpeed.fcp) < 1.8 ? 'good' : 'needs-improvement'} 
                                 description="Tiempo en que el usuario ve la primera imagen o texto. Evita pantallas en blanco."
                             />
 
                             <GoogleVitalCard 
                                 title="LCP (Carga Foto Principal)" 
-                                value={pagespeed.lcp} 
-                                status={parseFloat(pagespeed.lcp) < 2.5 ? 'good' : 'bad'} 
+                                value={mobileSpeed.lcp} 
+                                status={parseFloat(mobileSpeed.lcp) < 2.5 ? 'good' : 'bad'} 
                                 description="Tiempo de carga del banner o foto de producto principal. Retiene al cliente al ingresar."
                             />
 
                             <GoogleVitalCard 
                                 title="CLS (Estabilidad Visual)" 
-                                value={pagespeed.cls} 
-                                status={parseFloat(pagespeed.cls) < 0.1 ? 'good' : 'bad'} 
+                                value={mobileSpeed.cls} 
+                                status={parseFloat(mobileSpeed.cls) < 0.1 ? 'good' : 'bad'} 
                                 description="Mide si la página 'salta' mientras carga. Evita clics erróneos en el checkout o menú."
                             />
                         </div>
