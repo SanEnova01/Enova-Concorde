@@ -534,7 +534,7 @@ body {
         width: 100% !important;
         max-width: 100vw !important;
         box-sizing: border-box !important;
-        overflow-x: hidden !important; /* Mantiene a raya los componentes */
+        overflow-x: hidden !important; 
     }
 
     .crm-main-title { font-size: 24px; margin-bottom: 20px; }
@@ -543,7 +543,7 @@ body {
     .crm-card-paper {
         width: 100% !important;
         box-sizing: border-box !important;
-        overflow-x: auto !important; /* SCROLL HORIZONTAL EN CARDS CON TABLAS */
+        overflow-x: auto !important; 
         -webkit-overflow-scrolling: touch;
     }
 
@@ -556,7 +556,7 @@ body {
     }
     
     .crm-table-data {
-        min-width: 750px !important; /* Obliga a la tabla a scrollear sin aplastar textos */
+        min-width: 750px !important; 
     }
 
     /* 4. GRILLAS GENERALES */
@@ -569,9 +569,8 @@ body {
        5. ARREGLOS ESPECÍFICOS AISLADOS (Solo aplican dentro de .crm-main-content)
        ========================================================================== */
        
-    /* A. TICKETS: Truncar texto de "Asunto" (3ra columna) a 1 sola línea */
+    /* A. TICKETS: Truncar texto de "Asunto" a 1 sola línea */
     .crm-main-content .crm-table-data td:nth-child(3) {
-        /* Para que el ellipsis funcione en tablas, requiere un max-width definido */
         max-width: 120px !important; 
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -606,13 +605,11 @@ body {
         box-sizing: border-box !important;
         overflow: hidden !important;
     }
-    /* Cabecera de Telemetría */
     .crm-main-content div[style*="border: 4px solid rgb(17, 17, 17)"] > div:first-child {
         flex-direction: column !important;
         align-items: flex-start !important;
         gap: 12px !important;
     }
-    /* 🌟 El contenedor de 5 columnas pasa a ser una lista VERTICAL de 1 columna */
     .crm-main-content div[style*="grid-template-columns: repeat(5, 1fr)"] {
         display: grid !important;
         grid-template-columns: 1fr !important;
@@ -641,6 +638,32 @@ body {
         min-width: 0 !important;
         width: 100% !important;
         box-sizing: border-box !important;
+    }
+
+    /* E. CLIENTES: Filtros, selectores y botón "Nuevo Cliente" apilados */
+    .crm-main-content .crm-actions-bar > div[style*="flex-wrap: wrap"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        gap: 12px !important;
+    }
+    .crm-main-content .crm-actions-bar input,
+    .crm-main-content .crm-actions-bar select,
+    .crm-main-content .crm-actions-bar button.crm-btn-black {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    /* E.1. Switch de Cuadrícula / Tabla a 50%-50% */
+    .crm-main-content .crm-actions-bar > div[style*="flex-wrap: wrap"] > div[style*="display: flex"] {
+        flex-direction: row !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .crm-main-content .crm-actions-bar > div[style*="flex-wrap: wrap"] > div[style*="display: flex"] button {
+        flex: 1 !important;
+        padding: 10px 4px !important;
+        font-size: 13px !important;
+        text-align: center !important;
     }
 
     /* 6. KANBAN GENERAL ADAPTACIÓN */
