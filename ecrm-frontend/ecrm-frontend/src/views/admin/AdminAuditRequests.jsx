@@ -8,7 +8,16 @@ function AdminAuditRequests() {
     const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
+        // 1. Carga inicial
         fetchRequests();
+
+        // 2. Polling cada 10 segundos (10000 ms)
+        const intervalId = setInterval(() => {
+            fetchRequests();
+        }, 10000);
+
+        // 3. Limpieza al salir de la vista
+        return () => clearInterval(intervalId);
     }, []);
 
     const fetchRequests = async () => {

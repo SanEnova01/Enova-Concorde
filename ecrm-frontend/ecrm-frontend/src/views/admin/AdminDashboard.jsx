@@ -13,6 +13,8 @@ function AdminDashboard() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
+    let intervalId; // Variable para guardar el temporizador
+
     const dataInitialization = async () => {
       try {
         const token = localStorage.getItem('crm_token');
@@ -24,7 +26,6 @@ function AdminDashboard() {
             const listaTiendas = clientsRes.data.data || clientsRes.data || [];
             const correoUsuario = String(payload.email).toLowerCase().trim();
             
-            // 🔍 PARSEO MULTI-EMAIL
             const miTienda = listaTiendas.find(store => {
               const listaCorreos = String(store.emails).toLowerCase().split(/[\s,;]+/).map(e => e.trim());
               return listaCorreos.includes(correoUsuario);
@@ -42,19 +43,33 @@ function AdminDashboard() {
           }
         }
 
-        const [ticketsRes, clientsRes] = await Promise.all([
-          crmApi.get('/tickets'),
-          crmApi.get('/stores')
-        ]);
-        
-        if (ticketsRes.data.success && clientsRes.data.success) {
-          setStats({
-            tickets: ticketsRes.data.data.length,
-            clients: clientsRes.data.data.length
-          });
-          setClients(clientsRes.data.data);
-        }
+        // Función aislada para recargar solo la data
+        const fetchData = async () => {
+          try {
+            const [ticketsRes, clientsRes] = await Promise.all([
+              crmApi.get('/tickets'),
+              crmApi.get('/stores')
+            ]);
+            
+            if (ticketsRes.data.success && clientsRes.data.success) {
+              setStats({
+                tickets: ticketsRes.data.data.length,
+                clients: clientsRes.data.data.length
+              });
+              setClients(clientsRes.data.data);
+            }
+          } catch (error) {
+            console.error("Error en polling:", error);
+          }
+        };
+
+        // 1. Carga inicial
+        await fetchData();
         setLoading(false);
+
+        // 2. Polling cada 10 segundos
+        intervalId = setInterval(fetchData, 10000);
+
       } catch (error) {
         console.error(error);
         setLoading(false);
@@ -62,6 +77,11 @@ function AdminDashboard() {
     };
     
     dataInitialization();
+
+    // 3. Limpiar temporizador al cambiar de pestaña
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [navigate]);
 
   // 🌟 FUNCIÓN PARA ACCIONAR EL FILTRO DE ORDENAMIENTO AL DAR CLIC
