@@ -36,7 +36,9 @@ function AdminLayout({ children }) {
   let userRole = 'client';
   let userName = 'Desconocido';
   let userEmail = 'sin-correo@sistema.local';
+  
   const [hasCoopPilot, setHasCoopPilot] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 🌟 ESTADO PARA EL MENÚ MÓVIL
 
   if (token) {
     try {
@@ -74,6 +76,11 @@ function AdminLayout({ children }) {
     }
   }, [userRole]);
 
+  // 🌟 Cerrar el menú móvil automáticamente al cambiar de ruta
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
   // Definición de menú lateral por roles
   const allNavItems = [
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
@@ -81,10 +88,7 @@ function AdminLayout({ children }) {
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
-    
-    // 🌟 AQUÍ AGREGAMOS LA NUEVA PESTAÑA AL MENÚ
     { path: '/admin/auditorias', label: 'Concorde Radar', allowed: ['super admin', 'admin'] },
-    
     { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
     { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
@@ -101,17 +105,38 @@ function AdminLayout({ children }) {
 
   return (
     <div className="crm-layout">
-      <div className="crm-sidebar" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      
+      {/* 🌟 BARRA SUPERIOR EXCLUSIVA PARA MÓVILES */}
+      <div className="crm-mobile-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img src="/favicon.svg" alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+          <h2 style={{ margin: 0, fontSize: '20px', color: '#111', letterSpacing: '1px', fontWeight: '900' }}>Concorde</h2>
+        </div>
+        <button className="crm-hamburger-btn" onClick={() => setIsMobileMenuOpen(true)}>
+          ☰
+        </button>
+      </div>
+
+      {/* 🌟 MÁSCARA OSCURA DE FONDO (Se muestra al abrir el menú en móvil) */}
+      {isMobileMenuOpen && (
+        <div className="crm-sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>
+      )}
+
+      {/* 🌟 SIDEBAR (Funciona como panel fijo en PC y como cajón deslizable en móvil) */}
+      <div className={`crm-sidebar ${isMobileMenuOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>
-          <div className="crm-logo-box" style={{ borderBottom: 'none', paddingBottom: '12px' }}>
+          <div className="crm-logo-box" style={{ borderBottom: 'none', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <img 
                 src="/favicon.svg" 
                 alt="Enova Concord Logo" 
                 style={{ width: '82px', height: '82px', objectFit: 'contain' }} 
+                className="desktop-only-logo"
               />
-              <h2 className="crm-logo-text" style={{ margin: 0 }}>Concorde</h2>
+              <h2 className="crm-logo-text desktop-only-logo" style={{ margin: 0 }}>Concorde</h2>
             </div>
+            {/* 🌟 BOTÓN PARA CERRAR EL MENÚ EN MÓVIL */}
+            <button className="crm-close-sidebar-btn" onClick={() => setIsMobileMenuOpen(false)}>✕</button>
           </div>
 
           <div style={{
