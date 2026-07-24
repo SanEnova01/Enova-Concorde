@@ -571,7 +571,8 @@ body {
        
     /* A. TICKETS: Truncar texto de "Asunto" (3ra columna) a 1 sola línea */
     .crm-main-content .crm-table-data td:nth-child(3) {
-        max-width: 140px !important;
+        /* Para que el ellipsis funcione en tablas, requiere un max-width definido */
+        max-width: 120px !important; 
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -592,13 +593,13 @@ body {
     }
     .crm-main-content div[style*="align-items: flex-end"][style*="flex-wrap: wrap"] button {
         flex: 1 !important;
-        margin-bottom: 0 !important; /* Elimina márgenes negativos */
+        margin-bottom: 0 !important;
         padding: 8px 4px !important;
         font-size: 12px !important;
         text-align: center !important;
     }
 
-    /* C. MÉTRICAS: Gráficos de Telemetría (Carrusel Horizontal deslizable) */
+    /* C. MÉTRICAS Y ANALYZER: Gráficos de Telemetría (Apilados en Vertical) */
     .crm-main-content div[style*="border: 4px solid rgb(17, 17, 17)"] {
         padding: 16px !important;
         width: 100% !important;
@@ -611,18 +612,13 @@ body {
         align-items: flex-start !important;
         gap: 12px !important;
     }
-    /* El contenedor de 5 columnas pasa a ser un Carrusel Flex */
+    /* 🌟 El contenedor de 5 columnas pasa a ser una lista VERTICAL de 1 columna */
     .crm-main-content div[style*="grid-template-columns: repeat(5, 1fr)"] {
-        display: flex !important;
-        overflow-x: auto !important;
-        scroll-snap-type: x mandatory !important;
-        padding-bottom: 16px !important;
-        gap: 12px !important;
-    }
-    .crm-main-content div[style*="grid-template-columns: repeat(5, 1fr)"] > div {
-        min-width: 80vw !important; /* Cada tarjeta de métrica ocupa casi toda la pantalla */
-        flex-shrink: 0 !important;
-        scroll-snap-align: center !important;
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
 
     /* D. KNOWLEDGE BASE: Evitar que el grid (1fr 1fr) se salga del borde */
