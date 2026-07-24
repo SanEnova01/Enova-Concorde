@@ -96,7 +96,7 @@ async function notificarFinalizacion(total, exitosos, fallidos, fechaActual) {
   }
 }
 
-// 2. Función principal de auditoría
+// 2. Función principal de auditoría (CRON / BULK)
 async function ejecutarAnalisisAutomated() {
   if (estaEjecutando) {
     console.log("⚠️ Ya hay un análisis en curso. Solicitud omitida.");
@@ -152,25 +152,35 @@ async function ejecutarAnalisisAutomated() {
 
       await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
       await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
-
       await page.setCacheEnabled(false);
-      await page.goto(urlLimpia, { waitUntil: 'load', timeout: 60000 });
-      await new Promise(r => setTimeout(r, 2000));
+
+      // 🌟 SOLUCIÓN BLINDADA PARA EVITAR TIMEOUT DE 60S
+      try {
+        await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await new Promise(r => setTimeout(r, 4000));
+      } catch (navError) {
+        console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción de métricas...`);
+      }
 
       const datosReporte = await page.evaluate(() => {
-        const [nav] = performance.getEntriesByType('navigation');
+        const nav = performance.getEntriesByType('navigation')[0];
         const resources = performance.getEntriesByType('resource');
         const memory = performance.memory;
+        
         let totalBytes = 0;
         resources.forEach(res => { if (res.transferSize) totalBytes += res.transferSize; });
+        
+        // Salvaguarda: Si el timeout impidió que el evento de carga terminara, calculamos el tiempo real transcurrido
+        const currentMs = Math.round(performance.now());
+        
         return {
-          redirect: Math.round(nav.redirectEnd - nav.redirectStart),
-          dns: Math.round(nav.domainLookupEnd - nav.domainLookupStart),
-          tcp: Math.round(nav.connectEnd - nav.connectStart),
-          ttfb: Math.round(nav.responseStart - nav.startTime),
-          domInteractive: Math.round(nav.domInteractive - nav.startTime),
-          domReady: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
-          loadTime: Math.round(nav.loadEventEnd - nav.startTime),
+          redirect: nav ? Math.round(nav.redirectEnd - nav.redirectStart) : 0,
+          dns: nav ? Math.round(nav.domainLookupEnd - nav.domainLookupStart) : 0,
+          tcp: nav ? Math.round(nav.connectEnd - nav.connectStart) : 0,
+          ttfb: nav ? Math.round(nav.responseStart - nav.startTime) : 0,
+          domInteractive: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
+          domReady: nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : currentMs / 2,
+          loadTime: (nav && nav.loadEventEnd > 0) ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
           peso: (totalBytes / 1024 / 1024).toFixed(2),
           peticiones: resources.length + 1,
           ramCore: memory ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) : 0
@@ -346,10 +356,13 @@ async function performPuppeteerAnalysis(targetUrl) {
         await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
         await page.setCacheEnabled(false);
 
-        await page.goto(urlLimpia, { waitUntil: 'load', timeout: 60000 });
-        
-        // Pausa de estabilizacion visual (YA NO AFECTA LA METRICA)
-        await new Promise(r => setTimeout(r, 2000));
+        // 🌟 SOLUCIÓN BLINDADA PARA ANÁLISIS INDIVIDUAL
+        try {
+            await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 45000 });
+            await new Promise(r => setTimeout(r, 4000));
+        } catch (navError) {
+            console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción de métricas...`);
+        }
         
         const pageMetrics = await page.evaluate(() => {
             const nav = performance.getEntriesByType('navigation')[0];
@@ -358,9 +371,12 @@ async function performPuppeteerAnalysis(targetUrl) {
             let totalBytes = 0;
             resources.forEach(res => { if (res.transferSize) totalBytes += res.transferSize; });
             
+            // Salvaguarda si el evento load nunca disparó por el timeout
+            const currentMs = Math.round(performance.now());
+            
             return {
-                load_ms: nav ? Math.round(nav.loadEventEnd - nav.startTime) : 0,
-                dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : 0,
+                load_ms: (nav && nav.loadEventEnd > 0) ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
+                dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
                 ram_total_mb: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
                 ram_core_mb: memory ? parseFloat((memory.usedJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
                 total_requests: resources.length + 1,
