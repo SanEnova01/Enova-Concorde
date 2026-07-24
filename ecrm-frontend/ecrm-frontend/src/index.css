@@ -473,24 +473,23 @@ body {
 .crm-close-sidebar-btn { display: none; }
 
 /* ==========================================================================
-   ADAPTABILIDAD MÓVIL (MENÚ HAMBURGUESA, TABLAS Y BOTONES)
+   ADAPTABILIDAD MÓVIL PARA EL ADMIN (MENÚ, TABLAS Y ELEMENTOS DESBORDADOS)
    ========================================================================== */
 
 @media (max-width: 820px) {
-    /* 0. PREVENCIÓN DE DESBORDAMIENTO GLOBAL (Corta elementos fugados) */
+    /* 0. PREVENCIÓN DE DESBORDAMIENTO (Corta elementos fugados a la derecha) */
     html, body, #root {
         overflow-x: hidden !important;
         max-width: 100vw !important;
     }
 
-    /* 1. LAYOUT PRINCIPAL */
     .crm-layout {
         flex-direction: column;
         width: 100vw !important;
         overflow-x: hidden !important;
     }
 
-    /* 2. HEADER MÓVIL (BARRA SUPERIOR) */
+    /* 1. HEADER Y MENÚ HAMBURGUESA */
     .crm-mobile-header {
         display: flex;
         justify-content: space-between;
@@ -504,121 +503,151 @@ body {
     }
 
     .crm-hamburger-btn {
-        background: none;
-        border: none;
-        color: var(--ink-black);
-        font-size: 26px;
-        cursor: pointer;
-        padding: 0;
-        line-height: 1;
+        background: none; border: none; color: var(--ink-black);
+        font-size: 26px; cursor: pointer; padding: 0; line-height: 1;
     }
 
-    /* 3. SIDEBAR TIPO CAJÓN DESLIZABLE (OFF-CANVAS) */
     .crm-sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 280px;
-        height: 100vh;
-        z-index: 1000;
-        transform: translateX(-100%);
+        position: fixed; top: 0; left: 0; width: 280px; height: 100vh;
+        z-index: 1000; transform: translateX(-100%);
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border-right: 2px solid var(--ink-black);
-        overflow-y: auto;
+        border-right: 2px solid var(--ink-black); overflow-y: auto;
     }
 
-    .crm-sidebar.open {
-        transform: translateX(0);
-    }
-
-    .desktop-only-logo {
-        display: none !important;
-    }
-
+    .crm-sidebar.open { transform: translateX(0); }
+    .desktop-only-logo { display: none !important; }
+    
     .crm-close-sidebar-btn {
-        display: block;
-        background: none;
-        border: none;
-        color: var(--kindle-paper-bg);
-        font-size: 20px;
-        font-weight: bold;
-        cursor: pointer;
+        display: block; background: none; border: none; color: var(--kindle-paper-bg);
+        font-size: 20px; font-weight: bold; cursor: pointer;
     }
 
     .crm-sidebar-overlay {
-        display: block;
-        position: fixed;
-        inset: 0;
-        background-color: rgba(17, 17, 17, 0.7);
-        backdrop-filter: blur(2px);
-        z-index: 999;
+        display: block; position: fixed; inset: 0;
+        background-color: rgba(17, 17, 17, 0.7); backdrop-filter: blur(2px); z-index: 999;
     }
 
-    /* 4. CONTENIDO PRINCIPAL Y TARJETAS (Forzamos los límites) */
+    /* 2. CONTENIDO PRINCIPAL RESTRINGIDO */
     .crm-main-content {
         margin-left: 0 !important;
         padding: 16px !important;
         width: 100% !important;
         max-width: 100vw !important;
         box-sizing: border-box !important;
-        overflow-x: hidden !important;
+        overflow-x: hidden !important; /* Mantiene a raya los componentes */
     }
 
-    .crm-main-title {
-        font-size: 24px;
-        margin-bottom: 20px;
-    }
+    .crm-main-title { font-size: 24px; margin-bottom: 20px; }
 
-    .crm-card-paper, .crm-card-paper-clickable {
+    /* 3. OPTIMIZACIÓN DE TABLAS Y TARJETAS (Desplazamiento horizontal nativo) */
+    .crm-card-paper {
         width: 100% !important;
         box-sizing: border-box !important;
-        padding: 16px !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        overflow: hidden !important;
+        overflow-x: auto !important; /* SCROLL HORIZONTAL EN CARDS CON TABLAS */
+        -webkit-overflow-scrolling: touch;
     }
 
-    /* 5. GRILLAS GENERALES (Se apilan en 1 columna) */
+    .crm-table-container {
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        box-sizing: border-box !important;
+        padding-bottom: 12px !important;
+    }
+    
+    .crm-table-data {
+        min-width: 750px !important; /* Obliga a la tabla a scrollear sin aplastar textos */
+    }
+
+    /* 4. GRILLAS GENERALES */
     .crm-grid-stats, .crm-grid-three-columns, .crm-grid-two-columns {
         grid-template-columns: 1fr !important;
         gap: 16px;
     }
 
-    /* 6. CONCORDANCIA DE BOTONES Y BARRA DE ACCIONES */
-    .crm-actions-bar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
+    /* ==========================================================================
+       5. ARREGLOS ESPECÍFICOS AISLADOS (Solo aplican dentro de .crm-main-content)
+       ========================================================================== */
+       
+    /* A. TICKETS: Truncar texto de "Asunto" (3ra columna) a 1 sola línea */
+    .crm-main-content .crm-table-data td:nth-child(3) {
+        max-width: 140px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
 
-    .crm-actions-bar > button, 
-    .crm-actions-bar > a, 
-    .crm-actions-bar > input, 
-    .crm-actions-bar > select,
-    .crm-btn-black, 
-    .crm-btn-border, 
-    .crm-btn-red {
+    /* B. TICKETS: Filtros (Agencia/Clientes y Lista/Kanban/Calendario) */
+    .crm-main-content div[style*="align-items: flex-end"][style*="flex-wrap: wrap"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 16px !important;
+    }
+    .crm-main-content div[style*="align-items: flex-end"][style*="flex-wrap: wrap"] > div {
         width: 100% !important;
-        text-align: center;
-        box-sizing: border-box;
+        display: flex !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        box-sizing: border-box !important;
+    }
+    .crm-main-content div[style*="align-items: flex-end"][style*="flex-wrap: wrap"] button {
+        flex: 1 !important;
+        margin-bottom: 0 !important; /* Elimina márgenes negativos */
+        padding: 8px 4px !important;
+        font-size: 12px !important;
+        text-align: center !important;
     }
 
-    /* 7. OPTIMIZACIÓN DE TABLAS (Evita que las columnas se aplasten) */
-    .crm-table-container {
+    /* C. MÉTRICAS: Gráficos de Telemetría (Carrusel Horizontal deslizable) */
+    .crm-main-content div[style*="border: 4px solid rgb(17, 17, 17)"] {
+        padding: 16px !important;
         width: 100% !important;
-        max-width: 100% !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+    /* Cabecera de Telemetría */
+    .crm-main-content div[style*="border: 4px solid rgb(17, 17, 17)"] > div:first-child {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+    /* El contenedor de 5 columnas pasa a ser un Carrusel Flex */
+    .crm-main-content div[style*="grid-template-columns: repeat(5, 1fr)"] {
+        display: flex !important;
         overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch;
-        margin: 0 !important;
-        padding-bottom: 12px !important;
+        scroll-snap-type: x mandatory !important;
+        padding-bottom: 16px !important;
+        gap: 12px !important;
+    }
+    .crm-main-content div[style*="grid-template-columns: repeat(5, 1fr)"] > div {
+        min-width: 80vw !important; /* Cada tarjeta de métrica ocupa casi toda la pantalla */
+        flex-shrink: 0 !important;
+        scroll-snap-align: center !important;
+    }
+
+    /* D. KNOWLEDGE BASE: Evitar que el grid (1fr 1fr) se salga del borde */
+    .crm-main-content div[style*="max-width: 1400px"] {
+        padding: 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .crm-main-content div[style*="max-width: 1400px"] > div:first-child {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 16px !important;
+    }
+    .crm-main-content div[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .crm-main-content div[style*="grid-template-columns: 1fr 1fr"] > div {
+        min-width: 0 !important;
+        width: 100% !important;
         box-sizing: border-box !important;
     }
 
-    .crm-table-data {
-        min-width: 650px !important; 
-    }
-
-    /* 8. KANBAN (Deslizable horizontalmente) */
+    /* 6. KANBAN GENERAL ADAPTACIÓN */
     .crm-kanban-grid {
         display: flex !important;
         overflow-x: auto !important;
@@ -626,13 +655,12 @@ body {
         scroll-snap-type: x mandatory !important;
         gap: 12px !important;
     }
-
     .crm-kanban-column {
-        min-width: 85vw !important; 
+        min-width: 85vw !important;
         scroll-snap-align: center !important;
     }
 
-    /* 9. MODALES ADAPTADOS */
+    /* 7. MODALES ADAPTADOS */
     .crm-modal-content {
         width: 95% !important;
         padding: 20px !important;
@@ -642,46 +670,5 @@ body {
     }
     .crm-modal-content form > div[style*="grid-template-columns"] {
         grid-template-columns: 1fr !important;
-    }
-
-    /* ==========================================================================
-       10. REPARACIONES ESPECÍFICAS DE SOBRESCRITURA (Knowledge Base y Telemetría)
-       ========================================================================== */
-
-    /* BASE DE CONOCIMIENTO IA (Knowledge Base) */
-    div[style*="max-width: 1400px"] {
-        padding: 0 !important; /* Quitamos padding extra que empuja en móvil */
-    }
-    div[style*="max-width: 1400px"] > div[style*="display: flex"] {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 16px !important;
-    }
-    div[style*="grid-template-columns: 1fr 1fr"] {
-        grid-template-columns: 1fr !important;
-    }
-
-    /* TELEMETRÍA DE TIENDAS (Analyzer) */
-    div[style*="border: 4px solid rgb(17, 17, 17)"] {
-        padding: 16px !important;
-        box-sizing: border-box !important;
-        width: 100% !important;
-    }
-    div[style*="border: 4px solid rgb(17, 17, 17)"] > div[style*="display: flex"] {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-        gap: 12px !important;
-    }
-    /* Convierte los 5 gráficos en un carrusel deslizable horizontalmente */
-    div[style*="grid-template-columns: repeat(5, 1fr)"] {
-        display: flex !important;
-        overflow-x: auto !important;
-        scroll-snap-type: x mandatory !important;
-        padding-bottom: 16px !important;
-        gap: 12px !important;
-    }
-    div[style*="grid-template-columns: repeat(5, 1fr)"] > div {
-        min-width: 80vw !important; /* Cada recuadro ocupa casi toda la pantalla */
-        scroll-snap-align: center !important;
     }
 }
