@@ -288,119 +288,177 @@ app.get('/status', (req, res) => {
   res.json({ running: estaEjecutando });
 });
 // ==============================================================
-// 🌟 MÓDULO: EXTRACTOR ESTRICTO DE PRODUCTOS (SIN BANNERS / SIN LOGOS)
+// 🌟 MÓDULO: EXTRACTOR MASIVO DE PRODUCTOS (API + SITEMAP CRAWLER)
 // ==============================================================
 const extractionProgress = {};
 
 async function extractStoreImages(targetUrl) {
-    let urlLimpia = targetUrl.trim();
+    let urlLimpia = targetUrl.trim().replace(/\/+$/, '');
     if (!urlLimpia.startsWith('http')) urlLimpia = `https://${urlLimpia}`;
 
-    extractionProgress[urlLimpia] = { total: 0, scanned: 0, phase: '1/3: Buscando enlaces de productos...' };
+    extractionProgress[urlLimpia] = { total: 0, scanned: 0, phase: '1/3: Escaneando APIs de Catálogo...' };
     
-    let imagesData = [];
-    let browser;
+    const uniqueImagesMap = new Map();
 
-    try {
-        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-        
-        // 🌟 FASE 1: Ir al Home ÚNICAMENTE para extraer URLs de productos (No extraemos imágenes aquí)
-        await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 35000 });
-        
-        const productLinks = await page.evaluate(() => {
-            const links = Array.from(document.querySelectorAll('a[href]')).map(a => a.href);
-            // Detectamos estructuras de productos exactas
-            return [...new Set(links)].filter(href => 
-                href.includes('/products/') || // Shopify
-                href.includes('/p/') ||        // Woo corto
-                href.includes('/product/') ||  // Woo largo
-                href.includes('/producto/')    // Woo español
-            ).slice(0, 15); // Escaneamos las primeras 15 páginas de productos para sacar sus galerías
-        });
-
-        extractionProgress[urlLimpia].phase = `2/3: Analizando galerías de ${productLinks.length} productos...`;
-
-        // 🌟 FASE 2: Navegar a las páginas de producto y extraer las galerías
-        for (let i = 0; i < productLinks.length; i++) {
-            try {
-                await page.goto(productLinks[i], { waitUntil: 'domcontentloaded', timeout: 15000 });
-                
-                // Scroll rápido para activar Lazy Loading de la galería
-                await page.evaluate(async () => {
-                    await new Promise((resolve) => {
-                        let totalHeight = 0; const distance = 400;
-                        const timer = setInterval(() => {
-                            window.scrollBy(0, distance); totalHeight += distance;
-                            if(totalHeight >= 2000){ clearInterval(timer); resolve(); } 
-                        }, 100);
-                    });
-                });
-
-                const prodImages = await page.evaluate((urlProd) => {
-                    return Array.from(document.querySelectorAll('img')).map(img => ({
-                        url: img.src || img.dataset.src || img.dataset.lazySrc,
-                        nombre: (img.src || '').split('/').pop().split('?')[0] || 'imagen_desconocida',
-                        ancho: img.naturalWidth || img.width || 0, 
-                        alto: img.naturalHeight || img.height || 0,
-                        origen: `Producto: ${urlProd.split('/').pop()}`
-                    }))
-                    // 🔥 FILTRO ESTRICTO: Ignorar imágenes menores a 150x150px (Descarta logos, íconos y banners del menú)
-                    .filter(img => img.url && img.url.startsWith('http') && img.ancho > 150 && img.alto > 150);
-                }, productLinks[i]);
-                
-                imagesData.push(...prodImages);
-            } catch(e) {
-                console.warn(`Timeout leyendo producto: ${productLinks[i]}`);
-            }
+    // Función auxiliar para registrar imágenes limpias y únicas
+    const addImage = (url, origen, nombre, ancho = 0, alto = 0) => {
+        if (!url || !url.startsWith('http')) return;
+        const cleanUrl = url.split('?')[0]; // Quitar parámetros raros
+        if (!uniqueImagesMap.has(cleanUrl)) {
+            uniqueImagesMap.set(cleanUrl, { 
+                url: cleanUrl, 
+                origen, 
+                nombre: nombre || cleanUrl.split('/').pop(), 
+                ancho, 
+                alto, 
+                peso: null 
+            });
         }
-        await browser.close();
-    } catch (error) { if (browser) await browser.close(); }
+    };
 
-    // 🌟 FASE 3: API SHOPIFY (Shopify sí expone estrictamente solo productos por API, lo usamos como refuerzo)
+    let isShopify = false;
+
+    // 🌟 FASE 1A: INTENTO API SHOPIFY (Exactitud 100%)
     try {
-        let pageShopify = 1; let keepFetchingShopify = true;
-        while (keepFetchingShopify) {
-            const shopifyRes = await fetch(`${urlLimpia}/products.json?limit=250&page=${pageShopify}`);
-            if (shopifyRes.ok) {
-                const data = await shopifyRes.json();
+        let pageShopify = 1; let keepFetching = true;
+        while (keepFetching) {
+            const res = await fetch(`${urlLimpia}/products.json?limit=250&page=${pageShopify}`);
+            if (res.ok) {
+                isShopify = true;
+                const data = await res.json();
                 if (data.products && data.products.length > 0) {
                     for (const p of data.products) {
                         for (const img of p.images) {
-                            imagesData.push({
-                                url: img.src, 
-                                nombre: img.src.split('/').pop().split('?')[0],
-                                ancho: img.width || 0, 
-                                alto: img.height || 0,
-                                origen: `Catálogo Shopify: ${p.title.replace(/"/g, '""')}`
-                            });
+                            addImage(img.src, `Catálogo Shopify: ${p.title}`, img.src.split('/').pop(), img.width, img.height);
                         }
                     }
                     pageShopify++; 
-                } else { keepFetchingShopify = false; }
-            } else { keepFetchingShopify = false; }
+                } else keepFetching = false;
+            } else keepFetching = false;
         }
     } catch (e) {}
 
-    // Limpiar Duplicados
-    const uniqueImagesMap = new Map();
-    imagesData.forEach(img => { if (img.url && !uniqueImagesMap.has(img.url)) uniqueImagesMap.set(img.url, img); });
+    // 🌟 FASE 1B: INTENTO API WOOCOMMERCE (Solo trae productos, cero banners)
+    if (!isShopify) {
+        try {
+            let pageWoo = 1; let keepFetching = true;
+            while (keepFetching) {
+                const res = await fetch(`${urlLimpia}/wp-json/wc/store/products?per_page=50&page=${pageWoo}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        for (const p of data) {
+                            if (p.images && p.images.length > 0) {
+                                for (const img of p.images) {
+                                    addImage(img.src, `Catálogo Woo: ${p.name}`, img.name || img.src.split('/').pop());
+                                }
+                            }
+                        }
+                        pageWoo++; 
+                    } else keepFetching = false;
+                } else keepFetching = false;
+            }
+        } catch (e) {}
+    }
+
+    // 🌟 FASE 2: RASTREO VÍA SITEMAPS & MICRO-CRAWLER FRONTEND
+    // (Por si las APIs estaban bloqueadas o incompletas)
+    extractionProgress[urlLimpia].phase = '2/3: Mapeando Sitemaps de Productos...';
+    let productLinks = new Set();
+    
+    try {
+        const sitemaps = ['/sitemap.xml', '/sitemap_index.xml', '/product-sitemap.xml', '/sitemap_products_1.xml'];
+        for (const sm of sitemaps) {
+            const res = await fetch(`${urlLimpia}${sm}`, { timeout: 5000 }).catch(() => null);
+            if (res && res.ok) {
+                const text = await res.text();
+                
+                // Si es un índice, buscar sub-sitemaps de productos
+                const locs = [...text.matchAll(/<loc>(.*?)<\/loc>/g)].map(m => m[1]);
+                const prodSitemaps = locs.filter(href => href.includes('product-sitemap') || href.includes('sitemap_products'));
+                
+                for (const subSm of prodSitemaps) {
+                    const subRes = await fetch(subSm).catch(() => null);
+                    if (subRes && subRes.ok) {
+                        const subText = await subRes.text();
+                        // Shopify suele incluir las imágenes directamente en el XML
+                        const imgMatches = [...subText.matchAll(/<image:loc>(.*?)<\/image:loc>/g)].map(m => m[1]);
+                        imgMatches.forEach(imgUrl => addImage(imgUrl, 'Sitemap Image', imgUrl.split('/').pop()));
+                        
+                        const subLocs = [...subText.matchAll(/<loc>(.*?)<\/loc>/g)].map(m => m[1]);
+                        subLocs.forEach(href => {
+                            if (href.includes('/product/') || href.includes('/producto/') || href.includes('/p/') || href.includes('/products/')) {
+                                productLinks.add(href);
+                            }
+                        });
+                    }
+                }
+
+                // Guardar links si el sitemap ya es directo
+                locs.forEach(href => {
+                    if (href.includes('/product/') || href.includes('/producto/') || href.includes('/p/') || href.includes('/products/')) {
+                        productLinks.add(href);
+                    }
+                });
+            }
+        }
+    } catch(e) {}
+
+    const linksArray = Array.from(productLinks).slice(0, 20); // Escaneamos las primeras 20 páginas de producto para no bloquear el server
+
+    // Lanzar Puppeteer solo si encontramos links nuevos
+    if (linksArray.length > 0) {
+        let browser;
+        try {
+            browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+            const page = await browser.newPage();
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+            
+            for (let i = 0; i < linksArray.length; i++) {
+                extractionProgress[urlLimpia].phase = `Escaneando vista de Producto ${i+1}/${linksArray.length}...`;
+                try {
+                    await page.goto(linksArray[i], { waitUntil: 'domcontentloaded', timeout: 10000 });
+                    const prodImages = await page.evaluate((urlProd) => {
+                        return Array.from(document.querySelectorAll('img'))
+                            .filter(img => (img.naturalWidth > 150 || img.width > 150)) // Descartar logos e iconos
+                            .map(img => ({
+                                url: img.src || img.dataset.src || img.dataset.lazySrc,
+                                ancho: img.naturalWidth || img.width || 0,
+                                alto: img.naturalHeight || img.height || 0,
+                                origen: `Rastreo Frontal: ${urlProd.split('/').pop()}`
+                            }));
+                    }, linksArray[i]);
+                    
+                    prodImages.forEach(img => addImage(img.url, img.origen, img.url.split('/').pop(), img.ancho, img.alto));
+                } catch(e) {}
+            }
+            await browser.close();
+        } catch(e) {
+            if (browser) await browser.close();
+        }
+    }
+
     const finalImagesList = Array.from(uniqueImagesMap.values());
 
-    // 🌟 FASE 4: Calcular peso real (Lotes de 20 para cuidar el servidor)
-    extractionProgress[urlLimpia].phase = '3/3: Calculando peso real...';
+    // 🌟 FASE 3: CALCULAR PESOS REALES (Sin descargar imágenes, peticiones HEAD)
+    extractionProgress[urlLimpia].phase = '3/3: Calculando pesos reales de los archivos...';
     extractionProgress[urlLimpia].total = finalImagesList.length;
     
-    const BATCH_SIZE = 20; 
+    const BATCH_SIZE = 25; 
     for (let i = 0; i < finalImagesList.length; i += BATCH_SIZE) {
         const batch = finalImagesList.slice(i, i + BATCH_SIZE);
         await Promise.all(batch.map(async (img) => {
             try {
                 const headRes = await fetch(img.url, { method: 'HEAD', timeout: 5000 });
                 const sizeBytes = headRes.headers.get('content-length');
-                img.peso = sizeBytes ? (parseInt(sizeBytes) / 1024).toFixed(2) + ' KB' : 'Desconocido';
-            } catch(e) { img.peso = 'Error de lectura'; }
+                if (sizeBytes) {
+                    const kb = parseInt(sizeBytes) / 1024;
+                    // Formatear a MB si pesa más de 1024 KB para mejor lectura
+                    img.peso = kb > 1024 ? (kb / 1024).toFixed(2) + ' MB' : kb.toFixed(2) + ' KB';
+                } else {
+                    img.peso = 'Desconocido';
+                }
+            } catch(e) { img.peso = 'Error de conexión'; }
         }));
         extractionProgress[urlLimpia].scanned += batch.length;
     }
@@ -421,7 +479,7 @@ app.post('/extract-images', async (req, res) => {
         const images = await extractStoreImages(url);
         if (images.length === 0) return res.status(404).json({ success: false, error: 'No se encontraron imágenes de productos.' });
 
-        // CSV ACTUALIZADO: Sin metadatos, columnas limpias como solicitaste
+        // CSV ACTUALIZADO ESTRICTO: Origen, Nombre, Peso, Ancho, Alto, URL
         let csv = 'Origen,Nombre de Archivo,Peso,Ancho (px),Alto (px),URL\n';
         images.forEach(img => { 
             csv += `"${img.origen}","${img.nombre}","${img.peso}",${img.ancho},${img.alto},"${img.url}"\n`; 
@@ -439,12 +497,13 @@ app.get('/extract-progress', (req, res) => {
     const { url } = req.query;
     if (!url) return res.json({ total: 0, scanned: 0, phase: 'Esperando...' });
     
-    let urlLimpia = url.trim();
+    let urlLimpia = url.trim().replace(/\/+$/, '');
     if (!urlLimpia.startsWith('http')) urlLimpia = `https://${urlLimpia}`;
 
     const currentProgress = extractionProgress[urlLimpia] || { total: 0, scanned: 0, phase: 'Iniciando motor...' };
     res.json(currentProgress);
 });
+// ==============================================================
 
 app.listen(PORT, () => {
   console.log(`Bot escuchando comandos manuales en el puerto ${PORT}`);
