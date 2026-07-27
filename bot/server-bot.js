@@ -287,6 +287,129 @@ app.post('/run-force', async (req, res) => {
 app.get('/status', (req, res) => {
   res.json({ running: estaEjecutando });
 });
+// ==============================================================
+// 🌟 NUEVO MÓDULO: EXTRACTOR DE IMÁGENES EN MEMORIA (NO GUARDA EN DISCO)
+// ==============================================================
+async function extractStoreImages(targetUrl) {
+    let urlLimpia = targetUrl.trim();
+    if (!urlLimpia.startsWith('http')) urlLimpia = `https://${urlLimpia}`;
+
+    let imagesData = [];
+    let browser;
+
+    // FASE 1: Extraer imágenes del Front/Home (Banners)
+    try {
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
+        await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 35000 });
+        
+        const homeImages = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('img')).map(img => ({
+                url: img.src,
+                nombre: img.src.split('/').pop().split('?')[0] || 'imagen_desconocida',
+                ancho: img.naturalWidth || img.width || 0,
+                alto: img.naturalHeight || img.height || 0,
+                metadatos: (img.alt || '').replace(/"/g, '""'),
+                origen: 'Home / Banner / Diseño (Front)'
+            })).filter(img => img.url && img.url.startsWith('http'));
+        });
+        imagesData = [...homeImages];
+        await browser.close();
+    } catch (error) {
+        if (browser) await browser.close();
+    }
+
+    // FASE 2: Detección de Plataforma y Catálogo Masivo
+    try {
+        const shopifyRes = await fetch(`${urlLimpia}/products.json?limit=250`);
+        if (shopifyRes.ok) {
+            const data = await shopifyRes.json();
+            if (data.products) {
+                for (const p of data.products) {
+                    for (const img of p.images) {
+                        imagesData.push({
+                            url: img.src,
+                            nombre: img.src.split('/').pop().split('?')[0],
+                            ancho: img.width || 0, alto: img.height || 0,
+                            metadatos: (img.alt || '').replace(/"/g, '""'),
+                            origen: `Catálogo Shopify: ${p.title.replace(/"/g, '""')}`
+                        });
+                    }
+                }
+            }
+        } else {
+            const wooRes = await fetch(`${urlLimpia}/wp-json/wp/v2/media?per_page=100`);
+            if (wooRes.ok) {
+                const data = await wooRes.json();
+                for (const m of data) {
+                    imagesData.push({
+                        url: m.source_url,
+                        nombre: m.slug || m.source_url.split('/').pop(),
+                        pesoPrecalculado: m.media_details?.filesize ? (m.media_details.filesize / 1024).toFixed(2) + ' KB' : null,
+                        ancho: m.media_details?.width || 0, alto: m.media_details?.height || 0,
+                        metadatos: (m.alt_text || '').replace(/"/g, '""'),
+                        origen: `Librería WooCommerce (ID: ${m.post || m.id})`
+                    });
+                }
+            }
+        }
+    } catch (e) { console.error("Error APIs públicas:", e.message); }
+
+    // FASE 3: Obtener el peso real sin descargar (Peticiones HEAD)
+    const BATCH_SIZE = 15; 
+    for (let i = 0; i < imagesData.length; i += BATCH_SIZE) {
+        const batch = imagesData.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (img) => {
+            if (img.pesoPrecalculado) { img.peso = img.pesoPrecalculado; return; }
+            try {
+                const headRes = await fetch(img.url, { method: 'HEAD', timeout: 5000 });
+                const sizeBytes = headRes.headers.get('content-length');
+                img.peso = sizeBytes ? (parseInt(sizeBytes) / 1024).toFixed(2) + ' KB' : 'Desconocido';
+            } catch(e) { img.peso = 'Error de lectura'; }
+        }));
+    }
+    return imagesData;
+}
+
+// ENDPOINT DEL BOT PARA EXTRAER CSV
+app.post('/extract-images', async (req, res) => {
+    const rawKey = req.headers['x-api-key'] || '';
+    if (rawKey.trim() !== API_KEY) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ success: false, error: 'URL requerida' });
+
+    try {
+        const images = await extractStoreImages(url);
+        if (images.length === 0) return res.status(404).json({ success: false, error: 'No se encontraron imágenes.' });
+
+        // SE GENERA EN MEMORIA, NUNCA TOCA EL DISCO DURO
+        let csv = 'Origen,Nombre de Archivo,Peso,Ancho (px),Alto (px),Metadato (Alt),URL\n';
+        images.forEach(img => {
+            csv += `"${img.origen}","${img.nombre}","${img.peso}",${img.ancho},${img.alto},"${img.metadatos}","${img.url}"\n`;
+        });
+
+        res.header('Content-Type', 'text/csv; charset=utf-8');
+        return res.send(csv);
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+// ==============================================================
+
+
+
+
+
+
+
+
+
+
 
 app.listen(PORT, () => {
   console.log(`Bot escuchando comandos manuales en el puerto ${PORT}`);

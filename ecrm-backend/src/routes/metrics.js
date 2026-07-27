@@ -95,6 +95,49 @@ router.post('/force-run', async (req, res) => {
   }
 });
 
+// POST: Puente para extraer CSV de imágenes en tiempo real
+router.post('/extract-images', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ success: false, error: 'La URL es requerida.' });
+
+    const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
+    
+    // Llamamos al bot, pidiéndole el archivo
+    const botRes = await fetch(`${BOT_SERVICE_URL}/extract-images`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': 'ENOVA_SECRET_API_KEY_2026'
+      },
+      body: JSON.stringify({ url })
+    });
+
+    if (!botRes.ok) {
+        const errorData = await botRes.json();
+        return res.status(botRes.status).json(errorData);
+    }
+
+    // Leemos el texto del CSV generado en memoria y lo enviamos al cliente
+    const csvText = await botRes.text();
+    res.header('Content-Type', 'text/csv; charset=utf-8');
+    res.attachment(`auditoria_imagenes_${new Date().getTime()}.csv`);
+    return res.send(csvText);
+
+  } catch (error) {
+    console.error("Error en proxy de imágenes:", error.message);
+    res.status(500).json({ success: false, error: 'Error conectando con el motor de extracción.' });
+  }
+});
+
+
+
+
+
+
+
+
+
 // POST: Notificar fin de análisis automático
 router.post('/notify-completion', async (req, res) => {
   const rawKey = req.headers['x-api-key'] || '';

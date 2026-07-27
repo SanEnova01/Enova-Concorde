@@ -27,7 +27,7 @@ import ConcordeAnalyzerView from './views/admin/ConcordeAnalyzerView';
 import Login from './views/admin/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import crmApi from './api/crmApi';
-
+import ImageExtractorView from './views/admin/ImageExtractorView';
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -90,6 +90,7 @@ function AdminLayout({ children }) {
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     { path: '/admin/auditorias', label: 'Concorde Radar', allowed: ['super admin', 'admin'] },
     { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
+    { path: '/admin/extractor', label: 'Extractor de Imágenes', allowed: ['super admin', 'admin'] },
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
     { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
@@ -357,6 +358,13 @@ function App() {
     <AdminLayout><ConcordeAnalyzerView /></AdminLayout>
   </ProtectedRoute>
 } />
+
+{/* 👇 AGREGAR ESTE BLOQUE DE RUTA 👇 */}
+        <Route path="/admin/extractor" element={
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <AdminLayout><ImageExtractorView /></AdminLayout>
+          </ProtectedRoute>
+        } />
 
       </Routes>
     </BrowserRouter>
