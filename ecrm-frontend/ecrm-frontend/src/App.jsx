@@ -39,6 +39,16 @@ function AdminLayout({ children }) {
   
   const [hasCoopPilot, setHasCoopPilot] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 🌟 ESTADO PARA EL MENÚ MÓVIL
+  
+  // 🌟 NUEVO ESTADO PARA CONTROLAR SUBMENÚS DESPLEGABLES
+  const [expandedMenus, setExpandedMenus] = useState({ concorde_tools: false });
+
+  const toggleSubMenu = (menuId) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuId]: !prev[menuId]
+    }));
+  };
 
   if (token) {
     try {
@@ -80,8 +90,7 @@ function AdminLayout({ children }) {
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
-
-  // Definición de menú lateral por roles
+// Definición de menú lateral por roles
   const allNavItems = [
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes', label: 'Tiendas', allowed: ['super admin', 'admin'] },
@@ -89,8 +98,18 @@ function AdminLayout({ children }) {
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     { path: '/admin/auditorias', label: 'Concorde Radar', allowed: ['super admin', 'admin'] },
-    { path: '/admin/analyzer', label: 'Concorde Analyzer', allowed: ['super admin', 'admin'] },
-    { path: '/admin/extractor', label: 'Extractor de Imágenes', allowed: ['super admin', 'admin'] },
+    
+    // 👇 SUBMENÚ MODULAR DE HERRAMIENTAS 👇
+    { 
+      id: 'concorde_tools', 
+      label: 'Concorde Tools', 
+      allowed: ['super admin', 'admin'],
+      subItems: [
+        { path: '/admin/analyzer', label: 'Concorde Analyzer' },
+        { path: '/admin/extractor', label: 'Extractor de Imágenes' }
+      ]
+    },
+
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
     { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
@@ -200,9 +219,56 @@ function AdminLayout({ children }) {
 
           <nav className="crm-nav-container" style={{ paddingTop: 0 }}>
             {visibleNavItems.map(item => {
+              // 🌟 LÓGICA PARA RENDERIZAR MENÚS DESPLEGABLES (CON SUB-ITEMS)
+              if (item.subItems) {
+                const isExpanded = expandedMenus[item.id];
+                const isAnyChildActive = item.subItems.some(sub => location.pathname === sub.path);
+                
+                return (
+                  <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <button
+                      onClick={() => toggleSubMenu(item.id)}
+                      className={isAnyChildActive ? "crm-link-active" : "crm-link-inactive"}
+                      style={{ 
+                        border: 'none', 
+                        cursor: 'pointer', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        textAlign: 'left',
+                        fontFamily: 'system-ui, sans-serif'
+                      }}
+                    >
+                      {item.label} <span style={{ fontSize: '12px' }}>{isExpanded ? '▴' : '▾'}</span>
+                    </button>
+                    
+                    {/* Renderizamos los hijos si está desplegado */}
+                    {isExpanded && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginLeft: '16px', borderLeft: '2px solid #2d2d2d', paddingLeft: '8px' }}>
+                        {item.subItems.map(sub => {
+                          const isActive = location.pathname === sub.path;
+                          return (
+                            <Link
+                              key={sub.path}
+                              to={sub.path}
+                              className={isActive ? "crm-link-active" : "crm-link-inactive"}
+                              style={{ fontSize: '13px', padding: '8px 12px' }}
+                            >
+                              ↳ {sub.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // 🌟 LÓGICA PARA ENLACES NORMALES
               const isActive = location.pathname === item.path || 
                 (item.path === '/admin/clientes' && location.pathname.startsWith('/admin/clientes/') && !location.pathname.includes('cuentacliente')) ||
                 (item.path === '/admin/tickets' && location.pathname.startsWith('/admin/tickets/'));
+              
               return (
                 <Link
                   key={item.path}
