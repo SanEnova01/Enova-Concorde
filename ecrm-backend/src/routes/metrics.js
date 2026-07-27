@@ -131,7 +131,24 @@ router.post('/extract-images', async (req, res) => {
 });
 
 
+// GET: Puente para consultar el progreso de la extracción en tiempo real
+router.get('/extract-progress', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) return res.json({ total: 0, scanned: 0, phase: 'Esperando...' });
 
+    const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
+    const botRes = await fetch(`${BOT_SERVICE_URL}/extract-progress?url=${encodeURIComponent(url)}`);
+    
+    if (botRes.ok) {
+      const data = await botRes.json();
+      return res.json(data);
+    }
+    return res.json({ total: 0, scanned: 0, phase: 'Conectando con el motor...' });
+  } catch (error) {
+    res.json({ total: 0, scanned: 0, phase: 'Procesando...' });
+  }
+});
 
 
 

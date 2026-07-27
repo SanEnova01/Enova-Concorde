@@ -4,6 +4,7 @@ import crmApi from '../../api/crmApi';
 function ImageExtractorView() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState({ total: 0, scanned: 0, phase: '' });
 
   const handleExtractImages = async (e) => {
     e.preventDefault();
@@ -13,11 +14,27 @@ function ImageExtractorView() {
     }
 
     setLoading(true);
+    setProgress({ total: 0, scanned: 0, phase: 'Iniciando motor de rastreo...' });
+
+    // 🌟 INICIAR EL POLLING DE PROGRESO (Pregunta cada 1.5 segundos)
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await crmApi.get(`/metrics/extract-progress?url=${encodeURIComponent(url)}`);
+        if (res.data) setProgress(res.data);
+      } catch (err) {
+        // Ignoramos errores temporales de red
+      }
+    }, 1500);
+
     try {
-      // 🌟 Petición a tu API (devuelve un Blob para no tocar el disco del servidor)
+      // Lanzamos la petición pesada que generará el CSV
       const response = await crmApi.post('/metrics/extract-images', { url }, { responseType: 'blob' });
       
-      // 🌟 Generación y descarga ultraligera del CSV en la memoria del navegador
+      // Limpiamos el temporizador
+      clearInterval(pollInterval);
+      setProgress(prev => ({ ...prev, phase: '¡Archivo generado con éxito!', scanned: prev.total }));
+
+      // Descargamos el archivo
       const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = window.URL.createObjectURL(blob);
@@ -28,10 +45,16 @@ function ImageExtractorView() {
       
     } catch (error) {
       console.error(error);
-      alert('Hubo un error al generar el CSV. Verifica que la URL sea válida y que la tienda permita el escaneo.');
+      clearInterval(pollInterval);
+      setProgress({ total: 0, scanned: 0, phase: 'Error en el análisis. Inténtalo de nuevo.' });
+      alert('Hubo un error al generar el CSV. Verifica que la URL sea válida.');
     }
+    
     setLoading(false);
   };
+
+  // Calcular porcentaje para la barra visual (Evita NaN si total es 0)
+  const percent = progress.total > 0 ? Math.round((progress.scanned / progress.total) * 100) : 0;
 
   return (
     <div>
@@ -43,9 +66,7 @@ function ImageExtractorView() {
         <h2 className="crm-section-title" style={{ marginTop: 0 }}>Auditoría de Assets (Shopify / Woo)</h2>
         <p className="crm-text-muted" style={{ marginBottom: '24px', lineHeight: '1.5' }}>
           Ingresa la URL de la tienda para extraer todas las imágenes del Home y el catálogo de productos. 
-          Se generará un archivo <strong>.CSV</strong> al vuelo con ubicación, peso real (KB/MB), resolución y etiquetas Alt.
-          <br/><br/>
-          <span style={{ color: '#d9534f', fontWeight: 'bold' }}>Nota:</span> Los datos se construyen en la memoria RAM y se destruyen automáticamente tras la descarga.
+          Se generará un archivo <strong>.CSV</strong> al vuelo con ubicación, peso real, resolución y etiquetas.
         </p>
 
         <form onSubmit={handleExtractImages} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -73,9 +94,39 @@ function ImageExtractorView() {
               cursor: loading ? 'not-allowed' : 'pointer'
             }}
           >
-            {loading ? '⏳ Analizando tienda y generando CSV...' : '⬇️ Escanear y Descargar CSV'}
+            {loading ? '⏳ Analizando tienda...' : '⬇️ Escanear y Descargar CSV'}
           </button>
         </form>
+
+        {/* =========================================
+            BARRA DE PROGRESO (SOLO VISIBLE CARGANDO)
+            ========================================= */}
+        {loading && (
+          <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#111' }}>
+              <span>{progress.phase}</span>
+              <span>{percent}%</span>
+            </div>
+            
+            {/* Contenedor de la barra */}
+            <div style={{ width: '100%', height: '8px', backgroundColor: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+              {/* Relleno de la barra animado */}
+              <div style={{ 
+                width: `${percent}%`, 
+                height: '100%', 
+                backgroundColor: '#111', 
+                transition: 'width 0.5s ease-out' 
+              }}></div>
+            </div>
+
+            {/* Contadores exactos */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '12px', color: '#6b7280' }}>
+              <span>📸 Imágenes Detectadas: <strong>{progress.total}</strong></span>
+              <span>⚙️ Analizadas / Pesadas: <strong>{progress.scanned}</strong></span>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
