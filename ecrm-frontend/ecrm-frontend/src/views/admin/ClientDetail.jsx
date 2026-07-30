@@ -51,7 +51,7 @@ function ClientDetail() {
     }
   }
 
-  // 1. EFECTO DE INICIALIZACIÓN: Buscar todas las tiendas autorizadas
+// 1. EFECTO DE INICIALIZACIÓN: Buscar todas las tiendas autorizadas
   useEffect(() => {
     const initAuthorizedStores = async () => {
       setLoadingInit(true);
@@ -68,13 +68,18 @@ function ClientDetail() {
           }
 
           const storesRes = await crmApi.get('/stores');
-          const listaTiendas = storesRes.data.data || storesRes.data || [];
+          // 🌟 FIX: Extraemos el arreglo de manera segura
+          const listaTiendas = Array.isArray(storesRes.data.data) 
+            ? storesRes.data.data 
+            : (Array.isArray(storesRes.data) ? storesRes.data : []);
+            
           const correoLimpio = String(userEmail).toLowerCase().trim();
 
-          // 🔍 FILTRO MASIVO: Buscar TODAS las tiendas vinculadas a este correo
+          // 🔍 FILTRO MASIVO MEJORADO: Usamos .includes() que es 100% infalible ante comas, saltos de línea o símbolos raros
           targetStores = listaTiendas.filter(store => {
-            const listaCorreos = String(store.emails).toLowerCase().split(/[\s,;]+/).map(e => e.trim());
-            return listaCorreos.includes(correoLimpio);
+            if (!store.emails) return false;
+            const correosDB = String(store.emails).toLowerCase();
+            return correosDB.includes(correoLimpio);
           });
 
           if (targetStores.length === 0) {
@@ -90,6 +95,9 @@ function ClientDetail() {
             targetStores = [clientData];
           }
         }
+
+        // 🌟 ORDENAMOS ALFABÉTICAMENTE PARA LAS TABS
+        targetStores.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         setAuthorizedStores(targetStores);
         if (targetStores.length > 0) {

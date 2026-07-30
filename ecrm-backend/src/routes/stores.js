@@ -38,19 +38,24 @@ router.get('/:id', async (req, res) => {
   try {
     let storeId = req.params.id;
 
-    // 🌟 SI VIENE 'cuentacliente', BUSCAMOS LA TIENDA VINCULADA AL CORREO DEL TOKEN
+    // 🌟 SI VIENE 'cuentacliente', BUSCAMOS LAS TIENDAS VINCULADAS AL CORREO DEL TOKEN
     if (storeId === 'cuentacliente') {
       const userEmail = req.adminUser ? req.adminUser.email : '';
       const stores = await StoreRepository.getAll();
       const correoLimpio = String(userEmail).toLowerCase().trim();
       
-      const matched = stores.find(store => {
-        const list = String(store.emails || '').toLowerCase().split(/[\s,;]+/).map(e => e.trim());
-        return list.includes(correoLimpio);
+      // 🌟 FIX: Buscar TODAS las coincidencias usando includes() de forma segura
+      const matchedStores = stores.filter(store => {
+        if (!store.emails) return false;
+        return String(store.emails).toLowerCase().includes(correoLimpio);
       });
 
-      if (matched) {
-        return res.status(200).json({ success: true, data: matched });
+      if (matchedStores.length > 0) {
+        // Combinar permisos (ej. si al menos 1 tienda tiene cooppilot, le damos acceso general al menú)
+        const hasCoopPilot = matchedStores.some(s => s.has_cooppilot);
+        const baseStore = { ...matchedStores[0], has_cooppilot: hasCoopPilot };
+        
+        return res.status(200).json({ success: true, data: baseStore });
       } else {
         return res.status(404).json({ success: false, error: 'Tienda no asociada a este correo.' });
       }
