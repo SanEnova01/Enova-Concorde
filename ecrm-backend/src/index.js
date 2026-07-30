@@ -114,25 +114,30 @@ const upload = multer({
 });
 
 // ==========================================
-// ENDPOINT: LOGIN POR CORREO Y CONTRASEÑA (CON AUTO-REPARACIÓN)
+// ENDPOINT: LOGIN POR USUARIO O CORREO Y CONTRASEÑA (CON AUTO-REPARACIÓN)
 // ==========================================
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    // 🌟 Aceptamos 'email' por compatibilidad con el front, o 'username'
+    const identifier = req.body.email || req.body.username; 
+    const { password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'El correo y la contraseña son obligatorios.' });
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, error: 'El usuario/correo y la contraseña son obligatorios.' });
     }
 
-    const correoLimpio = String(email).toLowerCase().trim();
+    const cleanIdentifier = String(identifier).toLowerCase().trim();
 
-    // Buscamos al usuario en PostgreSQL por su email mediante Knex
-    const user = await db('users').where({ email: correoLimpio }).first();
+    // 🌟 Buscamos al usuario en PostgreSQL por email O por nombre (username)
+    const user = await db('users')
+      .whereRaw('LOWER(email) = ?', [cleanIdentifier])
+      .orWhereRaw('LOWER(name) = ?', [cleanIdentifier])
+      .first();
     
     if (!user) {
       return res.status(400).json({ 
         success: false, 
-        error: `DIAGNÓSTICO: El correo '${correoLimpio}' NO existe en la base de datos.` 
+        error: `DIAGNÓSTICO: El usuario o correo '${cleanIdentifier}' NO existe en la base de datos.` 
       });
     }
 
@@ -140,7 +145,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     const passwordValidoTradicional = await bcrypt.compare(password, user.password);
 
     if (!passwordValidoTradicional && password === '123456') {
-      console.log(`[Seguridad] Reparando hash corrupto detectado para el correo: ${correoLimpio}`);
+      console.log(`[Seguridad] Reparando hash corrupto detectado para el usuario/correo: ${cleanIdentifier}`);
       
       const nuevoHashLimpio = await bcrypt.hash('123456', 10);
       
