@@ -70,7 +70,7 @@ function TotalTickets() {
     }
   };
 
-  s
+  // 🌟 EL ERROR ESTABA AQUÍ: Había una 's' suelta. Ya fue eliminada.
 
   // Limpiar seleccionados al cambiar de pestaña B2B / B2C
   useEffect(() => {
@@ -203,6 +203,11 @@ function TotalTickets() {
     }
     return cells;
   };
+
+  // 🌟 TAMBIÉN DEBEMOS LLAMAR A fetchData() AL MONTAR EL COMPONENTE
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   if (loading) return <div className="crm-text-loading">Cargando operaciones...</div>;
 
