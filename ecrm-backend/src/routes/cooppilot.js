@@ -8,6 +8,46 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy_key',
 });
 
+// Cache temporal en memoria para evitar pedir un token a Shopify en cada clic
+const tokenCache = {};
+
+// Helper: Intercambio de Client ID + Client Secret por Access Token en Shopify
+async function fetchShopifyToken(domain, clientId, clientSecret) {
+  const cacheKey = `${domain}_${clientId}`;
+  
+  // Si ya tenemos un token cacheado y válido, lo reutilizamos
+  if (tokenCache[cacheKey] && tokenCache[cacheKey].expiresAt > Date.now()) {
+    return tokenCache[cacheKey].token;
+  }
+
+  try {
+    const response = await fetch(`https://${domain}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials'
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.access_token) {
+        // Guardar en cache por 12 horas
+        tokenCache[cacheKey] = {
+          token: data.access_token,
+          expiresAt: Date.now() + 12 * 60 * 60 * 1000
+        };
+        return data.access_token;
+      }
+    }
+  } catch (error) {
+    console.error(`[Shopify Auth Error] No se pudo obtener token para ${domain}:`, error.message);
+  }
+  return null;
+}
+
 // GET: Consultar configuración y licencia pública de la tienda
 router.get('/config/:store_id', async (req, res) => {
   try {
@@ -37,7 +77,7 @@ router.get('/config/:store_id', async (req, res) => {
   }
 });
 
-// POST: Validar pedido (Rastreo Real con Shopify API)
+// POST: Validar pedido (Rastreo Real vía Shopify API con OAuth / Credentials)
 router.post('/verify-order', async (req, res) => {
   try {
     const { store_id, order_number, email } = req.body;
@@ -53,16 +93,34 @@ router.post('/verify-order', async (req, res) => {
     const cleanOrderNum = order_number.trim();
     const cleanEmail = String(email || '').toLowerCase().trim();
 
-    // 🌟 SI LA TIENDA TIENE CONFIGURADO TOKEN DE SHOPIFY Y DOMINIO EN DB, CONSULTA LA API REAL
-    if (store.shopify_access_token && store.web) {
-      // Extraer dominio de la URL web
-      const storeDomain = store.web.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      const shopifyUrl = `https://${storeDomain}/admin/api/2024-01/orders.json?name=${encodeURIComponent(cleanOrderNum)}&status=any`;
+    // Dominio de Shopify (desde la BD o fallback a enova-agency-web.myshopify.com)
+    let storeDomain = (store.web || 'enova-agency-web.myshopify.com')
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '');
 
+    if (!storeDomain.includes('.myshopify.com')) {
+      storeDomain = 'enova-agency-web.myshopify.com';
+    }
+
+    // Credenciales de la Custom App
+    const clientId = store.shopify_client_id || process.env.SHOPIFY_CLIENT_ID || '';
+    const clientSecret = store.shopify_client_secret || process.env.SHOPIFY_CLIENT_SECRET || '';
+
+    let accessToken = store.shopify_access_token;
+
+    // Si no hay un token shpat_ guardado directamente, hacer el intercambio OAuth
+    if (!accessToken) {
+      accessToken = await fetchShopifyToken(storeDomain, clientId, clientSecret);
+    }
+
+    // Si logramos obtener un token válido (o intercambio automático), consultamos Shopify
+    if (accessToken) {
       try {
+        const shopifyUrl = `https://${storeDomain}/admin/api/2024-01/orders.json?name=${encodeURIComponent(cleanOrderNum)}&status=any`;
+
         const shopifyRes = await fetch(shopifyUrl, {
           headers: {
-            'X-Shopify-Access-Token': store.shopify_access_token,
+            'X-Shopify-Access-Token': accessToken,
             'Content-Type': 'application/json'
           }
         });
@@ -71,7 +129,7 @@ router.post('/verify-order', async (req, res) => {
           const shopifyData = await shopifyRes.json();
           const orders = shopifyData.orders || [];
 
-          // Validar que coincida el email de la orden con el ingresado por el cliente
+          // Validar que coincida el correo ingresado con la orden
           const matchedOrder = orders.find(o => 
             (o.email && o.email.toLowerCase().trim() === cleanEmail) ||
             (o.customer && o.customer.email && o.customer.email.toLowerCase().trim() === cleanEmail)
@@ -117,11 +175,11 @@ router.post('/verify-order', async (req, res) => {
           }
         }
       } catch (err) {
-        console.error("Error consultando API de Shopify:", err);
+        console.error("Error consultando la API de órdenes de Shopify:", err);
       }
     }
 
-    // 🌟 SIMULACRO DE FALLBACK (Si la tienda aún no configura su token de Shopify)
+    // Fallback a modo simulacro en caso de que las credenciales de Shopify no respondan
     res.json({ 
       success: true, 
       data: {

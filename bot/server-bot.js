@@ -134,7 +134,12 @@ async function ejecutarAnalisisAutomated() {
           '--enable-precise-memory-info',
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled'
+          '--disable-blink-features=AutomationControlled',
+          '--disable-dev-shm-usage',    // 🌟 VITAL: Evita que colapse la memoria compartida de Linux
+          '--disable-gpu',              // 🌟 Apaga la tarjeta gráfica (innecesaria en servidores)
+          '--no-zygote',                // 🌟 Evita que se queden procesos "zombies" colgados
+          '--disable-crash-reporter',   // 🌟 Apaga el crashpad_handler que te está dando el error fatal
+          '--disable-software-rasterizer'
         ]
       });
 

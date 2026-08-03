@@ -70,7 +70,7 @@ function TotalTickets() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  s
 
   // Limpiar seleccionados al cambiar de pestaña B2B / B2C
   useEffect(() => {
