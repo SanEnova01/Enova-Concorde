@@ -691,3 +691,48 @@ body {
         grid-template-columns: 1fr !important;
     }
 }
+
+/* ==============================================================
+   ESTILOS DEL GENERADOR DE REPORTES PDF
+============================================================== */
+.rg-container { display: flex; height: calc(100vh - 60px); overflow: hidden; background: #1e1e1e; color: #fff; text-align: left;}
+.rg-sidebar { width: 450px; background: #2d2d2d; border-right: 2px solid #000; display: flex; flex-direction: column; overflow-y: auto; padding: 20px; }
+.rg-preview-area { flex: 1; background: #555; display: flex; justify-content: center; overflow-y: auto; padding: 40px; }
+
+.rg-panel-title { margin-top: 0; font-size: 1.2rem; text-transform: uppercase; border-bottom: 2px solid #fff; padding-bottom: 10px; }
+.rg-form-group { margin-bottom: 20px; background: #3d3d3d; padding: 15px; border-radius: 6px; border: 1px solid #444; }
+.rg-form-group label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.9rem; color: #cbd5e1; }
+.rg-input { width: 100%; padding: 8px; border: 1px solid #555; background: #1e1e1e; color: #fff; border-radius: 4px; font-family: inherit; margin-bottom: 5px; box-sizing: border-box; }
+
+.rg-btn-export { background: #10b981; color: #fff; border: none; padding: 15px; font-size: 1.1rem; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: 6px; position: sticky; bottom: 0; box-shadow: 0 -4px 10px rgba(0,0,0,0.5); transition: background 0.2s; width: 100%; }
+.rg-btn-export:hover { background: #059669; }
+
+.rg-status-row { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #555; }
+.rg-status-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.rg-status-label { font-size: 0.85rem; margin-bottom: 5px; font-weight: 600; }
+.rg-status-btn-group { display: flex; gap: 5px; margin-bottom: 8px; }
+.rg-btn-status { flex: 1; padding: 6px; border: none; cursor: pointer; font-weight: bold; border-radius: 3px; font-size: 0.75rem; opacity: 0.4; transition: opacity 0.2s; }
+.rg-btn-status.active { opacity: 1; border: 2px solid #fff; }
+.rg-btn-g { background: #10b981; color: #000; }
+.rg-btn-y { background: #f59e0b; color: #000; }
+.rg-btn-r { background: #ef4444; color: #fff; }
+
+.rg-drop-zone { border: 2px dashed #888; border-radius: 6px; padding: 20px; text-align: center; cursor: pointer; background: #2d2d2d; transition: all 0.2s; margin-bottom: 8px; font-size: 0.85rem; color: #aaa; }
+.rg-drop-zone:hover, .rg-drop-zone:focus { border-color: #3b82f6; background: #1e293b; color: #fff; outline: none;}
+.rg-drop-zone img { max-width: 100%; max-height: 150px; margin-top: 10px; border: 1px solid #000; }
+
+/* ESTILOS DEL DOCUMENTO A IMPRIMIR */
+#document-to-print { width: 210mm; min-height: 297mm; background-color: #F1F0EA; padding: 20mm 15mm; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: #111; font-family: 'Arial', sans-serif; font-size: 9.5pt; line-height: 1.4; box-sizing: border-box; }
+#document-to-print .header-container { display: flex; justify-content: space-between; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 20px; align-items: center; }
+#document-to-print .logo-title { font-size: 14pt; font-weight: 900; text-transform: uppercase; margin: 0; }
+#document-to-print .logo-subtitle { font-size: 8pt; color: #555; text-transform: uppercase; margin: 0; letter-spacing: 1px; }
+#document-to-print .tag-sup { display: inline-block; border: 2px solid #000; padding: 3px 8px; font-weight: bold; font-size: 8pt; text-transform: uppercase; margin-bottom: 10px; background: #fff; }
+#document-to-print h1 { font-size: 22pt; font-weight: 900; margin: 0 0 10px 0; text-transform: uppercase; line-height: 1.1; }
+#document-to-print .card { background: #FFF; border: 3px solid #000; box-shadow: 5px 5px 0px #000; padding: 15px; margin-bottom: 20px; page-break-inside: avoid; }
+#document-to-print .card-header { font-size: 12pt; font-weight: 900; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin: 0 0 10px 0; }
+#document-to-print .section-title { font-weight: 900; font-size: 9pt; background: #000; color: #fff; display: inline-block; padding: 3px 8px; margin: 10px 0 5px 0; text-transform: uppercase; }
+#document-to-print .badge { display: inline-block; border: 2px solid #000; font-weight: 900; font-size: 7.5pt; padding: 1px 5px; margin-right: 5px; text-transform: uppercase; }
+#document-to-print .item-list-none { margin: 0; padding: 0; list-style: none; }
+#document-to-print .item-list-none li { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dotted #ccc; display: flex; align-items: flex-start;}
+#document-to-print .doc-image-container img { width: 100%; height: auto; border: 2px solid #000; display: block; margin: 15px 0; }
+#document-to-print .plugin-ul { margin: 0; padding-left: 15px; margin-bottom: 10px; }

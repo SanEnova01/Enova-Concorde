@@ -25,6 +25,7 @@ import AdminAuditRequests from './views/admin/AdminAuditRequests';
 import ConcordeAnalyzerView from './views/admin/ConcordeAnalyzerView';
 // Autenticación y Protección
 import Login from './views/admin/Login';
+import ReportGenerator from './views/admin/ReportGenerator';
 import ProtectedRoute from './components/ProtectedRoute';
 import crmApi from './api/crmApi';
 import ImageExtractorView from './views/admin/ImageExtractorView';
@@ -429,6 +430,13 @@ function App() {
         <Route path="/admin/extractor" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><ImageExtractorView /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* HERRAMIENTA: GENERADOR DE REPORTES PDF */}
+        <Route path="/admin/reportes" element={
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <AdminLayout><ReportGenerator /></AdminLayout>
           </ProtectedRoute>
         } />
 

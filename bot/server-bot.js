@@ -6,6 +6,21 @@ const cron = require('node-cron');
 
 puppeteer.use(StealthPlugin());
 
+// 🌟 ESTA ES LA CONFIGURACIÓN MAESTRA BLINDADA PARA RAILWAY
+const RAILWAY_PUPPETEER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',         // Evita que la memoria compartida colapse
+  '--disable-gpu',                   // Apaga la tarjeta gráfica (innecesaria en servidores)
+  '--no-zygote',                     // Evita que se queden procesos "zombies" colgados
+  '--disable-crash-reporter',        // Apaga el crashpad_handler (El causante del error 11)
+  '--disable-breakpad',              // Apaga el reportador interno de errores de Chrome
+  '--disable-software-rasterizer',
+  '--disable-ipc-flooding-protection',
+  '--enable-precise-memory-info',
+  '--disable-blink-features=AutomationControlled'
+];
+
 const app = express();
 app.use(express.json());
 
@@ -26,7 +41,6 @@ async function obtenerTiendasFiltradas() {
     });
     const jsonResponse = await res.json();
     
-    // 🔍 Imprimimos la respuesta exacta en los logs para auditarla
     console.log("🔍 [DEBUG] Respuesta de /stores:", JSON.stringify(jsonResponse));
 
     let tiendas = [];
@@ -128,19 +142,10 @@ async function ejecutarAnalisisAutomated() {
         urlLimpia = `https://${urlLimpia}`;
       }
 
+      // 🌟 SE APLICA LA CONFIGURACIÓN MAESTRA
       browser = await puppeteer.launch({
         headless: 'new',
-        args: [
-          '--enable-precise-memory-info',
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-dev-shm-usage',    // 🌟 VITAL: Evita que colapse la memoria compartida de Linux
-          '--disable-gpu',              // 🌟 Apaga la tarjeta gráfica (innecesaria en servidores)
-          '--no-zygote',                // 🌟 Evita que se queden procesos "zombies" colgados
-          '--disable-crash-reporter',   // 🌟 Apaga el crashpad_handler que te está dando el error fatal
-          '--disable-software-rasterizer'
-        ]
+        args: RAILWAY_PUPPETEER_ARGS
       });
 
       const browserPid = browser.process().pid;
@@ -159,7 +164,6 @@ async function ejecutarAnalisisAutomated() {
       await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
       await page.setCacheEnabled(false);
 
-      // 🌟 SOLUCIÓN BLINDADA PARA EVITAR TIMEOUT DE 60S
       try {
         await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 45000 });
         await new Promise(r => setTimeout(r, 4000));
@@ -175,7 +179,6 @@ async function ejecutarAnalisisAutomated() {
         let totalBytes = 0;
         resources.forEach(res => { if (res.transferSize) totalBytes += res.transferSize; });
         
-        // Salvaguarda: Si el timeout impidió que el evento de carga terminara, calculamos el tiempo real transcurrido
         const currentMs = Math.round(performance.now());
         
         return {
@@ -232,8 +235,9 @@ async function ejecutarAnalisisAutomated() {
     }
     pidusage.clear();
 
-    const jitter = Math.floor(Math.random() * 3000) + 2000;
-    await new Promise(r => setTimeout(r, jitter));
+    // 🌟 ENFRIAMIENTO DEL SERVIDOR (COOLDOWN 15 SEGUNDOS)
+    console.log(`⏳ [Cooldown] Esperando 15 segundos para liberar memoria antes de la siguiente tienda...`);
+    await new Promise(r => setTimeout(r, 15000));
   }
 
   console.log(`\n✅ ANÁLISIS FINALIZADO.`);
@@ -264,15 +268,13 @@ async function enviarHeartbeat() {
   }
 }
 
-// Cambiar a 30 minutos (30 * 60 * 1000 = 1800000 ms)
 setInterval(enviarHeartbeat, 30 * 60 * 1000);
 
-// 🔥 EL FIX DEL HEARTBEAT: Esperar 15 segundos para dar tiempo al backend de encender 🔥
 setTimeout(() => {
     enviarHeartbeat();
 }, 15000);
 
-// 4. ENDPOINTS DEL BOT (Disparo manual)
+// 4. ENDPOINTS DEL BOT
 app.post('/run-force', async (req, res) => {
   const rawKey = req.headers['x-api-key'] || '';
   if (rawKey.trim() !== API_KEY) {
@@ -283,17 +285,16 @@ app.post('/run-force', async (req, res) => {
     return res.json({ success: false, message: 'El bot ya está ejecutando un análisis actualmente.' });
   }
 
-  // Ejecutar en segundo plano para no bloquear la respuesta HTTP
   ejecutarAnalisisAutomated();
-
   res.json({ success: true, message: 'Análisis forzado iniciado correctamente.' });
 });
 
 app.get('/status', (req, res) => {
   res.json({ running: estaEjecutando });
 });
+
 // ==============================================================
-// 🌟 MÓDULO: EXTRACTOR MASIVO DE PRODUCTOS (API + SITEMAP CRAWLER)
+// 🌟 MÓDULO: EXTRACTOR MASIVO DE PRODUCTOS
 // ==============================================================
 const extractionProgress = {};
 
@@ -305,10 +306,9 @@ async function extractStoreImages(targetUrl) {
     
     const uniqueImagesMap = new Map();
 
-    // Función auxiliar para registrar imágenes limpias y únicas
     const addImage = (url, origen, nombre, ancho = 0, alto = 0) => {
         if (!url || !url.startsWith('http')) return;
-        const cleanUrl = url.split('?')[0]; // Quitar parámetros raros
+        const cleanUrl = url.split('?')[0]; 
         if (!uniqueImagesMap.has(cleanUrl)) {
             uniqueImagesMap.set(cleanUrl, { 
                 url: cleanUrl, 
@@ -323,7 +323,6 @@ async function extractStoreImages(targetUrl) {
 
     let isShopify = false;
 
-    // 🌟 FASE 1A: INTENTO API SHOPIFY (Exactitud 100%)
     try {
         let pageShopify = 1; let keepFetching = true;
         while (keepFetching) {
@@ -343,7 +342,6 @@ async function extractStoreImages(targetUrl) {
         }
     } catch (e) {}
 
-    // 🌟 FASE 1B: INTENTO API WOOCOMMERCE (Solo trae productos, cero banners)
     if (!isShopify) {
         try {
             let pageWoo = 1; let keepFetching = true;
@@ -366,8 +364,6 @@ async function extractStoreImages(targetUrl) {
         } catch (e) {}
     }
 
-    // 🌟 FASE 2: RASTREO VÍA SITEMAPS & MICRO-CRAWLER FRONTEND
-    // (Por si las APIs estaban bloqueadas o incompletas)
     extractionProgress[urlLimpia].phase = '2/3: Mapeando Sitemaps de Productos...';
     let productLinks = new Set();
     
@@ -378,7 +374,6 @@ async function extractStoreImages(targetUrl) {
             if (res && res.ok) {
                 const text = await res.text();
                 
-                // Si es un índice, buscar sub-sitemaps de productos
                 const locs = [...text.matchAll(/<loc>(.*?)<\/loc>/g)].map(m => m[1]);
                 const prodSitemaps = locs.filter(href => href.includes('product-sitemap') || href.includes('sitemap_products'));
                 
@@ -386,7 +381,6 @@ async function extractStoreImages(targetUrl) {
                     const subRes = await fetch(subSm).catch(() => null);
                     if (subRes && subRes.ok) {
                         const subText = await subRes.text();
-                        // Shopify suele incluir las imágenes directamente en el XML
                         const imgMatches = [...subText.matchAll(/<image:loc>(.*?)<\/image:loc>/g)].map(m => m[1]);
                         imgMatches.forEach(imgUrl => addImage(imgUrl, 'Sitemap Image', imgUrl.split('/').pop()));
                         
@@ -399,7 +393,6 @@ async function extractStoreImages(targetUrl) {
                     }
                 }
 
-                // Guardar links si el sitemap ya es directo
                 locs.forEach(href => {
                     if (href.includes('/product/') || href.includes('/producto/') || href.includes('/p/') || href.includes('/products/')) {
                         productLinks.add(href);
@@ -409,13 +402,16 @@ async function extractStoreImages(targetUrl) {
         }
     } catch(e) {}
 
-    const linksArray = Array.from(productLinks).slice(0, 20); // Escaneamos las primeras 20 páginas de producto para no bloquear el server
+    const linksArray = Array.from(productLinks).slice(0, 20);
 
-    // Lanzar Puppeteer solo si encontramos links nuevos
     if (linksArray.length > 0) {
         let browser;
         try {
-            browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+            // 🌟 SE APLICA LA CONFIGURACIÓN MAESTRA
+            browser = await puppeteer.launch({ 
+                headless: 'new', 
+                args: RAILWAY_PUPPETEER_ARGS 
+            });
             const page = await browser.newPage();
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
             
@@ -425,7 +421,7 @@ async function extractStoreImages(targetUrl) {
                     await page.goto(linksArray[i], { waitUntil: 'domcontentloaded', timeout: 10000 });
                     const prodImages = await page.evaluate((urlProd) => {
                         return Array.from(document.querySelectorAll('img'))
-                            .filter(img => (img.naturalWidth > 150 || img.width > 150)) // Descartar logos e iconos
+                            .filter(img => (img.naturalWidth > 150 || img.width > 150))
                             .map(img => ({
                                 url: img.src || img.dataset.src || img.dataset.lazySrc,
                                 ancho: img.naturalWidth || img.width || 0,
@@ -445,7 +441,6 @@ async function extractStoreImages(targetUrl) {
 
     const finalImagesList = Array.from(uniqueImagesMap.values());
 
-    // 🌟 FASE 3: CALCULAR PESOS REALES (Sin descargar imágenes, peticiones HEAD)
     extractionProgress[urlLimpia].phase = '3/3: Calculando pesos reales de los archivos...';
     extractionProgress[urlLimpia].total = finalImagesList.length;
     
@@ -458,7 +453,6 @@ async function extractStoreImages(targetUrl) {
                 const sizeBytes = headRes.headers.get('content-length');
                 if (sizeBytes) {
                     const kb = parseInt(sizeBytes) / 1024;
-                    // Formatear a MB si pesa más de 1024 KB para mejor lectura
                     img.peso = kb > 1024 ? (kb / 1024).toFixed(2) + ' MB' : kb.toFixed(2) + ' KB';
                 } else {
                     img.peso = 'Desconocido';
@@ -472,7 +466,6 @@ async function extractStoreImages(targetUrl) {
     return finalImagesList;
 }
 
-// ENDPOINT PRINCIPAL (Genera CSV Limpio)
 app.post('/extract-images', async (req, res) => {
     const rawKey = req.headers['x-api-key'] || '';
     if (rawKey.trim() !== API_KEY) return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -484,7 +477,6 @@ app.post('/extract-images', async (req, res) => {
         const images = await extractStoreImages(url);
         if (images.length === 0) return res.status(404).json({ success: false, error: 'No se encontraron imágenes de productos.' });
 
-        // CSV ACTUALIZADO ESTRICTO: Origen, Nombre, Peso, Ancho, Alto, URL
         let csv = 'Origen,Nombre de Archivo,Peso,Ancho (px),Alto (px),URL\n';
         images.forEach(img => { 
             csv += `"${img.origen}","${img.nombre}","${img.peso}",${img.ancho},${img.alto},"${img.url}"\n`; 
@@ -497,7 +489,6 @@ app.post('/extract-images', async (req, res) => {
     }
 });
 
-// ENDPOINT: CONSULTAR PROGRESO DESDE EL FRONTEND
 app.get('/extract-progress', (req, res) => {
     const { url } = req.query;
     if (!url) return res.json({ total: 0, scanned: 0, phase: 'Esperando...' });
@@ -514,7 +505,6 @@ app.listen(PORT, () => {
   console.log(`Bot escuchando comandos manuales en el puerto ${PORT}`);
 });
 
-// Cron programado a las 9:00 AM y 6:00 PM
 cron.schedule('0 9,18 * * *', () => {
   console.log("[Cron] Ejecutando analisis automatico programado...");
   ejecutarAnalisisAutomated();
@@ -522,7 +512,6 @@ cron.schedule('0 9,18 * * *', () => {
   timezone: "America/Lima"
 });
 
-// Endpoint para procesar una URL individual on-demand
 app.post('/run-single', async (req, res) => {
     const rawKey = req.headers['x-api-key'] || '';
     if (rawKey.trim() !== API_KEY) {
@@ -551,20 +540,15 @@ async function performPuppeteerAnalysis(targetUrl) {
         urlLimpia = `https://${urlLimpia}`;
     }
 
+    // 🌟 SE APLICA LA CONFIGURACIÓN MAESTRA
     const browser = await puppeteer.launch({
         headless: 'new',
-        args: [
-            '--enable-precise-memory-info',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled'
-        ]
+        args: RAILWAY_PUPPETEER_ARGS
     });
     
     try {
         const page = await browser.newPage();
         
-        // Emulacion de red (3G Fast / 4G)
         const client = await page.target().createCDPSession();
         await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
         await client.send('Network.emulateNetworkConditions', {
@@ -578,7 +562,6 @@ async function performPuppeteerAnalysis(targetUrl) {
         await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
         await page.setCacheEnabled(false);
 
-        // 🌟 SOLUCIÓN BLINDADA PARA ANÁLISIS INDIVIDUAL
         try {
             await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 45000 });
             await new Promise(r => setTimeout(r, 4000));
@@ -593,7 +576,6 @@ async function performPuppeteerAnalysis(targetUrl) {
             let totalBytes = 0;
             resources.forEach(res => { if (res.transferSize) totalBytes += res.transferSize; });
             
-            // Salvaguarda si el evento load nunca disparó por el timeout
             const currentMs = Math.round(performance.now());
             
             return {
