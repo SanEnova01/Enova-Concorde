@@ -33,7 +33,6 @@ const getInitialStatuses = () => {
   return st;
 };
 
-// URL pública para que Gmail pueda leer la imagen
 const URL_BASE_PRODUCCION = 'https://enova-concorde-staging-2027.up.railway.app'; 
 
 function ReportGenerator() {
@@ -45,7 +44,6 @@ function ReportGenerator() {
   const [images, setImages] = useState({ scan: null, waterfall: null, flow: null });
   const [plugins, setPlugins] = useState({ req: '', ok: '', del: '' });
   
-  // Nuevo estado para controlar qué pestaña se ve (pdf o email)
   const [activeTab, setActiveTab] = useState('pdf');
 
   const [showTexts, setShowTexts] = useState({
@@ -149,10 +147,6 @@ function ReportGenerator() {
   return (
     <div className="rg-container">
       <div className="rg-sidebar">
-        
-        {/* ==================================
-            CONFIGURACIÓN GENERAL
-        ================================== */}
         <h2 className="rg-panel-title">Configuración</h2>
         <div className="rg-form-group">
           <label>Plataforma / Cliente</label>
@@ -163,9 +157,6 @@ function ReportGenerator() {
           <input type="text" className="rg-input" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nombre del cliente" style={{marginTop: '10px'}} />
         </div>
 
-        {/* ==================================
-            SECCIÓN 1
-        ================================== */}
         <h2 className="rg-panel-title">1. Monitoreo (Estados)</h2>
         {sec1Data.map(cat => (
           <div className="rg-form-group" key={cat.cat}>
@@ -189,9 +180,6 @@ function ReportGenerator() {
           </div>
         ))}
 
-        {/* ==================================
-            SECCIÓN 2: SEGURIDAD
-        ================================== */}
         <h2 className="rg-panel-title">2. Seguridad y Fiabilidad</h2>
         <div className="rg-form-group">
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '6px' }}>
@@ -215,9 +203,6 @@ function ReportGenerator() {
           <button type="button" className="rg-input" style={{backgroundColor: '#4b5563', cursor:'pointer'}} onClick={() => fileInputRefs.scan.current.click()}>📂 Subir archivo</button>
         </div>
 
-        {/* ==================================
-            SECCIÓN 3: RENDIMIENTO
-        ================================== */}
         <h2 className="rg-panel-title">3. Análisis de Rendimiento</h2>
         <div className="rg-form-group">
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '6px' }}>
@@ -260,9 +245,6 @@ function ReportGenerator() {
           <button type="button" className="rg-input" style={{backgroundColor: '#4b5563', cursor:'pointer'}} onClick={() => fileInputRefs.flow.current.click()}>📂 Subir archivo</button>
         </div>
 
-        {/* ==================================
-            SECCIÓN 4: PLUGINS
-        ================================== */}
         {platform === 'woo' && (
           <>
             <h2 className="rg-panel-title">4. Plugins (Solo Woo)</h2>
@@ -279,9 +261,6 @@ function ReportGenerator() {
 
         <button type="button" className="rg-btn-export" style={{ marginBottom: '15px' }} onClick={exportPDF}>Generar PDF</button>
 
-        {/* ==================================
-            SECCIÓN 5: CORREO
-        ================================== */}
         <h2 className="rg-panel-title">5. Adjunto / Correo</h2>
         <div className="rg-form-group" style={{ textAlign: 'center' }}>
           <p style={{ fontSize: '12px', color: '#ccc', margin: '0 0 10px 0' }}>El correo se copiará automáticamente con el ícono de Concorde y el formato listo para enviar por Gmail.</p>
@@ -289,16 +268,13 @@ function ReportGenerator() {
             📋 Copiar Diseño para Gmail
           </button>
         </div>
-
       </div>
 
-      {/* ==================================
-          ÁREA DEL DOCUMENTO Y PESTAÑAS
-      ================================== */}
-      <div className="rg-preview-area" style={{ flexDirection: 'column', alignItems: 'center' }}>
+      {/* ÁREA DEL DOCUMENTO Y PESTAÑAS (Fijando el overflow para evitar recortes) */}
+      <div className="rg-preview-area" style={{ display: 'block', padding: '20px', overflowX: 'auto', overflowY: 'auto' }}>
         
-        {/* TABS (BOTONES) */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', width: '100%', justifyContent: 'center' }}>
+        {/* TABS */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #444', paddingBottom: '15px' }}>
           <button 
             type="button"
             onClick={() => setActiveTab('pdf')}
@@ -316,8 +292,8 @@ function ReportGenerator() {
         </div>
 
         {/* VISTA 1: PDF PREVIEW */}
-        <div style={{ display: activeTab === 'pdf' ? 'block' : 'none' }}>
-          <div id="document-to-print">
+        <div style={{ display: activeTab === 'pdf' ? 'block' : 'none', minWidth: '210mm' }}>
+          <div id="document-to-print" style={{ margin: '0 auto' }}>
             <div className="header-container">
               <div>
                 <h2 className="logo-title">ENOVA AGENCY</h2>
@@ -411,8 +387,8 @@ function ReportGenerator() {
         </div>
 
         {/* VISTA 2: EMAIL PREVIEW */}
-        <div style={{ display: activeTab === 'email' ? 'block' : 'none', width: '210mm' }}>
-            <div style={{ background: '#F1F0EA', padding: '40px', borderRadius: '8px' }}>
+        <div style={{ display: activeTab === 'email' ? 'block' : 'none', minWidth: '600px' }}>
+            <div style={{ background: '#F1F0EA', padding: '40px', borderRadius: '8px', margin: '0 auto', maxWidth: '800px' }}>
                 <table ref={emailTableRef} align="center" border="0" cellPadding="0" cellSpacing="0" width="100%" style={{ maxWidth: '600px', backgroundColor: '#ffffff', border: '3px solid #000000', boxShadow: '6px 6px 0px #000000', borderCollapse: 'collapse', fontFamily: 'Arial, Helvetica, sans-serif', color: '#111' }}>
                     <tbody>
                         <tr>
