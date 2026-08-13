@@ -107,7 +107,9 @@ function AdminLayout({ children }) {
       allowed: ['super admin', 'admin'],
       subItems: [
         { path: '/admin/analyzer', label: 'Concorde Analyzer' },
+        { path: '/admin/reportes', label: 'Generador de reportes' },
         { path: '/admin/extractor', label: 'Extractor de Imágenes' }
+        
       ]
     },
 
