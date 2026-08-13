@@ -165,10 +165,12 @@ async function ejecutarAnalisisAutomated() {
       await page.setCacheEnabled(false);
 
       try {
-        await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 }); // Reducido a 30s
         await new Promise(r => setTimeout(r, 4000));
       } catch (navError) {
         console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción de métricas...`);
+        // 🌟 FIX: Forzamos a la página a detener las descargas pesadas para que no congele a Puppeteer
+        await page.evaluate(() => window.stop()).catch(() => {});
       }
 
       const datosReporte = await page.evaluate(() => {
@@ -268,7 +270,8 @@ async function enviarHeartbeat() {
   }
 }
 
-setInterval(enviarHeartbeat, 30 * 60 * 1000);
+// 🌟 FIX: Enviar latidos cada 1 minuto (60,000 ms) para que el backend nunca lo pierda de vista
+setInterval(enviarHeartbeat, 60 * 1000);
 
 setTimeout(() => {
     enviarHeartbeat();
@@ -563,10 +566,12 @@ async function performPuppeteerAnalysis(targetUrl) {
         await page.setCacheEnabled(false);
 
         try {
-            await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 45000 });
+            await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
             await new Promise(r => setTimeout(r, 4000));
         } catch (navError) {
             console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción de métricas...`);
+            // 🌟 FIX: Forzamos a la página a detener las descargas pesadas
+            await page.evaluate(() => window.stop()).catch(() => {});
         }
         
         const pageMetrics = await page.evaluate(() => {

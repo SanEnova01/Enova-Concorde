@@ -93,7 +93,7 @@ class HubspotService {
           await TicketRepository.create({
             name: props.subject || 'Ticket de HubSpot (Sin Asunto)',
             description: `[HUBSPOT_ID: ${hsId}]\nFecha origen: ${props.createdate}\n\n${ticketContent}`,
-            store_id: defaultStore.id,
+            store_id: 'enova.agency', // 🌟 FIX: Va directo al tablero de la agencia
             assigned_to: null,
             priority: 'MEDIUM',
             task_type: 'CONSULTA'

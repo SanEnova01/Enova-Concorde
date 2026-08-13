@@ -54,8 +54,8 @@ class TicketRepository {
 
       let finalStoreId = ticketData.store_id;
       if (!finalStoreId || finalStoreId === 'null') {
-        const defaultStore = await db('stores').first();
-        finalStoreId = defaultStore ? defaultStore.id : 'enova.agency';
+        // 🌟 FIX: Asignar al buzón central por defecto, nunca a un cliente al azar
+        finalStoreId = 'enova.agency';
       }
 
       const newTicket = await db.transaction(async (trx) => {
