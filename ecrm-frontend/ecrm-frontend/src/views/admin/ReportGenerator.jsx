@@ -33,8 +33,6 @@ const getInitialStatuses = () => {
   return st;
 };
 
-const URL_BASE_PRODUCCION = 'https://enova-concorde-staging-2027.up.railway.app'; 
-
 function ReportGenerator() {
   const [platform, setPlatform] = useState('woo');
   const [clientName, setClientName] = useState('Florería San Borja');
@@ -44,6 +42,7 @@ function ReportGenerator() {
   const [images, setImages] = useState({ scan: null, waterfall: null, flow: null });
   const [plugins, setPlugins] = useState({ req: '', ok: '', del: '' });
   
+  // Pestaña activa (pdf o email)
   const [activeTab, setActiveTab] = useState('pdf');
 
   const [showTexts, setShowTexts] = useState({
@@ -63,6 +62,8 @@ function ReportGenerator() {
 
   const exportPDF = () => {
     const element = document.getElementById('document-to-print');
+    if (!element) return;
+    
     const nameSafe = clientName.replace(/\s+/g, '_') || 'Reporte';
     const opt = {
         margin:       [0, 0, 0, 0], 
@@ -146,7 +147,9 @@ function ReportGenerator() {
 
   return (
     <div className="rg-container">
+      {/* PANEL LATERAL */}
       <div className="rg-sidebar">
+        
         <h2 className="rg-panel-title">Configuración</h2>
         <div className="rg-form-group">
           <label>Plataforma / Cliente</label>
@@ -260,188 +263,199 @@ function ReportGenerator() {
         )}
 
         <button type="button" className="rg-btn-export" style={{ marginBottom: '15px' }} onClick={exportPDF}>Generar PDF</button>
-
-        <h2 className="rg-panel-title">5. Adjunto / Correo</h2>
-        <div className="rg-form-group" style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: '12px', color: '#ccc', margin: '0 0 10px 0' }}>El correo se copiará automáticamente con el ícono de Concorde y el formato listo para enviar por Gmail.</p>
-          <button type="button" className="rg-btn-export" style={{ backgroundColor: '#3b82f6' }} onClick={copyToGmail}>
-            📋 Copiar Diseño para Gmail
-          </button>
-        </div>
       </div>
 
-      {/* ÁREA DEL DOCUMENTO Y PESTAÑAS (Fijando el overflow para evitar recortes) */}
-      <div className="rg-preview-area" style={{ display: 'block', padding: '20px', overflowX: 'auto', overflowY: 'auto' }}>
+      {/* ÁREA PRINCIPAL DERECHA */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#555', overflow: 'hidden' }}>
         
-        {/* TABS */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #444', paddingBottom: '15px' }}>
+        {/* TABS SUPERIORES FIJOS */}
+        <div style={{ display: 'flex', gap: '10px', padding: '15px 40px', backgroundColor: '#2d2d2d', borderBottom: '2px solid #000' }}>
           <button 
             type="button"
             onClick={() => setActiveTab('pdf')}
-            style={{ padding: '10px 20px', backgroundColor: activeTab === 'pdf' ? '#10b981' : '#333', color: activeTab === 'pdf' ? '#000' : '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}
+            style={{ padding: '10px 20px', backgroundColor: activeTab === 'pdf' ? '#10b981' : 'transparent', color: activeTab === 'pdf' ? '#000' : '#fff', border: activeTab === 'pdf' ? 'none' : '1px solid #777', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}
           >
             📄 Vista Previa PDF
           </button>
           <button 
             type="button"
             onClick={() => setActiveTab('email')}
-            style={{ padding: '10px 20px', backgroundColor: activeTab === 'email' ? '#3b82f6' : '#333', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}
+            style={{ padding: '10px 20px', backgroundColor: activeTab === 'email' ? '#3b82f6' : 'transparent', color: '#fff', border: activeTab === 'email' ? 'none' : '1px solid #777', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}
           >
             ✉️ Plantilla de Correo
           </button>
         </div>
 
-        {/* VISTA 1: PDF PREVIEW */}
-        <div style={{ display: activeTab === 'pdf' ? 'block' : 'none', minWidth: '210mm' }}>
-          <div id="document-to-print" style={{ margin: '0 auto' }}>
-            <div className="header-container">
-              <div>
-                <h2 className="logo-title">ENOVA AGENCY</h2>
-                <h3 className="logo-subtitle">Concorde Radar // Soporte Web</h3>
+        {/* ÁREA CON SCROLL PARA LA VISTA PREVIA ACTIVA */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '40px', display: 'flex', justifyContent: 'center' }}>
+          
+          {/* ==================================
+              VISTA 1: PDF PREVIEW
+          ================================== */}
+          <div style={{ display: activeTab === 'pdf' ? 'block' : 'none', minWidth: '210mm', maxWidth: '210mm' }}>
+            <div id="document-to-print" style={{ margin: '0 auto' }}>
+              <div className="header-container">
+                <div>
+                  <h2 className="logo-title">ENOVA AGENCY</h2>
+                  <h3 className="logo-subtitle">Concorde Radar // Soporte Web</h3>
+                </div>
+                <div style={{ fontWeight: 'bold', fontSize: '9pt', textTransform: 'uppercase' }}>Reporte Mensual</div>
               </div>
-              <div style={{ fontWeight: 'bold', fontSize: '9pt', textTransform: 'uppercase' }}>Reporte Mensual</div>
-            </div>
 
-            <div className="tag-sup">CLIENTE: {clientName || '...'}</div>
-            <h1>INFORME DE SOPORTE Y MANTENIMIENTO</h1>
-            <p style={{ fontSize: '10pt', marginBottom: '20px' }}>
-              Hola equipo de <span>{clientName || '...'}</span>,<br/>
-              Te compartimos el informe de las acciones de soporte y mantenimiento preventivo realizadas para el e-commerce durante esta temporada. El estado general del sitio es óptimo, seguro y opera con normalidad.
-            </p>
+              <div className="tag-sup">CLIENTE: {clientName || '...'}</div>
+              <h1>INFORME DE SOPORTE Y MANTENIMIENTO</h1>
+              <p style={{ fontSize: '10pt', marginBottom: '20px' }}>
+                Hola equipo de <span>{clientName || '...'}</span>,<br/>
+                Te compartimos el informe de las acciones de soporte y mantenimiento preventivo realizadas para el e-commerce durante esta temporada. El estado general del sitio es óptimo, seguro y opera con normalidad.
+              </p>
 
-            <div className="card">
-              <h2 className="card-header">1. Monitoreo Proactivo y Prevención de Incidencias</h2>
-              <div style={{ display: 'flex', gap: '15px' }}>
-                {['left', 'right'].map(col => (
-                  <div style={{ flex: 1 }} key={col}>
-                    {sec1Data.filter(c => c.column === col).map(category => (
-                      <div key={category.cat}>
-                        <div className="section-title">{category.cat}</div>
-                        <ul className="item-list-none">
-                          {category.items.map(item => {
-                            const st = statuses[item.id];
-                            const bg = st.status === 'G' ? 'bg-g' : (st.status === 'Y' ? 'bg-y' : 'bg-r');
-                            const tx = st.status === 'G' ? 'OK' : (st.status === 'Y' ? 'WARN' : 'CRIT');
-                            return (
-                              <li key={item.id}>
-                                <div><span className={`badge ${bg}`}>{tx}</span></div>
-                                <div><b>{item.label}:</b> {st.text}</div>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="card">
-              <h2 className="card-header">2. Verificaciones de Seguridad y Fiabilidad</h2>
-              
-              {showTexts.webScan && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Integridad (Web Scan):</b> Se realizaron escaneos externos que resultaron negativos para malware, inyecciones de código o inclusiones en listas negras.</div>}
-              
-              {images.scan && <div className="doc-image-container" style={{display:'block'}}><img src={images.scan} alt="Scan"/></div>}
-              
-              {showTexts.pentest && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Pruebas Pentesting:</b> Se ejecutaron pruebas automatizadas sobre los puntos de entrada clave (formularios, checkout) para verificar la robustez del sitio ante vectores de ataque comunes.</div>}
-              
-              {showTexts.backup && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Verificación de Backups:</b> Se validó la integridad de la última copia de seguridad automática.</div>}
-            </div>
-
-            <div className="card">
-              <h2 className="card-header">3. Análisis de Rendimiento y Velocidad de Carga</h2>
-              
-              {showTexts.speedIntro && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}>La velocidad del sitio es un factor clave para la conversión y el SEO.</div>}
-              
-              {showTexts.network && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Carga de Red:</b> Se realizó un análisis del "waterfall" de carga de red del sitio. Los resultados muestran un tiempo de carga completo de <b>{timeLoad || '0'} seg</b> y un DOMContentLoaded en <b>{timeDom || '0'} seg</b>. Estos tiempos se encuentran dentro de los rangos óptimos.</div>}
-              
-              {images.waterfall && <div className="doc-image-container" style={{display:'block'}}><img src={images.waterfall} alt="Waterfall"/></div>}
-              
-              {showTexts.continuity && <div style={{ fontSize: '9.5pt', marginBottom: '10px', marginTop: '15px' }}><b>Garantía de Continuidad y Flujo Comercial:</b> Se ha realizado un seguimiento diario para verificar que los tiempos de respuesta se mantienen correctos y funcionales, tal como se muestra en la gráfica. Donde el DOM (barras rojas) es el tiempo que tarda la estructura en estar lista, y Load (barras azules) es la descarga total.</div>}
-              
-              {images.flow && <div className="doc-image-container" style={{display:'block'}}><img src={images.flow} alt="Flow"/></div>}
-            </div>
-
-            {platform === 'woo' && (
               <div className="card">
-                <h2 className="card-header">4. Actualización de Componentes y Plugins</h2>
-                <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}>Para garantizar la seguridad y compatibilidad del sitio, se han actualizado los siguientes componentes a sus últimas versiones estables:</div>
-                
-                <div className="section-title" style={{ background:'#EF4444' }}>A. Plugins con acción requerida</div>
-                <ul className="plugin-ul">{renderPluginList(plugins.req)}</ul>
-
-                <div className="section-title" style={{ background:'#10b981', color:'#000' }}>B. Plugins al día</div>
-                <ul className="plugin-ul">{renderPluginList(plugins.ok)}</ul>
-
-                <div className="section-title" style={{ background:'#f59e0b', color:'#000' }}>C. Plugins Inactivos (Acción Recomendada: Desinstalar)</div>
-                <ul className="plugin-ul">{renderPluginList(plugins.del)}</ul>
+                <h2 className="card-header">1. Monitoreo Proactivo y Prevención de Incidencias</h2>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  {['left', 'right'].map(col => (
+                    <div style={{ flex: 1 }} key={col}>
+                      {sec1Data.filter(c => c.column === col).map(category => (
+                        <div key={category.cat}>
+                          <div className="section-title">{category.cat}</div>
+                          <ul className="item-list-none">
+                            {category.items.map(item => {
+                              const st = statuses[item.id];
+                              const bg = st.status === 'G' ? 'bg-g' : (st.status === 'Y' ? 'bg-y' : 'bg-r');
+                              const tx = st.status === 'G' ? 'OK' : (st.status === 'Y' ? 'WARN' : 'CRIT');
+                              return (
+                                <li key={item.id}>
+                                  <div><span className={`badge ${bg}`}>{tx}</span></div>
+                                  <div><b>{item.label}:</b> {st.text}</div>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
 
-            <div style={{ borderTop: '3px solid #000', paddingTop: '10px', fontWeight: 'bold', fontSize: '9pt', textAlign: 'center', marginTop:'20px' }}>
-                El sitio se encuentra estable y protegido. No se requieren acciones por su parte.<br/>
-                <span style={{ fontWeight:'normal', fontSize:'8.5pt' }}>En caso de necesitar una reunión para ayudarlos con la interpretación, por favor indicarnos su disponibilidad.<br/>Quedamos a su disposición. Saludos cordiales.</span>
+              <div className="card">
+                <h2 className="card-header">2. Verificaciones de Seguridad y Fiabilidad</h2>
+                
+                {showTexts.webScan && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Integridad (Web Scan):</b> Se realizaron escaneos externos que resultaron negativos para malware, inyecciones de código o inclusiones en listas negras.</div>}
+                
+                {images.scan && <div className="doc-image-container" style={{display:'block'}}><img src={images.scan} alt="Scan"/></div>}
+                
+                {showTexts.pentest && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Pruebas Pentesting:</b> Se ejecutaron pruebas automatizadas sobre los puntos de entrada clave (formularios, checkout) para verificar la robustez del sitio ante vectores de ataque comunes.</div>}
+                
+                {showTexts.backup && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Verificación de Backups:</b> Se validó la integridad de la última copia de seguridad automática.</div>}
+              </div>
+
+              <div className="card">
+                <h2 className="card-header">3. Análisis de Rendimiento y Velocidad de Carga</h2>
+                
+                {showTexts.speedIntro && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}>La velocidad del sitio es un factor clave para la conversión y el SEO.</div>}
+                
+                {showTexts.network && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Carga de Red:</b> Se realizó un análisis del "waterfall" de carga de red del sitio. Los resultados muestran un tiempo de carga completo de <b>{timeLoad || '0'} seg</b> y un DOMContentLoaded en <b>{timeDom || '0'} seg</b>. Estos tiempos se encuentran dentro de los rangos óptimos.</div>}
+                
+                {images.waterfall && <div className="doc-image-container" style={{display:'block'}}><img src={images.waterfall} alt="Waterfall"/></div>}
+                
+                {showTexts.continuity && <div style={{ fontSize: '9.5pt', marginBottom: '10px', marginTop: '15px' }}><b>Garantía de Continuidad y Flujo Comercial:</b> Se ha realizado un seguimiento diario para verificar que los tiempos de respuesta se mantienen correctos y funcionales, tal como se muestra en la gráfica. Donde el DOM (barras rojas) es el tiempo que tarda la estructura en estar lista, y Load (barras azules) es la descarga total.</div>}
+                
+                {images.flow && <div className="doc-image-container" style={{display:'block'}}><img src={images.flow} alt="Flow"/></div>}
+              </div>
+
+              {platform === 'woo' && (
+                <div className="card">
+                  <h2 className="card-header">4. Actualización de Componentes y Plugins</h2>
+                  <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}>Para garantizar la seguridad y compatibilidad del sitio, se han actualizado los siguientes componentes a sus últimas versiones estables:</div>
+                  
+                  <div className="section-title" style={{ background:'#EF4444' }}>A. Plugins con acción requerida</div>
+                  <ul className="plugin-ul">{renderPluginList(plugins.req)}</ul>
+
+                  <div className="section-title" style={{ background:'#10b981', color:'#000' }}>B. Plugins al día</div>
+                  <ul className="plugin-ul">{renderPluginList(plugins.ok)}</ul>
+
+                  <div className="section-title" style={{ background:'#f59e0b', color:'#000' }}>C. Plugins Inactivos (Acción Recomendada: Desinstalar)</div>
+                  <ul className="plugin-ul">{renderPluginList(plugins.del)}</ul>
+                </div>
+              )}
+
+              <div style={{ borderTop: '3px solid #000', paddingTop: '10px', fontWeight: 'bold', fontSize: '9pt', textAlign: 'center', marginTop:'20px' }}>
+                  El sitio se encuentra estable y protegido. No se requieren acciones por su parte.<br/>
+                  <span style={{ fontWeight:'normal', fontSize:'8.5pt' }}>En caso de necesitar una reunión para ayudarlos con la interpretación, por favor indicarnos su disponibilidad.<br/>Quedamos a su disposición. Saludos cordiales.</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* VISTA 2: EMAIL PREVIEW */}
-        <div style={{ display: activeTab === 'email' ? 'block' : 'none', minWidth: '600px' }}>
-            <div style={{ background: '#F1F0EA', padding: '40px', borderRadius: '8px', margin: '0 auto', maxWidth: '800px' }}>
-                <table ref={emailTableRef} align="center" border="0" cellPadding="0" cellSpacing="0" width="100%" style={{ maxWidth: '600px', backgroundColor: '#ffffff', border: '3px solid #000000', boxShadow: '6px 6px 0px #000000', borderCollapse: 'collapse', fontFamily: 'Arial, Helvetica, sans-serif', color: '#111' }}>
-                    <tbody>
-                        <tr>
-                            <td style={{ padding: '20px', borderBottom: '3px solid #000000' }}>
-                                <table border="0" cellPadding="0" cellSpacing="0" width="100%">
-                                    <tbody>
-                                        <tr>
-                                            <td width="55" align="left" valign="middle">
-                                                <img src={`${URL_BASE_PRODUCCION}/favicon.svg`} alt="Concorde Icon" width="45" height="45" style={{ display: 'block', borderRadius: '4px' }} />
-                                            </td>
-                                            <td align="left" valign="middle">
-                                                <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.5px' }}>ENOVA AGENCY</h2>
-                                                <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#555', textTransform: 'uppercase', letterSpacing: '1px' }}>Soporte Web / Concorde Radar</p>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style={{ padding: '35px 25px' }}>
-                                <div style={{ display: 'inline-block', border: '2px solid #000', padding: '4px 10px', fontWeight: 'bold', fontSize: '10px', textTransform: 'uppercase', marginBottom: '15px', background: '#10b981', color: '#000' }}>
-                                    REPORTE MENSUAL ADJUNTO
-                                </div>
-                                <p style={{ margin: '0 0 15px 0', fontSize: '14.5px', lineHeight: 1.6, color: '#111' }}>
-                                    Hola <strong>Equipo</strong>,<br/><br/>
-                                    Te compartimos el informe de las acciones de soporte y mantenimiento preventivo realizadas para el e-commerce durante esta temporada. El estado general del sitio es óptimo, seguro y opera con normalidad.<br/><br/>
-                                    El enfoque de nuestro servicio es el monitoreo constante para prevenir los problemas clave que impactan a las tiendas online. A continuación, el detalle:
-                                </p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style={{ padding: '25px', backgroundColor: '#f1f0ea', borderTop: '3px solid #000000' }}>
-                                <table border="0" cellPadding="0" cellSpacing="0" width="100%">
-                                    <tbody>
-                                        <tr>
-                                            <td width="35" align="left" valign="top" style={{ fontSize: '24px' }}>💬</td>
-                                            <td align="left">
-                                                <h3 style={{ margin: '0 0 5px 0', fontSize: '13px', fontWeight: 900, textTransform: 'uppercase' }}>¿Necesitan ayuda con la interpretación?</h3>
-                                                <p style={{ margin: 0, fontSize: '12px', lineHeight: 1.5, color: '#333' }}>
-                                                    Si tienen dudas con alguna métrica o requieren revisar los detalles, <strong>pueden responder directamente a este correo</strong> o comunicarse a nuestros números de atención.
-                                                </p>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+          {/* ==================================
+              VISTA 2: EMAIL PREVIEW
+          ================================== */}
+          <div style={{ display: activeTab === 'email' ? 'flex' : 'none', width: '100%', maxWidth: '800px', flexDirection: 'column', alignItems: 'center' }}>
+            
+            {/* BOTÓN COPIAR */}
+            <div style={{ textAlign: 'center', marginBottom: '20px', background: '#2d2d2d', padding: '20px', borderRadius: '8px', width: '100%' }}>
+              <p style={{ fontSize: '14px', color: '#ccc', margin: '0 0 15px 0' }}>El correo se copiará automáticamente con el ícono de Concorde y el formato listo para enviar por Gmail.</p>
+              <button type="button" className="rg-btn-export" style={{ backgroundColor: '#3b82f6', width: 'auto', padding: '10px 30px' }} onClick={copyToGmail}>
+                📋 Copiar Diseño para Gmail
+              </button>
             </div>
-        </div>
 
+            {/* TABLA DEL CORREO */}
+            <div style={{ background: '#F1F0EA', padding: '40px', borderRadius: '8px', width: '100%' }}>
+              <table ref={emailTableRef} align="center" border="0" cellPadding="0" cellSpacing="0" width="100%" style={{ maxWidth: '600px', backgroundColor: '#ffffff', border: '3px solid #000000', boxShadow: '6px 6px 0px #000000', borderCollapse: 'collapse', fontFamily: 'Arial, Helvetica, sans-serif', color: '#111' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '20px', borderBottom: '3px solid #000000' }}>
+                      <table border="0" cellPadding="0" cellSpacing="0" width="100%">
+                        <tbody>
+                          <tr>
+                            <td width="55" align="left" valign="middle">
+                              <img src="/favicon.svg" alt="Enova Concord Logo" width="45" height="45" style={{ display: 'block', borderRadius: '4px', objectFit: 'contain' }} />
+                            </td>
+                            <td align="left" valign="middle">
+                              <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.5px' }}>ENOVA AGENCY</h2>
+                              <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#555', textTransform: 'uppercase', letterSpacing: '1px' }}>Soporte Web / Concorde Radar</p>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '35px 25px' }}>
+                      <div style={{ display: 'inline-block', border: '2px solid #000', padding: '4px 10px', fontWeight: 'bold', fontSize: '10px', textTransform: 'uppercase', marginBottom: '15px', background: '#10b981', color: '#000' }}>
+                        REPORTE MENSUAL ADJUNTO
+                      </div>
+                      <p style={{ margin: '0 0 15px 0', fontSize: '14.5px', lineHeight: 1.6, color: '#111' }}>
+                        Hola <strong>Equipo</strong>,<br/><br/>
+                        Te compartimos el informe de las acciones de soporte y mantenimiento preventivo realizadas para el e-commerce durante esta temporada. El estado general del sitio es óptimo, seguro y opera con normalidad.<br/><br/>
+                        El enfoque de nuestro servicio es el monitoreo constante para prevenir los problemas clave que impactan a las tiendas online. A continuación, el detalle:
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '25px', backgroundColor: '#f1f0ea', borderTop: '3px solid #000000' }}>
+                      <table border="0" cellPadding="0" cellSpacing="0" width="100%">
+                        <tbody>
+                          <tr>
+                            <td width="35" align="left" valign="top" style={{ fontSize: '24px' }}>💬</td>
+                            <td align="left">
+                              <h3 style={{ margin: '0 0 5px 0', fontSize: '13px', fontWeight: 900, textTransform: 'uppercase' }}>¿Necesitan ayuda con la interpretación?</h3>
+                              <p style={{ margin: 0, fontSize: '12px', lineHeight: 1.5, color: '#333' }}>
+                                Si tienen dudas con alguna métrica o requieren revisar los detalles, <strong>pueden responder directamente a este correo</strong> o comunicarse a nuestros números de atención.
+                              </p>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+        </div>
       </div>
     </div>
   );
