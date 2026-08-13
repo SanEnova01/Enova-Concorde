@@ -41,8 +41,10 @@ function ReportGenerator() {
   const [statuses, setStatuses] = useState(getInitialStatuses());
   const [images, setImages] = useState({ scan: null, waterfall: null, flow: null });
   const [plugins, setPlugins] = useState({ req: '', ok: '', del: '' });
+  
+  // Nuevo estado para el logo del correo
+  const [emailLogo, setEmailLogo] = useState('https://via.placeholder.com/45x45/000000/FFFFFF?text=ICON');
 
-  // NUEVO: Estado para mostrar/ocultar textos del PDF
   const [showTexts, setShowTexts] = useState({
     webScan: true,
     pentest: true,
@@ -53,8 +55,11 @@ function ReportGenerator() {
   });
 
   const fileInputRefs = {
-    scan: useRef(null), waterfall: useRef(null), flow: useRef(null)
+    scan: useRef(null), waterfall: useRef(null), flow: useRef(null), emailLogo: useRef(null)
   };
+  
+  // Referencia para copiar el HTML del correo
+  const emailTableRef = useRef(null);
 
   const exportPDF = () => {
     const element = document.getElementById('document-to-print');
@@ -71,6 +76,25 @@ function ReportGenerator() {
     } else {
         alert("La librería PDF aún no ha cargado. Verifica el script en index.html");
     }
+  };
+
+  const copyToGmail = () => {
+    const table = emailTableRef.current;
+    const range = document.createRange();
+    range.selectNode(table);
+    
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    try {
+        document.execCommand('copy');
+        alert('¡Diseño copiado con éxito! Ve a Gmail y presiona Ctrl+V');
+    } catch(err) {
+        alert('Hubo un error al intentar copiar. Presiona Ctrl+C manualmente.');
+    }
+    
+    selection.removeAllRanges();
   };
 
   const handleStatusChange = (id, color, defText) => {
@@ -94,7 +118,13 @@ function ReportGenerator() {
   const handleImageRead = (file, key) => {
     if (!file || !file.type.startsWith('image/')) return;
     const reader = new FileReader();
-    reader.onload = (e) => setImages(prev => ({ ...prev, [key]: e.target.result }));
+    reader.onload = (e) => {
+      if(key === 'emailLogo') {
+        setEmailLogo(e.target.result);
+      } else {
+        setImages(prev => ({ ...prev, [key]: e.target.result }));
+      }
+    };
     reader.readAsDataURL(file);
   };
 
@@ -207,7 +237,6 @@ function ReportGenerator() {
             Mostrar texto: "Garantía Flujo Comercial"
           </label>
 
-          {/* MOVIDO AQUÍ */}
           <label style={{ borderTop: '1px solid #555', paddingTop: '15px' }}>Métricas Obtenidas (Segundos)</label>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
             <div>
@@ -252,13 +281,31 @@ function ReportGenerator() {
           </>
         )}
 
-        <button type="button" className="rg-btn-export" onClick={exportPDF}>Generar PDF</button>
+        <button type="button" className="rg-btn-export" style={{ marginBottom: '15px' }} onClick={exportPDF}>Generar PDF</button>
+
+        {/* ==================================
+            SECCIÓN 5: CORREO
+        ================================== */}
+        <h2 className="rg-panel-title">5. Adjunto / Correo</h2>
+        <div className="rg-form-group">
+          <label>Icono Concorde (Para el correo)</label>
+          <div className="rg-drop-zone" tabIndex="0" onPaste={(e) => handlePaste(e, 'emailLogo')} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, 'emailLogo')} onClick={() => fileInputRefs.emailLogo.current.click()} style={{ padding: '10px' }}>
+            <img src={emailLogo} alt="Icono Correo" style={{ display: 'block', margin: '0 auto', maxWidth: '45px', border: 'none' }}/>
+          </div>
+          <input type="file" ref={fileInputRefs.emailLogo} style={{display:'none'}} accept="image/*" onChange={(e) => handleImageRead(e.target.files[0], 'emailLogo')} />
+          <button type="button" className="rg-btn-export" style={{ backgroundColor: '#3b82f6', marginTop: '10px' }} onClick={copyToGmail}>
+            📋 Copiar Diseño para Gmail
+          </button>
+        </div>
+
       </div>
 
       {/* ==================================
           ÁREA DEL DOCUMENTO (PREVIEW)
       ================================== */}
-      <div className="rg-preview-area">
+      <div className="rg-preview-area" style={{ flexDirection: 'column', alignItems: 'center' }}>
+        
+        {/* PDF PREVIEW */}
         <div id="document-to-print">
           <div className="header-container">
             <div>
@@ -349,8 +396,65 @@ function ReportGenerator() {
               El sitio se encuentra estable y protegido. No se requieren acciones por su parte.<br/>
               <span style={{ fontWeight:'normal', fontSize:'8.5pt' }}>En caso de necesitar una reunión para ayudarlos con la interpretación, por favor indicarnos su disponibilidad.<br/>Quedamos a su disposición. Saludos cordiales.</span>
           </div>
-
         </div>
+
+        {/* EMAIL PREVIEW */}
+        <div style={{ marginTop: '40px', width: '210mm' }}>
+            <h3 style={{ color: '#fff', borderBottom: '1px solid #555', paddingBottom: '10px' }}>Vista Previa del Correo para Gmail</h3>
+            <div style={{ background: '#F1F0EA', padding: '40px', borderRadius: '8px' }}>
+                <table ref={emailTableRef} align="center" border="0" cellPadding="0" cellSpacing="0" width="100%" style={{ maxWidth: '600px', backgroundColor: '#ffffff', border: '3px solid #000000', boxShadow: '6px 6px 0px #000000', borderCollapse: 'collapse', fontFamily: 'Arial, Helvetica, sans-serif', color: '#111' }}>
+                    <tbody>
+                        <tr>
+                            <td style={{ padding: '20px', borderBottom: '3px solid #000000' }}>
+                                <table border="0" cellPadding="0" cellSpacing="0" width="100%">
+                                    <tbody>
+                                        <tr>
+                                            <td width="55" align="left" valign="middle">
+                                                <img src={emailLogo} alt="Concorde Icon" width="45" height="45" style={{ display: 'block', borderRadius: '4px' }} />
+                                            </td>
+                                            <td align="left" valign="middle">
+                                                <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.5px' }}>ENOVA AGENCY</h2>
+                                                <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#555', textTransform: 'uppercase', letterSpacing: '1px' }}>Soporte Web / Concorde Radar</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style={{ padding: '35px 25px' }}>
+                                <div style={{ display: 'inline-block', border: '2px solid #000', padding: '4px 10px', fontWeight: 'bold', fontSize: '10px', textTransform: 'uppercase', marginBottom: '15px', background: '#10b981', color: '#000' }}>
+                                    REPORTE MENSUAL ADJUNTO
+                                </div>
+                                <p style={{ margin: '0 0 15px 0', fontSize: '14.5px', lineHeight: 1.6, color: '#111' }}>
+                                    Hola <strong>Equipo</strong>,<br/><br/>
+                                    Te compartimos el informe de las acciones de soporte y mantenimiento preventivo realizadas para el e-commerce durante esta temporada. El estado general del sitio es óptimo, seguro y opera con normalidad.<br/><br/>
+                                    El enfoque de nuestro servicio es el monitoreo constante para prevenir los problemas clave que impactan a las tiendas online. A continuación, el detalle:
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style={{ padding: '25px', backgroundColor: '#f1f0ea', borderTop: '3px solid #000000' }}>
+                                <table border="0" cellPadding="0" cellSpacing="0" width="100%">
+                                    <tbody>
+                                        <tr>
+                                            <td width="35" align="left" valign="top" style={{ fontSize: '24px' }}>💬</td>
+                                            <td align="left">
+                                                <h3 style={{ margin: '0 0 5px 0', fontSize: '13px', fontWeight: 900, textTransform: 'uppercase' }}>¿Necesitan ayuda con la interpretación?</h3>
+                                                <p style={{ margin: 0, fontSize: '12px', lineHeight: 1.5, color: '#333' }}>
+                                                    Si tienen dudas con alguna métrica o requieren revisar los detalles, <strong>pueden responder directamente a este correo</strong> o comunicarse a nuestros números de atención.
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
       </div>
     </div>
   );
