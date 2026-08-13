@@ -42,6 +42,16 @@ function ReportGenerator() {
   const [images, setImages] = useState({ scan: null, waterfall: null, flow: null });
   const [plugins, setPlugins] = useState({ req: '', ok: '', del: '' });
 
+  // NUEVO: Estado para mostrar/ocultar textos del PDF
+  const [showTexts, setShowTexts] = useState({
+    webScan: true,
+    pentest: true,
+    backup: true,
+    speedIntro: true,
+    network: true,
+    continuity: true
+  });
+
   const fileInputRefs = {
     scan: useRef(null), waterfall: useRef(null), flow: useRef(null)
   };
@@ -77,6 +87,10 @@ function ReportGenerator() {
     setStatuses(prev => ({ ...prev, [id]: { ...prev[id], text: val } }));
   };
 
+  const toggleText = (key) => {
+    setShowTexts(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const handleImageRead = (file, key) => {
     if (!file || !file.type.startsWith('image/')) return;
     const reader = new FileReader();
@@ -109,6 +123,10 @@ function ReportGenerator() {
   return (
     <div className="rg-container">
       <div className="rg-sidebar">
+        
+        {/* ==================================
+            CONFIGURACIÓN GENERAL
+        ================================== */}
         <h2 className="rg-panel-title">Configuración</h2>
         <div className="rg-form-group">
           <label>Plataforma / Cliente</label>
@@ -119,15 +137,10 @@ function ReportGenerator() {
           <input type="text" className="rg-input" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nombre del cliente" style={{marginTop: '10px'}} />
         </div>
 
-        <div className="rg-form-group">
-          <label>Tiempos de Carga (Segundos)</label>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <input type="number" className="rg-input" value={timeLoad} onChange={e => setTimeLoad(e.target.value)} step="0.01" placeholder="Load" />
-            <input type="number" className="rg-input" value={timeDom} onChange={e => setTimeDom(e.target.value)} step="0.01" placeholder="DOM" />
-          </div>
-        </div>
-
-        <h2 className="rg-panel-title">Sección 1: Monitoreo</h2>
+        {/* ==================================
+            SECCIÓN 1
+        ================================== */}
+        <h2 className="rg-panel-title">1. Monitoreo (Estados)</h2>
         {sec1Data.map(cat => (
           <div className="rg-form-group" key={cat.cat}>
             <div style={{ fontWeight: 'bold', color: '#3b82f6', marginBottom: '10px' }}>{cat.cat}</div>
@@ -150,34 +163,84 @@ function ReportGenerator() {
           </div>
         ))}
 
-        <h2 className="rg-panel-title">Imágenes del Reporte</h2>
-        {['scan', 'waterfall', 'flow'].map((key, index) => {
-          const labels = ['1. Análisis de Integridad (Web Scan)', '2. Waterfall de Red', '3. Gráfica de DOM/Load (Flujo)'];
-          return (
-            <div className="rg-form-group" key={key}>
-              <label>{labels[index]}</label>
-              <div 
-                className="rg-drop-zone" 
-                tabIndex="0" 
-                onPaste={(e) => handlePaste(e, key)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => handleDrop(e, key)}
-              >
-                {!images[key] ? (
-                  <span>Haz clic aquí y presiona Ctrl+V<br/>o arrastra una imagen</span>
-                ) : (
-                  <img src={images[key]} alt="Preview" />
-                )}
-              </div>
-              <input type="file" ref={fileInputRefs[key]} style={{display:'none'}} accept="image/*" onChange={(e) => handleImageRead(e.target.files[0], key)} />
-              <button type="button" className="rg-input" style={{backgroundColor: '#4b5563', cursor:'pointer'}} onClick={() => fileInputRefs[key].current.click()}>📂 Cargar archivo</button>
-            </div>
-          )
-        })}
+        {/* ==================================
+            SECCIÓN 2: SEGURIDAD
+        ================================== */}
+        <h2 className="rg-panel-title">2. Seguridad y Fiabilidad</h2>
+        <div className="rg-form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '6px' }}>
+            <input type="checkbox" checked={showTexts.webScan} onChange={() => toggleText('webScan')} /> 
+            Mostrar texto: "Análisis de Integridad (Web Scan)"
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '6px' }}>
+            <input type="checkbox" checked={showTexts.pentest} onChange={() => toggleText('pentest')} /> 
+            Mostrar texto: "Pruebas Pentesting"
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '15px' }}>
+            <input type="checkbox" checked={showTexts.backup} onChange={() => toggleText('backup')} /> 
+            Mostrar texto: "Verificación de Backups"
+          </label>
 
+          <label>Imagen: Análisis de Integridad</label>
+          <div className="rg-drop-zone" tabIndex="0" onPaste={(e) => handlePaste(e, 'scan')} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, 'scan')}>
+            {!images.scan ? <span>Presiona Ctrl+V o arrastra la imagen</span> : <img src={images.scan} alt="Preview" />}
+          </div>
+          <input type="file" ref={fileInputRefs.scan} style={{display:'none'}} accept="image/*" onChange={(e) => handleImageRead(e.target.files[0], 'scan')} />
+          <button type="button" className="rg-input" style={{backgroundColor: '#4b5563', cursor:'pointer'}} onClick={() => fileInputRefs.scan.current.click()}>📂 Subir archivo</button>
+        </div>
+
+        {/* ==================================
+            SECCIÓN 3: RENDIMIENTO
+        ================================== */}
+        <h2 className="rg-panel-title">3. Análisis de Rendimiento</h2>
+        <div className="rg-form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '6px' }}>
+            <input type="checkbox" checked={showTexts.speedIntro} onChange={() => toggleText('speedIntro')} /> 
+            Mostrar texto intro: "La velocidad es clave..."
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '6px' }}>
+            <input type="checkbox" checked={showTexts.network} onChange={() => toggleText('network')} /> 
+            Mostrar texto: "Análisis Carga de Red"
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#fff', marginBottom: '15px' }}>
+            <input type="checkbox" checked={showTexts.continuity} onChange={() => toggleText('continuity')} /> 
+            Mostrar texto: "Garantía Flujo Comercial"
+          </label>
+
+          {/* MOVIDO AQUÍ */}
+          <label style={{ borderTop: '1px solid #555', paddingTop: '15px' }}>Métricas Obtenidas (Segundos)</label>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+            <div>
+              <span style={{ fontSize: '11px', color: '#aaa' }}>Carga Completa</span>
+              <input type="number" className="rg-input" value={timeLoad} onChange={e => setTimeLoad(e.target.value)} step="0.01" />
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', color: '#aaa' }}>DOM Content Loaded</span>
+              <input type="number" className="rg-input" value={timeDom} onChange={e => setTimeDom(e.target.value)} step="0.01" />
+            </div>
+          </div>
+
+          <label>Imagen: Waterfall de Red</label>
+          <div className="rg-drop-zone" tabIndex="0" onPaste={(e) => handlePaste(e, 'waterfall')} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, 'waterfall')}>
+            {!images.waterfall ? <span>Presiona Ctrl+V o arrastra la imagen</span> : <img src={images.waterfall} alt="Preview" />}
+          </div>
+          <input type="file" ref={fileInputRefs.waterfall} style={{display:'none'}} accept="image/*" onChange={(e) => handleImageRead(e.target.files[0], 'waterfall')} />
+          <button type="button" className="rg-input" style={{backgroundColor: '#4b5563', cursor:'pointer', marginBottom: '15px'}} onClick={() => fileInputRefs.waterfall.current.click()}>📂 Subir archivo</button>
+
+          <label>Imagen: Gráfica Flujo (DOM/Load)</label>
+          <div className="rg-drop-zone" tabIndex="0" onPaste={(e) => handlePaste(e, 'flow')} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, 'flow')}>
+            {!images.flow ? <span>Presiona Ctrl+V o arrastra la imagen</span> : <img src={images.flow} alt="Preview" />}
+          </div>
+          <input type="file" ref={fileInputRefs.flow} style={{display:'none'}} accept="image/*" onChange={(e) => handleImageRead(e.target.files[0], 'flow')} />
+          <button type="button" className="rg-input" style={{backgroundColor: '#4b5563', cursor:'pointer'}} onClick={() => fileInputRefs.flow.current.click()}>📂 Subir archivo</button>
+        </div>
+
+        {/* ==================================
+            SECCIÓN 4: PLUGINS
+        ================================== */}
         {platform === 'woo' && (
           <>
-            <h2 className="rg-panel-title">Plugins (Solo Woo)</h2>
+            <h2 className="rg-panel-title">4. Plugins (Solo Woo)</h2>
             <div className="rg-form-group">
               <label>A. Acción Requerida</label>
               <textarea className="rg-input" rows="3" value={plugins.req} onChange={e => setPlugins({...plugins, req: e.target.value})} placeholder="Pega la lista aquí..."></textarea>
@@ -192,6 +255,9 @@ function ReportGenerator() {
         <button type="button" className="rg-btn-export" onClick={exportPDF}>Generar PDF</button>
       </div>
 
+      {/* ==================================
+          ÁREA DEL DOCUMENTO (PREVIEW)
+      ================================== */}
       <div className="rg-preview-area">
         <div id="document-to-print">
           <div className="header-container">
@@ -239,19 +305,27 @@ function ReportGenerator() {
 
           <div className="card">
             <h2 className="card-header">2. Verificaciones de Seguridad y Fiabilidad</h2>
-            <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Integridad (Web Scan):</b> Se realizaron escaneos externos que resultaron negativos para malware, inyecciones de código o inclusiones en listas negras.</div>
+            
+            {showTexts.webScan && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Integridad (Web Scan):</b> Se realizaron escaneos externos que resultaron negativos para malware, inyecciones de código o inclusiones en listas negras.</div>}
+            
             {images.scan && <div className="doc-image-container" style={{display:'block'}}><img src={images.scan} alt="Scan"/></div>}
-            <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Pruebas Pentesting:</b> Se ejecutaron pruebas automatizadas sobre los puntos de entrada clave (formularios, checkout) para verificar la robustez del sitio ante vectores de ataque comunes.</div>
-            <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Verificación de Backups:</b> Se validó la integridad de la última copia de seguridad automática.</div>
+            
+            {showTexts.pentest && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Pruebas Pentesting:</b> Se ejecutaron pruebas automatizadas sobre los puntos de entrada clave (formularios, checkout) para verificar la robustez del sitio ante vectores de ataque comunes.</div>}
+            
+            {showTexts.backup && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Verificación de Backups:</b> Se validó la integridad de la última copia de seguridad automática.</div>}
           </div>
 
           <div className="card">
             <h2 className="card-header">3. Análisis de Rendimiento y Velocidad de Carga</h2>
-            <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}>La velocidad del sitio es un factor clave para la conversión y el SEO.</div>
-            <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Carga de Red:</b> Se realizó un análisis del "waterfall" de carga de red del sitio. Los resultados muestran un tiempo de carga completo de <b>{timeLoad || '0'} seg</b> y un DOMContentLoaded en <b>{timeDom || '0'} seg</b>. Estos tiempos se encuentran dentro de los rangos óptimos.</div>
+            
+            {showTexts.speedIntro && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}>La velocidad del sitio es un factor clave para la conversión y el SEO.</div>}
+            
+            {showTexts.network && <div style={{ fontSize: '9.5pt', marginBottom: '10px' }}><b>Análisis de Carga de Red:</b> Se realizó un análisis del "waterfall" de carga de red del sitio. Los resultados muestran un tiempo de carga completo de <b>{timeLoad || '0'} seg</b> y un DOMContentLoaded en <b>{timeDom || '0'} seg</b>. Estos tiempos se encuentran dentro de los rangos óptimos.</div>}
+            
             {images.waterfall && <div className="doc-image-container" style={{display:'block'}}><img src={images.waterfall} alt="Waterfall"/></div>}
             
-            <div style={{ fontSize: '9.5pt', marginBottom: '10px', marginTop: '15px' }}><b>Garantía de Continuidad y Flujo Comercial:</b> Se ha realizado un seguimiento diario para verificar que los tiempos de respuesta se mantienen correctos y funcionales, tal como se muestra en la gráfica. Donde el DOM (barras rojas) es el tiempo que tarda la estructura en estar lista, y Load (barras azules) es la descarga total.</div>
+            {showTexts.continuity && <div style={{ fontSize: '9.5pt', marginBottom: '10px', marginTop: '15px' }}><b>Garantía de Continuidad y Flujo Comercial:</b> Se ha realizado un seguimiento diario para verificar que los tiempos de respuesta se mantienen correctos y funcionales, tal como se muestra en la gráfica. Donde el DOM (barras rojas) es el tiempo que tarda la estructura en estar lista, y Load (barras azules) es la descarga total.</div>}
+            
             {images.flow && <div className="doc-image-container" style={{display:'block'}}><img src={images.flow} alt="Flow"/></div>}
           </div>
 
