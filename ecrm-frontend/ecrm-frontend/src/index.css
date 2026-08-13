@@ -736,3 +736,7 @@ body {
 #document-to-print .item-list-none li { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dotted #ccc; display: flex; align-items: flex-start;}
 #document-to-print .doc-image-container img { width: 100%; height: auto; border: 2px solid #000; display: block; margin: 15px 0; }
 #document-to-print .plugin-ul { margin: 0; padding-left: 15px; margin-bottom: 10px; }
+
+#document-to-print .bg-g { background-color: #10b981 !important; color: #000 !important; }
+#document-to-print .bg-y { background-color: #f59e0b !important; color: #000 !important; }
+#document-to-print .bg-r { background-color: #ef4444 !important; color: #fff !important; }
