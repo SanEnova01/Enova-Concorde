@@ -33,6 +33,9 @@ const getInitialStatuses = () => {
   return st;
 };
 
+// 🌟 FIX: URL pública para que Gmail pueda leer la imagen
+const URL_BASE_PRODUCCION = 'https://enova-concorde-staging-2027.up.railway.app'; 
+
 function ReportGenerator() {
   const [platform, setPlatform] = useState('woo');
   const [clientName, setClientName] = useState('Florería San Borja');
@@ -42,9 +45,6 @@ function ReportGenerator() {
   const [images, setImages] = useState({ scan: null, waterfall: null, flow: null });
   const [plugins, setPlugins] = useState({ req: '', ok: '', del: '' });
   
-  // Nuevo estado para el logo del correo
-  const [emailLogo, setEmailLogo] = useState('https://via.placeholder.com/45x45/000000/FFFFFF?text=ICON');
-
   const [showTexts, setShowTexts] = useState({
     webScan: true,
     pentest: true,
@@ -55,10 +55,9 @@ function ReportGenerator() {
   });
 
   const fileInputRefs = {
-    scan: useRef(null), waterfall: useRef(null), flow: useRef(null), emailLogo: useRef(null)
+    scan: useRef(null), waterfall: useRef(null), flow: useRef(null)
   };
   
-  // Referencia para copiar el HTML del correo
   const emailTableRef = useRef(null);
 
   const exportPDF = () => {
@@ -118,13 +117,7 @@ function ReportGenerator() {
   const handleImageRead = (file, key) => {
     if (!file || !file.type.startsWith('image/')) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      if(key === 'emailLogo') {
-        setEmailLogo(e.target.result);
-      } else {
-        setImages(prev => ({ ...prev, [key]: e.target.result }));
-      }
-    };
+    reader.onload = (e) => setImages(prev => ({ ...prev, [key]: e.target.result }));
     reader.readAsDataURL(file);
   };
 
@@ -287,13 +280,9 @@ function ReportGenerator() {
             SECCIÓN 5: CORREO
         ================================== */}
         <h2 className="rg-panel-title">5. Adjunto / Correo</h2>
-        <div className="rg-form-group">
-          <label>Icono Concorde (Para el correo)</label>
-          <div className="rg-drop-zone" tabIndex="0" onPaste={(e) => handlePaste(e, 'emailLogo')} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, 'emailLogo')} onClick={() => fileInputRefs.emailLogo.current.click()} style={{ padding: '10px' }}>
-            <img src={emailLogo} alt="Icono Correo" style={{ display: 'block', margin: '0 auto', maxWidth: '45px', border: 'none' }}/>
-          </div>
-          <input type="file" ref={fileInputRefs.emailLogo} style={{display:'none'}} accept="image/*" onChange={(e) => handleImageRead(e.target.files[0], 'emailLogo')} />
-          <button type="button" className="rg-btn-export" style={{ backgroundColor: '#3b82f6', marginTop: '10px' }} onClick={copyToGmail}>
+        <div className="rg-form-group" style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '12px', color: '#ccc', margin: '0 0 10px 0' }}>El correo se copiará automáticamente con el ícono de Concorde y el formato listo para enviar por Gmail.</p>
+          <button type="button" className="rg-btn-export" style={{ backgroundColor: '#3b82f6' }} onClick={copyToGmail}>
             📋 Copiar Diseño para Gmail
           </button>
         </div>
@@ -399,8 +388,8 @@ function ReportGenerator() {
         </div>
 
         {/* EMAIL PREVIEW */}
-        <div style={{ marginTop: '40px', width: '210mm' }}>
-            <h3 style={{ color: '#fff', borderBottom: '1px solid #555', paddingBottom: '10px' }}>Vista Previa del Correo para Gmail</h3>
+        <div style={{ marginTop: '40px', width: '210mm', marginBottom: '60px' }}>
+            <h3 style={{ color: '#fff', borderBottom: '1px solid #555', paddingBottom: '10px', marginTop: '40px' }}>Vista Previa del Correo para Gmail</h3>
             <div style={{ background: '#F1F0EA', padding: '40px', borderRadius: '8px' }}>
                 <table ref={emailTableRef} align="center" border="0" cellPadding="0" cellSpacing="0" width="100%" style={{ maxWidth: '600px', backgroundColor: '#ffffff', border: '3px solid #000000', boxShadow: '6px 6px 0px #000000', borderCollapse: 'collapse', fontFamily: 'Arial, Helvetica, sans-serif', color: '#111' }}>
                     <tbody>
@@ -410,7 +399,7 @@ function ReportGenerator() {
                                     <tbody>
                                         <tr>
                                             <td width="55" align="left" valign="middle">
-                                                <img src={emailLogo} alt="Concorde Icon" width="45" height="45" style={{ display: 'block', borderRadius: '4px' }} />
+                                                <img src={`${URL_BASE_PRODUCCION}/favicon.svg`} alt="Concorde Icon" width="45" height="45" style={{ display: 'block', borderRadius: '4px' }} />
                                             </td>
                                             <td align="left" valign="middle">
                                                 <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.5px' }}>ENOVA AGENCY</h2>
