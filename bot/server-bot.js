@@ -173,15 +173,8 @@ async function ejecutarAnalisisAutomated() {
       // 🌟 ABRIMOS SOLO UNA PESTAÑA NUEVA POR CADA TIENDA
       page = await browser.newPage();
 
-      const client = await page.target().createCDPSession();
-      await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-      await client.send('Network.emulateNetworkConditions', {
-        offline: false,
-        downloadThroughput: (4 * 1024 * 1024) / 8,
-        uploadThroughput: (1.5 * 1024 * 1024) / 8,
-        latency: 150
-      });
-
+      // 🌟 FIX: Bot sin restricciones de red ni CPU. Simula conexión Wi-Fi rápida.
+      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
       await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
       // Cambiar el User-Agent para identificarte formalmente ante Cloudflare:
 await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1 EnovaConcordeBot/1.0');
@@ -605,15 +598,7 @@ async function performPuppeteerAnalysis(targetUrl) {
     try {
         const page = await browser.newPage();
         
-        const client = await page.target().createCDPSession();
-        await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-        await client.send('Network.emulateNetworkConditions', {
-            offline: false,
-            downloadThroughput: (4 * 1024 * 1024) / 8,
-            uploadThroughput: (1.5 * 1024 * 1024) / 8,
-            latency: 150
-        });
-
+        // 🌟 FIX: Bot sin restricciones de red ni CPU.
         await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
         // 🌟 Identificamos el bot formalmente
         await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1 EnovaConcordeBot/1.0');
