@@ -188,10 +188,19 @@ await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) 
       await page.setCacheEnabled(false);
 
       try {
-        await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const navResponse = await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const status = navResponse ? navResponse.status() : 200;
+        const title = await page.title();
+        
+        // 🌟 DETECTOR DE BLOQUEOS (Cloudflare / Sucuri / Wordfence)
+        if (status === 403 || status === 503 || title.includes('Just a moment...') || title.includes('Attention Required')) {
+            throw new Error('WAF_BLOCKED');
+        }
+        
         await new Promise(r => setTimeout(r, 4000));
       } catch (navError) {
-        console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción de métricas...`);
+        if (navError.message === 'WAF_BLOCKED') throw navError; // Lanza el error directo al Catch principal
+        console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción...`);
         await page.evaluate(() => window.stop()).catch(() => {});
       }
 
@@ -249,7 +258,15 @@ await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) 
       if (page) await page.close().catch(()=>{});
 
     } catch (error) {
-      console.error(`✖ ${web.name} | ERROR: ${error.message} -> Inyectando PLACEBO.`);
+      let flujoAviso = 'Crash_Placebo';
+      
+      if (error.message === 'WAF_BLOCKED') {
+          console.error(`🛑 [WAF_BLOCKED] Firewall bloqueó el análisis en ${web.name}.`);
+          flujoAviso = 'Bloqueado_WAF';
+      } else {
+          console.error(`✖ ${web.name} | ERROR: ${error.message} -> Inyectando PLACEBO.`);
+      }
+      
       exitosos++;
       
       const getRandom = (min, max) => Math.random() * (max - min) + min;
@@ -259,7 +276,7 @@ await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) 
         store_id: web.id,
         date: fechaActual,
         server_status: 'ONLINE',
-        web_flow: 'Auto-Mobile-4G',
+        web_flow: flujoAviso, // 🌟 Envía el aviso al Dashboard
         redirect_ms: getRandomInt(10, 35),
         dns_ms: getRandomInt(15, 45),
         tcp_ms: getRandomInt(20, 60),
@@ -598,13 +615,23 @@ async function performPuppeteerAnalysis(targetUrl) {
         });
 
         await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
+        // 🌟 Identificamos el bot formalmente
+        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1 EnovaConcordeBot/1.0');
         await page.setCacheEnabled(false);
 
         try {
-            await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            const navResponse = await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            const status = navResponse ? navResponse.status() : 200;
+            const title = await page.title();
+            
+            // 🌟 Detector de bloqueos
+            if (status === 403 || status === 503 || title.includes('Just a moment...') || title.includes('Attention Required')) {
+                throw new Error('WAF_BLOCKED');
+            }
+            
             await new Promise(r => setTimeout(r, 4000));
         } catch (navError) {
+            if (navError.message === 'WAF_BLOCKED') throw navError;
             console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción...`);
             await page.evaluate(() => window.stop()).catch(() => {});
         }
@@ -642,7 +669,12 @@ async function performPuppeteerAnalysis(targetUrl) {
     } catch (err) {
         if (browser) await browser.close().catch(()=>{});
         
-        console.warn(`⚠️ Falló el escaneo en ${urlLimpia}. Retornando métricas PLACEBO.`);
+        if (err.message === 'WAF_BLOCKED') {
+            console.error(`🛑 [WAF_BLOCKED] Firewall bloqueó el análisis individual en ${urlLimpia}.`);
+        } else {
+            console.warn(`⚠️ Falló el escaneo en ${urlLimpia}. Retornando métricas PLACEBO.`);
+        }
+        
         const getRandom = (min, max) => Math.random() * (max - min) + min;
         const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
