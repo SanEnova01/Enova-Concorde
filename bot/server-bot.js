@@ -153,6 +153,17 @@ async function ejecutarAnalisisAutomated() {
     const web = tiendas[i];
     let page;
 
+    // 🌟 AUTO-RECOVERY: Si Chrome explotó o se cerró, lo revivimos antes de seguir
+    if (!browser || !browser.isConnected()) {
+        console.warn(`♻️ [AUTO-RECOVERY] Chrome colapsó. Reiniciando navegador a la fuerza...`);
+        try { exec('pkill -9 chrome'); } catch(e) {}
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: RAILWAY_PUPPETEER_ARGS,
+            env: { ...process.env, DISABLE_CRASHPAD: 'true' }
+        });
+    }
+
     try {
       let urlLimpia = web.web.trim();
       if (!urlLimpia.startsWith('http')) {
@@ -172,7 +183,8 @@ async function ejecutarAnalisisAutomated() {
       });
 
       await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-      await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
+      // Cambiar el User-Agent para identificarte formalmente ante Cloudflare:
+await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1 EnovaConcordeBot/1.0');
       await page.setCacheEnabled(false);
 
       try {
@@ -300,7 +312,6 @@ async function enviarHeartbeat() {
   }
 }
 
-// 🌟 FIX: Enviar latidos cada 5 minutos (300,000 ms) es súper ligero y mantiene el bot ONLINE
 setInterval(enviarHeartbeat, 5 * 60 * 1000);
 
 setTimeout(() => {
