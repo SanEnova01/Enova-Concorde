@@ -125,7 +125,7 @@ async function ejecutarAnalisisAutomated() {
 
   console.log(`\n▶ [${new Date().toLocaleTimeString()}] INICIANDO ANÁLISIS AUTOMÁTICO EN ${tiendas.length} TIENDAS...`);
 
-  // Matar procesos atascados antes de iniciar
+  // Matar procesos atascados antes de iniciar todo
   try {
     exec('pkill -9 chrome');
   } catch(e) {}
@@ -133,9 +133,25 @@ async function ejecutarAnalisisAutomated() {
   let exitosos = 0;
   let fallidos = 0;
 
+  // 🌟 ABRIMOS EL NAVEGADOR UNA SOLA VEZ FUERA DEL BUCLE
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: RAILWAY_PUPPETEER_ARGS,
+      env: { ...process.env, DISABLE_CRASHPAD: 'true' }
+    });
+  } catch (error) {
+    console.error("❌ Error fatal al lanzar Puppeteer:", error.message);
+    estaEjecutando = false;
+    return { success: false, message: 'Error iniciando Chrome.' };
+  }
+
+  const browserPid = browser.process().pid;
+
   for (let i = 0; i < tiendas.length; i++) {
     const web = tiendas[i];
-    let browser;
+    let page;
 
     try {
       let urlLimpia = web.web.trim();
@@ -143,14 +159,8 @@ async function ejecutarAnalisisAutomated() {
         urlLimpia = `https://${urlLimpia}`;
       }
 
-      browser = await puppeteer.launch({
-        headless: 'new',
-        args: RAILWAY_PUPPETEER_ARGS,
-        env: { ...process.env, DISABLE_CRASHPAD: 'true' }
-      });
-
-      const browserPid = browser.process().pid;
-      const page = await browser.newPage();
+      // 🌟 ABRIMOS SOLO UNA PESTAÑA NUEVA POR CADA TIENDA
+      page = await browser.newPage();
 
       const client = await page.target().createCDPSession();
       await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
@@ -223,7 +233,9 @@ async function ejecutarAnalisisAutomated() {
 
       console.log(`✔ [${i + 1}/${tiendas.length}] ${web.name} (${web.plan_type}) | ${ramTotalMB}MB RAM | ${datosReporte.loadTime}ms`);
 
-      if (browser) await browser.close().catch(()=>{});
+      // 🌟 CERRAMOS SOLO LA PESTAÑA AL TERMINAR
+      if (page) await page.close().catch(()=>{});
+
     } catch (error) {
       console.error(`✖ ${web.name} | ERROR: ${error.message} -> Inyectando PLACEBO.`);
       exitosos++;
@@ -250,13 +262,16 @@ async function ejecutarAnalisisAutomated() {
       };
 
       await enviarMetricasAPI(payloadPlacebo);
-      if (browser) await browser.close().catch(()=>{});
+      if (page) await page.close().catch(()=>{});
     }
-    pidusage.clear();
 
-    console.log(`⏳ [Cooldown] Esperando 15 segundos para liberar memoria antes de la siguiente tienda...`);
-    await new Promise(r => setTimeout(r, 15000));
-  }
+    console.log(`⏳ [Cooldown] Esperando 10 segundos antes de la siguiente pestaña...`);
+    await new Promise(r => setTimeout(r, 10000));
+  } // <-- Fin del bucle for
+
+  // 🌟 CERRAMOS EL NAVEGADOR PRINCIPAL AL TERMINAR TODAS LAS TIENDAS
+  if (browser) await browser.close().catch(()=>{});
+  pidusage.clear();
 
   console.log(`\n✅ ANÁLISIS FINALIZADO.`);
   estaEjecutando = false;
@@ -285,7 +300,8 @@ async function enviarHeartbeat() {
   }
 }
 
-setInterval(enviarHeartbeat, 60 * 1000);
+// 🌟 FIX: Enviar latidos cada 5 minutos (300,000 ms) es súper ligero y mantiene el bot ONLINE
+setInterval(enviarHeartbeat, 5 * 60 * 1000);
 
 setTimeout(() => {
     enviarHeartbeat();
