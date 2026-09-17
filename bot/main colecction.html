@@ -1,0 +1,907 @@
+{{ 'template-collection.css' | asset_url | stylesheet_tag }}
+{{ 'component-facets.css' | asset_url | stylesheet_tag }}
+{{ 'collection-sidebar.css' | asset_url | stylesheet_tag }}
+
+<script src="{{ 'product-card-new.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'quick-add.js' | asset_url }}" defer="defer"></script>
+<script src="{{ 'product-form.js' | asset_url }}" defer="defer"></script>
+
+{%- if section.settings.quick_add == 'bulk' -%}
+  <script src="{{ 'quick-add-bulk.js' | asset_url }}" defer="defer"></script>
+  <script src="{{ 'quantity-popover.js' | asset_url }}" defer="defer"></script>
+  <script src="{{ 'price-per-item.js' | asset_url }}" defer="defer"></script>
+  <script src="{{ 'quick-order-list.js' | asset_url }}" defer="defer"></script>
+{%- endif -%}
+
+{% if section.settings.image_shape == 'blob' %}
+  {{ 'mask-blobs.css' | asset_url | stylesheet_tag }}
+{%- endif -%}
+
+{%- style -%}
+  .section-{{ section.id }}-padding {
+    padding-top: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
+    padding-bottom: {{ section.settings.padding_bottom | times: 0.75 | round: 0 }}px;
+    --add-button-size: {{ settings.product_card_add_button_size | default: 40 }}px;
+  }
+  @media screen and (min-width: 750px) {
+    .section-{{ section.id }}-padding {
+      padding-top: {{ section.settings.padding_top }}px;
+      padding-bottom: {{ section.settings.padding_bottom }}px;
+    }
+  }
+{%- endstyle -%}
+
+<div class="section-{{ section.id }}-padding gradient color-{{ section.settings.color_scheme }}">
+  {%- paginate collection.products by section.settings.products_per_page -%}
+    
+    {%- comment -%} NAVIGATION TABS - Navegación jerárquica secuencial {%- endcomment -%}
+    {%- if section.settings.collection_nav != blank -%}
+      {%- assign current_handle = collection.handle -%}
+      {%- assign nav_links = nil -%}
+      {%- assign found = false -%}
+      
+      {%- comment -%} Buscar en nivel 3 (nietos) {%- endcomment -%}
+      {%- for level1 in section.settings.collection_nav.links -%}
+        {%- for level2 in level1.links -%}
+          {%- for level3 in level2.links -%}
+            {%- if level3.url contains current_handle or level3.active -%}
+              {%- assign nav_links = level2.links -%}
+              {%- assign found = true -%}
+              {%- break -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- if found -%}{%- break -%}{%- endif -%}
+        {%- endfor -%}
+        {%- if found -%}{%- break -%}{%- endif -%}
+      {%- endfor -%}
+      
+      {%- comment -%} Si no se encontró en nivel 3, buscar en nivel 2 (hijos) {%- endcomment -%}
+      {%- unless found -%}
+        {%- for level1 in section.settings.collection_nav.links -%}
+          {%- for level2 in level1.links -%}
+            {%- if level2.url contains current_handle or level2.active -%}
+              {%- assign nav_links = level1.links -%}
+              {%- assign found = true -%}
+              {%- break -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {%- if found -%}{%- break -%}{%- endif -%}
+        {%- endfor -%}
+      {%- endunless -%}
+      
+      {%- comment -%} Si no se encontró en nivel 2, buscar en nivel 1 (raíz) {%- endcomment -%}
+      {%- unless found -%}
+        {%- for level1 in section.settings.collection_nav.links -%}
+          {%- if level1.url contains current_handle or level1.active -%}
+            {%- assign nav_links = section.settings.collection_nav.links -%}
+            {%- assign found = true -%}
+            {%- break -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endunless -%}
+      
+      {%- comment -%} Fallback: mostrar nivel 1 {%- endcomment -%}
+      {%- unless found -%}
+        {%- assign nav_links = section.settings.collection_nav.links -%}
+      {%- endunless -%}
+      
+      {%- comment -%} Renderizar navegación {%- endcomment -%}
+      {%- if nav_links != blank and nav_links.size > 0 -%}
+        <nav class="collection-nav page-width">
+          <ul class="collection-nav__list list-unstyled">
+            {%- for link in nav_links -%}
+              <li class="collection-nav__item">
+                <a 
+                  href="{{ link.url }}" 
+                  class="collection-nav__link{% if link.url contains current_handle or link.active %} collection-nav__link--active{% endif %}"
+                    >
+                  {{ link.title }}
+                </a>
+              </li>
+                  {%- endfor -%}
+          </ul>
+        </nav>
+                {%- endif -%}
+    {%- endif -%}
+
+      <script src="{{ 'facets.js' | asset_url }}" defer="defer"></script>
+    
+    {%- comment -%} COLLECTION HEADER: Count + Mobile Filter Button {%- endcomment -%}
+    <div class="collection-header page-width">
+      <div class="collection-header__count" role="status">
+        <span id="ProductCount">{{ collection.products_count }} PRODUCTOS</span>
+        <span id="ProductCountDesktop" class="visually-hidden">{{ collection.products_count }} PRODUCTOS</span>
+        {%- render 'loading-spinner' -%}
+      </div>
+      <button type="button" class="collection-header__filter-btn" data-drawer-open>
+        <span class="svg-wrapper">{{ 'icon-filter.svg' | inline_asset_content }}</span>
+        <span>{{ 'products.facets.filter_and_sort' | t }}</span>
+      </button>
+    </div>
+    
+    {%- comment -%} MAIN LAYOUT: PRODUCTS + SIDEBAR {%- endcomment -%}
+    <div class="collection-grid-layout page-width">
+      
+      {%- comment -%} PRODUCT GRID - Left side {%- endcomment -%}
+      <div class="collection-grid-layout__products" id="ProductGridContainer">
+        {%- if collection.products.size == 0 -%}
+          <div class="collection collection--empty" id="product-grid" data-id="{{ section.id }}">
+            <div class="loading-overlay gradient"></div>
+            <div class="title-wrapper center">
+              <h2 class="title title--primary">
+                {{ 'sections.collection_template.empty' | t -}}
+                <br>
+                {{ 'sections.collection_template.use_fewer_filters_html' | t: link: collection.url, class: 'underlined-link link' }}
+              </h2>
+            </div>
+          </div>
+        {%- else -%}
+          <div class="collection">
+            <div class="loading-overlay gradient"></div>
+            <ul
+              id="product-grid"
+              data-id="{{ section.id }}"
+              class="grid product-grid grid--{{ section.settings.columns_mobile }}-col-tablet-down grid--{{ section.settings.columns_desktop }}-col-desktop"
+            >
+              {%- for product in collection.products -%}
+                {%- assign lazy_load = false -%}
+                {%- if forloop.index > 2 -%}{%- assign lazy_load = true -%}{%- endif -%}
+                <li
+                  class="grid__item{% if settings.animations_reveal_on_scroll %} scroll-trigger animate--slide-in{% endif %}"
+                  {% if settings.animations_reveal_on_scroll %}data-cascade style="--animation-order: {{ forloop.index }};"{% endif %}
+                >
+                  {% render 'card-product', card_product: product, section_id: section.id, lazy_load: lazy_load %}
+                </li>
+              {%- endfor -%}
+            </ul>
+            {%- if paginate.pages > 1 -%}
+              {% render 'pagination', paginate: paginate, anchor: '' %}
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      </div>
+
+      {%- comment -%} SIDEBAR - Right side {%- endcomment -%}
+      {%- if section.settings.enable_filtering or section.settings.enable_sorting -%}
+        <aside class="collection-grid-layout__sidebar" id="CollectionSidebar" data-id="{{ section.id }}">
+          <facet-filters-form>
+            <form id="FacetFiltersForm" class="collection-sidebar-form">
+              {%- if collection.terms -%}
+                <input type="hidden" name="q" value="{{ collection.terms | escape }}">
+                <input name="options[prefix]" type="hidden" value="last">
+              {%- endif -%}
+
+              {%- comment -%} SORTING {%- endcomment -%}
+              {%- if section.settings.enable_sorting -%}
+                {%- assign sort_by = collection.sort_by | default: collection.default_sort_by -%}
+                <details class="collection-sidebar__filter js-filter" id="Details-SortBy-{{ section.id }}" data-index="0" open>
+                  <summary class="collection-sidebar__summary">
+                    <span>{{ 'products.facets.sort_by_label' | t }}</span>
+                    <span class="collection-sidebar__icon"></span>
+                  </summary>
+                  <div class="collection-sidebar__content">
+                    <ul class="collection-sidebar__list list-unstyled">
+                      {%- for option in collection.sort_options -%}
+                        <li class="collection-sidebar__item">
+                          <label class="collection-sidebar__label">
+                            <input 
+                              type="radio" 
+                              name="sort_by" 
+                              value="{{ option.value | escape }}"
+                              class="collection-sidebar__radio"
+                              {% if option.value == sort_by %}checked{% endif %}
+                            >
+                            <span class="collection-sidebar__radio-indicator"></span>
+                            <span class="collection-sidebar__text">{{ option.name | escape }}</span>
+                          </label>
+                        </li>
+                      {%- endfor -%}
+                    </ul>
+                  </div>
+                </details>
+              {%- endif -%}
+
+              {%- comment -%} FILTERS {%- endcomment -%}
+              {%- if section.settings.enable_filtering -%}
+                {%- for filter in collection.filters -%}
+                  {%- case filter.type -%}
+                    {%- when 'boolean', 'list' -%}
+                      <details 
+                        id="Details-{{ filter.param_name | escape }}-{{ section.id }}"
+                        class="collection-sidebar__filter js-filter" 
+                        data-index="{{ forloop.index }}"
+                      >
+                        <summary class="collection-sidebar__summary">
+                          <span>
+                            {{ filter.label | escape }}
+                            {%- if filter.active_values.size > 0 -%}
+                              <span class="collection-sidebar__count">({{ filter.active_values.size }})</span>
+                            {%- endif -%}
+                          </span>
+                          <span class="collection-sidebar__icon"></span>
+                        </summary>
+                        <div class="collection-sidebar__content">
+                          <ul class="collection-sidebar__list list-unstyled">
+                            {%- for value in filter.values -%}
+                              {%- assign is_disabled = false -%}
+                              {%- if value.count == 0 and value.active == false -%}
+                                {%- assign is_disabled = true -%}
+                              {%- endif -%}
+                              <li class="collection-sidebar__item">
+                                <label class="collection-sidebar__label{% if is_disabled %} collection-sidebar__label--disabled{% endif %}{% if value.active %} collection-sidebar__label--active{% endif %}">
+                                  <input 
+                                    type="checkbox" 
+                                    name="{{ value.param_name }}" 
+                                    value="{{ value.value }}"
+                                    class="collection-sidebar__checkbox"
+                                    {% if value.active %}checked{% endif %}
+                                    {% if is_disabled %}disabled{% endif %}
+                                  >
+                                  <span class="collection-sidebar__checkbox-indicator">
+                                    <span class="svg-wrapper">{{ 'icon-checkmark.svg' | inline_asset_content }}</span>
+                                  </span>
+                                  <span class="collection-sidebar__text">{{ value.label | escape }}</span>
+                                  <span class="collection-sidebar__value-count">({{ value.count }})</span>
+                                </label>
+                              </li>
+                            {%- endfor -%}
+                          </ul>
+                        </div>
+                      </details>
+
+                    {%- when 'price_range' -%}
+                      {%- comment -%} Shopify stores prices in cents, range_max is in cents {%- endcomment -%}
+                      {%- assign range_max_cents = filter.range_max | divided_by: 100 | ceil -%}
+                      {%- assign current_min_cents = filter.min_value.value | default: 0 | divided_by: 100 | floor -%}
+                      {%- assign current_max_cents = filter.max_value.value | default: filter.range_max | divided_by: 100 | ceil -%}
+                      <details 
+                        id="Details-{{ filter.param_name | escape }}-{{ section.id }}"
+                        class="collection-sidebar__filter js-filter" 
+                        data-index="{{ forloop.index }}"
+                      >
+                        <summary class="collection-sidebar__summary">
+                          <span>{{ filter.label | escape }}</span>
+                          <span class="collection-sidebar__icon"></span>
+                        </summary>
+                        <div class="collection-sidebar__content">
+                          <div class="price-range-slider" data-min="0" data-max="{{ range_max_cents }}" data-currency="{{ cart.currency.symbol }}">
+                            <div class="price-range-slider__values">
+                              <span class="price-range-slider__min-value">{{ current_min_cents }}{{ cart.currency.symbol }}</span>
+                              <span class="price-range-slider__max-value">{{ current_max_cents }}{{ cart.currency.symbol }}</span>
+                            </div>
+                            <div class="price-range-slider__track">
+                              <div class="price-range-slider__progress"></div>
+                              <input 
+                                type="range" 
+                                class="price-range-slider__input price-range-slider__input--min"
+                                min="0" 
+                                max="{{ range_max_cents }}" 
+                                value="{{ current_min_cents }}"
+                              >
+                              <input 
+                                type="range" 
+                                class="price-range-slider__input price-range-slider__input--max"
+                                min="0" 
+                                max="{{ range_max_cents }}" 
+                                value="{{ current_max_cents }}"
+                              >
+                            </div>
+                            <input type="hidden" name="{{ filter.min_value.param_name }}" class="price-range-slider__hidden-min" value="{% if filter.min_value.value %}{{ filter.min_value.value | divided_by: 100.0 }}{% endif %}">
+                            <input type="hidden" name="{{ filter.max_value.param_name }}" class="price-range-slider__hidden-max" value="{% if filter.max_value.value %}{{ filter.max_value.value | divided_by: 100.0 }}{% endif %}">
+                          </div>
+                        </div>
+                      </details>
+                  {%- endcase -%}
+                {%- endfor -%}
+              {%- endif -%}
+            </form>
+          </facet-filters-form>
+          
+        </aside>
+      {%- endif -%}
+    </div>
+    
+    {%- comment -%} FILTER DRAWER {%- endcomment -%}
+    {%- if section.settings.enable_filtering or section.settings.enable_sorting -%}
+      <div class="collection-drawer" id="CollectionDrawer" data-drawer>
+        <div class="collection-drawer__overlay" data-drawer-close></div>
+        <div class="collection-drawer__content">
+          <div class="collection-drawer__header">
+            <h2 class="collection-drawer__title">FILTROS</h2>
+            <button type="button" class="collection-drawer__close" data-drawer-close aria-label="Cerrar">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="collection-drawer__body">
+            <facet-filters-form>
+              <form id="FacetFiltersFormDrawer" class="collection-drawer__form">
+                {%- if collection.terms -%}
+                  <input type="hidden" name="q" value="{{ collection.terms | escape }}">
+                  <input name="options[prefix]" type="hidden" value="last">
+                {%- endif -%}
+                
+                {%- comment -%} Mobile Sorting {%- endcomment -%}
+                {%- if section.settings.enable_sorting -%}
+                  {%- assign sort_by = collection.sort_by | default: collection.default_sort_by -%}
+                  <details class="collection-sidebar__filter js-filter" open>
+                    <summary class="collection-sidebar__summary">
+                      <span>{{ 'products.facets.sort_by_label' | t }}</span>
+                      <span class="collection-sidebar__icon"></span>
+                    </summary>
+                    <div class="collection-sidebar__content">
+                      <ul class="collection-sidebar__list list-unstyled">
+                        {%- for option in collection.sort_options -%}
+                          <li class="collection-sidebar__item">
+                            <label class="collection-sidebar__label">
+                              <input type="radio" name="sort_by" value="{{ option.value | escape }}" class="collection-sidebar__radio mobile-facets__checkbox" {% if option.value == sort_by %}checked{% endif %}>
+                              <span class="collection-sidebar__radio-indicator"></span>
+                              <span class="collection-sidebar__text">{{ option.name | escape }}</span>
+                            </label>
+                          </li>
+                        {%- endfor -%}
+                      </ul>
+                    </div>
+                  </details>
+                {%- endif -%}
+                
+                {%- comment -%} Mobile Filters {%- endcomment -%}
+                {%- if section.settings.enable_filtering -%}
+                  {%- for filter in collection.filters -%}
+                    {%- case filter.type -%}
+                      {%- when 'boolean', 'list' -%}
+                        <details class="collection-sidebar__filter js-filter" id="Details-Mobile-{{ filter.param_name | escape }}-{{ section.id }}">
+                          <summary class="collection-sidebar__summary">
+                            <span>{{ filter.label | escape }}{% if filter.active_values.size > 0 %} <span class="collection-sidebar__count">({{ filter.active_values.size }})</span>{% endif %}</span>
+                            <span class="collection-sidebar__icon"></span>
+                          </summary>
+                          <div class="collection-sidebar__content">
+                            <ul class="collection-sidebar__list list-unstyled">
+                              {%- for value in filter.values -%}
+                                {%- assign is_disabled = false -%}
+                                {%- if value.count == 0 and value.active == false -%}{%- assign is_disabled = true -%}{%- endif -%}
+                                <li class="collection-sidebar__item">
+                                  <label class="collection-sidebar__label{% if is_disabled %} collection-sidebar__label--disabled{% endif %}{% if value.active %} collection-sidebar__label--active{% endif %}">
+                                    <input type="checkbox" name="{{ value.param_name }}" value="{{ value.value }}" class="collection-sidebar__checkbox mobile-facets__checkbox" {% if value.active %}checked{% endif %} {% if is_disabled %}disabled{% endif %}>
+                                    <span class="collection-sidebar__checkbox-indicator"><span class="svg-wrapper">{{ 'icon-checkmark.svg' | inline_asset_content }}</span></span>
+                                    <span class="collection-sidebar__text">{{ value.label | escape }}</span>
+                                    <span class="collection-sidebar__value-count">({{ value.count }})</span>
+                                  </label>
+                                </li>
+                              {%- endfor -%}
+                            </ul>
+                          </div>
+                        </details>
+                      {%- when 'price_range' -%}
+                        {%- comment -%} Shopify prices are in cents, convert to currency units {%- endcomment -%}
+                        {%- assign price_range_max = filter.range_max | divided_by: 100.0 | ceil -%}
+                        {%- assign price_min = filter.min_value.value | default: 0 | divided_by: 100.0 | floor -%}
+                        {%- assign price_max = filter.max_value.value | default: filter.range_max | divided_by: 100.0 | ceil -%}
+                        <details class="collection-sidebar__filter js-filter" id="Details-Mobile-{{ filter.param_name | escape }}-{{ section.id }}">
+                          <summary class="collection-sidebar__summary">
+                            <span>{{ filter.label | escape }}</span>
+                            <span class="collection-sidebar__icon"></span>
+                          </summary>
+                          <div class="collection-sidebar__content">
+                            <div class="price-range-slider" 
+                              data-min="0" 
+                              data-max="{{ price_range_max }}" 
+                              data-currency="{{ cart.currency.symbol }}"
+                              data-min-name="{{ filter.min_value.param_name }}"
+                              data-max-name="{{ filter.max_value.param_name }}"
+                            >
+                              <div class="price-range-slider__values">
+                                <span class="price-range-slider__min-value">{{ cart.currency.symbol }}{{ price_min }}</span>
+                                <span class="price-range-slider__max-value">{{ cart.currency.symbol }}{{ price_max }}</span>
+                              </div>
+                              <div class="price-range-slider__track">
+                                <div class="price-range-slider__progress"></div>
+                                <input 
+                                  type="range" 
+                                  class="price-range-slider__input price-range-slider__input--min"
+                                  min="0" 
+                                  max="{{ price_range_max }}" 
+                                  value="{{ price_min }}"
+                                  step="1"
+                                >
+                                <input 
+                                  type="range" 
+                                  class="price-range-slider__input price-range-slider__input--max"
+                                  min="0" 
+                                  max="{{ price_range_max }}" 
+                                  value="{{ price_max }}"
+                                  step="1"
+                                >
+                              </div>
+                              <input type="hidden" name="{{ filter.min_value.param_name }}" class="price-range-slider__hidden-min" value="{% if filter.min_value.value and filter.min_value.value > 0 %}{{ price_min }}{% endif %}">
+                              <input type="hidden" name="{{ filter.max_value.param_name }}" class="price-range-slider__hidden-max" value="{% if filter.max_value.value and filter.max_value.value < filter.range_max %}{{ price_max }}{% endif %}">
+                            </div>
+                          </div>
+                        </details>
+                    {%- endcase -%}
+                  {%- endfor -%}
+                {%- endif -%}
+              </form>
+            </facet-filters-form>
+          </div>
+          <div class="collection-drawer__footer">
+            <button type="button" class="collection-drawer__apply button" data-drawer-close>
+              MOSTRAR (<span class="drawer-product-count">{{ collection.products_count }}</span>)
+            </button>
+            <a href="{{ collection.url }}" class="collection-drawer__clear link" data-drawer-clear>LIMPIAR</a>
+          </div>
+        </div>
+      </div>
+      
+      {%- comment -%} Hidden menu-drawer for facets.js compatibility {%- endcomment -%}
+      <menu-drawer class="mobile-facets__wrapper" style="display:none !important; visibility:hidden; position:absolute; pointer-events:none;">
+        <details class="mobile-facets__disclosure disclosure-has-popup">
+          <summary></summary>
+          <div class="mobile-facets__main">
+            <form id="FacetFiltersFormMobile"></form>
+          </div>
+        </details>
+      </menu-drawer>
+    {%- endif -%}
+  {%- endpaginate -%}
+  
+  <script>
+    (function() {
+      const drawer = document.getElementById('CollectionDrawer');
+      const drawerForm = document.getElementById('FacetFiltersFormDrawer');
+      let debounceTimer;
+      
+      // =============================================
+      // DRAWER OPEN/CLOSE
+      // =============================================
+      function openDrawer() {
+        if (drawer) drawer.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+      }
+      
+      function closeDrawer() {
+        if (drawer) drawer.classList.remove('is-open');
+        document.body.style.overflow = '';
+      }
+      
+      // Botón abrir drawer
+      document.querySelectorAll('[data-drawer-open]').forEach(function(btn) {
+        btn.addEventListener('click', openDrawer);
+      });
+      
+      // Cerrar drawer (overlay, X, MOSTRAR, o clic fuera del contenido)
+      document.addEventListener('click', function(e) {
+        // Clic en elementos con data-drawer-close
+        if (e.target.hasAttribute('data-drawer-close') || e.target.closest('[data-drawer-close]')) {
+          closeDrawer();
+          return;
+        }
+        
+        // Clic directo en el drawer (fuera del contenido)
+        if (e.target === drawer) {
+          closeDrawer();
+        }
+      });
+      
+      // Cerrar con ESC
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && drawer && drawer.classList.contains('is-open')) {
+          closeDrawer();
+        }
+      });
+      
+      // =============================================
+      // LIMPIAR FILTROS
+      // =============================================
+      document.addEventListener('click', function(e) {
+        const clearBtn = e.target.closest('[data-drawer-clear]');
+        if (!clearBtn) return;
+        
+        e.preventDefault();
+        
+        // Reset visual de checkboxes y radios
+        if (drawer) {
+          drawer.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach(function(input) {
+            input.checked = false;
+          });
+          
+          // Reset price sliders
+          drawer.querySelectorAll('.price-range-slider').forEach(function(slider) {
+            const minInput = slider.querySelector('.price-range-slider__input--min');
+            const maxInput = slider.querySelector('.price-range-slider__input--max');
+            const progress = slider.querySelector('.price-range-slider__progress');
+            const minValueEl = slider.querySelector('.price-range-slider__min-value');
+            const maxValueEl = slider.querySelector('.price-range-slider__max-value');
+            const hiddenMin = slider.querySelector('.price-range-slider__hidden-min');
+            const hiddenMax = slider.querySelector('.price-range-slider__hidden-max');
+            
+            const rangeMax = parseFloat(slider.dataset.max) || 1000;
+            const currency = slider.dataset.currency || 'S/';
+            
+            minInput.value = 0;
+            maxInput.value = rangeMax;
+            hiddenMin.value = '';
+            hiddenMax.value = '';
+            
+            progress.style.left = '0%';
+            progress.style.width = '100%';
+            minValueEl.textContent = currency + '0';
+            maxValueEl.textContent = currency + Math.ceil(rangeMax);
+          });
+        }
+        
+        // Aplicar limpieza
+        if (typeof FacetFiltersForm !== 'undefined' && FacetFiltersForm.renderPage) {
+          FacetFiltersForm.renderPage('', null);
+          setTimeout(updateDrawerCount, 500);
+          setTimeout(updateDrawerCount, 1000);
+        } else {
+          window.location.href = clearBtn.href || window.location.pathname;
+        }
+      });
+      
+      // =============================================
+      // APLICAR FILTROS
+      // =============================================
+      function applyFilters(immediate) {
+        if (!drawerForm) return;
+        
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+          const formData = new FormData(drawerForm);
+          const searchParams = new URLSearchParams(formData).toString();
+          
+          if (typeof FacetFiltersForm !== 'undefined' && FacetFiltersForm.renderPage) {
+            FacetFiltersForm.renderPage(searchParams, null);
+            setTimeout(updateDrawerCount, 500);
+            setTimeout(updateDrawerCount, 1000);
+          } else {
+            window.location.href = window.location.pathname + (searchParams ? '?' + searchParams : '');
+          }
+        }, immediate ? 0 : 300);
+      }
+      
+      // Escuchar cambios en el form
+      if (drawerForm) {
+        drawerForm.addEventListener('change', function(e) {
+          if (e.target.type === 'range') return; // Ignorar range, se maneja con hidden inputs
+          
+          const isPriceHidden = e.target.classList.contains('price-range-slider__hidden-min') || 
+                                e.target.classList.contains('price-range-slider__hidden-max');
+          applyFilters(e.target.type === 'checkbox' || e.target.type === 'radio' || isPriceHidden);
+        });
+      }
+      
+      // Update drawer product count
+      function updateDrawerCount() {
+        const productCount = document.getElementById('ProductCount');
+        const drawerCount = document.querySelector('.drawer-product-count');
+        if (productCount && drawerCount) {
+          const count = productCount.textContent.match(/\d+/);
+          if (count) drawerCount.textContent = count[0];
+        }
+      }
+      
+      // Observar cambios en el DOM para detectar cuando facets.js actualiza el contador
+      function observeProductCount() {
+        // Observer en el contenedor de la grilla de productos
+        const productGrid = document.getElementById('product-grid');
+        if (productGrid) {
+          const observer = new MutationObserver(function() {
+            setTimeout(updateDrawerCount, 100);
+          });
+          observer.observe(productGrid, { childList: true, subtree: true });
+        }
+        
+        // También observar el contenedor del contador
+        const countContainer = document.querySelector('.collection-header__count');
+        if (countContainer) {
+          const observer2 = new MutationObserver(updateDrawerCount);
+          observer2.observe(countContainer, { childList: true, subtree: true, characterData: true });
+        }
+        
+        // Actualizar inmediatamente
+        updateDrawerCount();
+      }
+      
+      // También escuchar el evento de historial para cuando facets.js cambia la URL
+      window.addEventListener('popstate', function() {
+        setTimeout(updateDrawerCount, 500);
+      });
+      
+      // Price Range Slider
+      function initPriceRangeSliders() {
+        const sliders = document.querySelectorAll('.price-range-slider');
+        sliders.forEach(function(slider) {
+          if (slider.dataset.initialized) return;
+          slider.dataset.initialized = 'true';
+          
+          const minInput = slider.querySelector('.price-range-slider__input--min');
+          const maxInput = slider.querySelector('.price-range-slider__input--max');
+          const progress = slider.querySelector('.price-range-slider__progress');
+          const minValueEl = slider.querySelector('.price-range-slider__min-value');
+          const maxValueEl = slider.querySelector('.price-range-slider__max-value');
+          const hiddenMin = slider.querySelector('.price-range-slider__hidden-min');
+          const hiddenMax = slider.querySelector('.price-range-slider__hidden-max');
+          
+          const rangeMax = parseFloat(slider.dataset.max) || 1000;
+          const currency = slider.dataset.currency || 'S/';
+          const minGap = 1;
+          
+          function updateVisual() {
+            let min = parseFloat(minInput.value) || 0;
+            let max = parseFloat(maxInput.value) || rangeMax;
+            
+            // Enforce gap
+            if (min > max - minGap) min = max - minGap;
+            if (max < min + minGap) max = min + minGap;
+            
+            // Clamp values
+            min = Math.max(0, Math.min(min, rangeMax));
+            max = Math.max(0, Math.min(max, rangeMax));
+            
+            // Update progress bar
+            const percentMin = (min / rangeMax) * 100;
+            const percentMax = (max / rangeMax) * 100;
+            progress.style.left = percentMin + '%';
+            progress.style.width = (percentMax - percentMin) + '%';
+            
+            // Update displayed values
+            minValueEl.textContent = currency + Math.floor(min);
+            maxValueEl.textContent = currency + Math.ceil(max);
+          }
+          
+          function applyPriceFilter() {
+            let min = parseFloat(minInput.value) || 0;
+            let max = parseFloat(maxInput.value) || rangeMax;
+            
+            // Enforce gap
+            if (min > max - minGap) {
+              min = max - minGap;
+              minInput.value = min;
+            }
+            if (max < min + minGap) {
+              max = min + minGap;
+              maxInput.value = max;
+            }
+            
+            // Update hidden inputs - only set if different from defaults
+            hiddenMin.value = min > 0 ? Math.floor(min) : '';
+            hiddenMax.value = max < rangeMax ? Math.ceil(max) : '';
+            
+            updateVisual();
+            
+            // Trigger the form change handler
+            hiddenMin.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          
+          // Visual update while dragging
+          minInput.addEventListener('input', function(e) {
+            e.stopPropagation();
+            let min = parseFloat(minInput.value) || 0;
+            let max = parseFloat(maxInput.value) || rangeMax;
+            if (min > max - minGap) {
+              minInput.value = max - minGap;
+            }
+            updateVisual();
+          });
+          
+          maxInput.addEventListener('input', function(e) {
+            e.stopPropagation();
+            let min = parseFloat(minInput.value) || 0;
+            let max = parseFloat(maxInput.value) || rangeMax;
+            if (max < min + minGap) {
+              maxInput.value = min + minGap;
+            }
+            updateVisual();
+          });
+          
+          // Apply filter only when mouse/touch released
+          minInput.addEventListener('change', applyPriceFilter);
+          maxInput.addEventListener('change', applyPriceFilter);
+          
+          // Initial visual update
+          updateVisual();
+        });
+      }
+      
+      document.addEventListener('DOMContentLoaded', function() {
+        try { initDrawerFilters(); } catch(e) {}
+        try { observeProductCount(); } catch(e) {}
+        try { initPriceRangeSliders(); } catch(e) {}
+      });
+      document.addEventListener('shopify:section:load', function() {
+        initDrawerFilters();
+        observeProductCount();
+        initPriceRangeSliders();
+      });
+    })();
+  </script>
+  
+  {% if section.settings.image_shape == 'arch' %}
+    {{ 'mask-arch.svg' | inline_asset_content }}
+  {%- endif -%}
+</div>
+
+{% schema %}
+{
+  "name": "t:sections.main-collection-product-grid.name",
+  "class": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Navegación"
+    },
+    {
+      "type": "link_list",
+      "id": "collection_nav",
+      "label": "Menú de navegación",
+      "info": "Selecciona un menú jerárquico. Se mostrarán los enlaces hermanos del nivel actual."
+    },
+    {
+      "type": "header",
+      "content": "Productos"
+    },
+    {
+      "type": "range",
+      "id": "products_per_page",
+      "min": 8,
+      "max": 48,
+      "step": 4,
+      "default": 16,
+      "label": "t:sections.main-collection-product-grid.settings.products_per_page.label"
+    },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "min": 1,
+      "max": 6,
+      "step": 1,
+      "default": 4,
+      "label": "t:sections.main-collection-product-grid.settings.columns_desktop.label"
+    },
+    {
+      "type": "select",
+      "id": "columns_mobile",
+      "default": "2",
+      "label": "t:sections.main-collection-product-grid.settings.columns_mobile.label",
+      "options": [
+        {
+          "value": "1",
+          "label": "t:sections.main-collection-product-grid.settings.columns_mobile.options__1.label"
+        },
+        {
+          "value": "2",
+          "label": "t:sections.main-collection-product-grid.settings.columns_mobile.options__2.label"
+        }
+      ]
+    },    
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "t:sections.all.colors.label",
+      "info": "t:sections.all.colors.has_cards_info",
+      "default": "scheme-1"
+    },
+    {
+      "type": "header",
+      "content": "t:sections.main-collection-product-grid.settings.header__3.content"
+    },
+    {
+      "type": "paragraph",
+      "content": "La proporción de imagen, rating y fondo se gestionan desde la configuración del tema (Product Card)."
+    },
+    {
+      "type": "select",
+      "id": "image_shape",
+      "options": [
+        {
+          "value": "default",
+          "label": "t:sections.all.image_shape.options__1.label"
+        },
+        {
+          "value": "arch",
+          "label": "t:sections.all.image_shape.options__2.label"
+        },
+        {
+          "value": "blob",
+          "label": "t:sections.all.image_shape.options__3.label"
+        },
+        {
+          "value": "chevronleft",
+          "label": "t:sections.all.image_shape.options__4.label"
+        },
+        {
+          "value": "chevronright",
+          "label": "t:sections.all.image_shape.options__5.label"
+        },
+        {
+          "value": "diamond",
+          "label": "t:sections.all.image_shape.options__6.label"
+        },
+        {
+          "value": "parallelogram",
+          "label": "t:sections.all.image_shape.options__7.label"
+        },
+        {
+          "value": "round",
+          "label": "t:sections.all.image_shape.options__8.label"
+        }
+      ],
+      "default": "default",
+      "label": "t:sections.all.image_shape.label"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_secondary_image",
+      "default": false,
+      "label": "t:sections.main-collection-product-grid.settings.show_secondary_image.label"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_vendor",
+      "default": false,
+      "label": "t:sections.main-collection-product-grid.settings.show_vendor.label"
+    },
+    {
+      "type": "select",
+      "id": "quick_add",
+      "default": "none",
+      "label": "t:sections.main-collection-product-grid.settings.quick_add.label",
+      "options": [
+        {
+          "value": "none",
+          "label": "t:sections.main-collection-product-grid.settings.quick_add.options.option_1"
+        },
+        {
+          "value": "standard",
+          "label": "t:sections.main-collection-product-grid.settings.quick_add.options.option_2"
+        },
+        {
+          "value": "bulk",
+          "label": "t:sections.main-collection-product-grid.settings.quick_add.options.option_3"
+        }
+      ]
+    },
+    {
+      "type": "header",
+      "content": "Filtros y ordenamiento"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_filtering",
+      "default": true,
+      "label": "Activar filtros"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_sorting",
+      "default": true,
+      "label": "Activar ordenamiento"
+    },
+    {
+      "type": "header",
+      "content": "t:sections.all.padding.section_padding_heading"
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "t:sections.all.padding.padding_top",
+      "default": 36
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "label": "t:sections.all.padding.padding_bottom",
+      "default": 36
+    }
+  ]
+}
+{% endschema %}
