@@ -66,7 +66,7 @@ class GmailSyncService {
     try {
       console.log(`[Gemini Sync] 🧠 Analizando correo de ${from} con Inteligencia Artificial...`);
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-1.5-flash-latest',
         generationConfig: { responseMimeType: 'application/json' }
       });
 
