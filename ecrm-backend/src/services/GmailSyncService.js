@@ -1,10 +1,9 @@
 const { google } = require('googleapis');
-const { GoogleGenAI } = require('@google/genai'); // 🌟 Librería nueva
+const { GoogleGenAI } = require('@google/genai');
 const TicketRepository = require('../repositories/TicketRepository');
 const StoreRepository = require('../repositories/StoreRepository');
 const db = require('../config/db');
 
-// 🌟 Inicialización con el nuevo SDK
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 class GmailSyncService {
@@ -22,6 +21,7 @@ class GmailSyncService {
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
     
     this.procesadosEnMemoria = new Set();
+    this.isProcessing = false; 
 
     console.log('[Gmail Sync] Servicio iniciado. Revisión cada 60s.');
     
@@ -49,7 +49,7 @@ class GmailSyncService {
     return 'enova.agency';
   }
 
-  async analyzeEmailWithGemini(subject, body, from) {
+  async analyzeEmailWithGemini(subject, body, from, intentos = 2) {
     const dummyData = {
       priority: 'MEDIUM',
       task_type: 'CONSULTA',
@@ -74,7 +74,6 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
   "summary": "Resumen ejecutivo profesional de la solicitud"
 }`;
 
-      // 🌟 Nueva estructura de llamada exigida por Google para cuentas actuales
       const interaction = await ai.interactions.create({
         model: "gemini-3.8-flash",
         input: prompt,
@@ -85,12 +84,20 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
       
       return JSON.parse(responseText);
     } catch (e) {
+      if (e.message.includes('429') && intentos > 0) {
+        console.warn(`⚠️ Error 429 detectado. Forzando pausa de 35 segundos. Intentos restantes: ${intentos}`);
+        await new Promise(r => setTimeout(r, 35000));
+        return this.analyzeEmailWithGemini(subject, body, from, intentos - 1);
+      }
       console.error('[Gemini Error]', e.message);
       return dummyData;
     }
   }
 
   async processTaggedEmails() {
+    if (this.isProcessing) return; 
+    this.isProcessing = true;
+
     try {
       const response = await this.gmail.users.messages.list({
         userId: 'me',
@@ -98,70 +105,90 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
       });
 
       const messages = response.data.messages || [];
-      if (messages.length === 0) return;
+      if (messages.length === 0) {
+        this.isProcessing = false;
+        return;
+      }
 
-      for (const msg of messages) {
-        if (this.procesadosEnMemoria.has(msg.id)) continue;
+      // Agrupamos por Hilo para procesar 1 sola vez toda la conversación
+      const threadIds = [...new Set(messages.map(msg => msg.threadId))];
 
-        const existingTicket = await db('tickets')
-          .where('description', 'like', `%[GMAIL_ID: ${msg.id}]%`)
-          .first();
+      for (const threadId of threadIds) {
+        const threadData = await this.gmail.users.threads.get({
+          userId: 'me',
+          id: threadId
+        });
 
-        if (existingTicket) {
-          this.procesadosEnMemoria.add(msg.id);
-          this.removerEtiquetas(msg.id);
+        const threadMessages = threadData.data.messages || [];
+        if (threadMessages.length === 0) continue;
+
+        // Tomamos únicamente el último mensaje del hilo
+        const lastMessage = threadMessages[threadMessages.length - 1];
+
+        // Validamos si este mensaje en específico ya es un ticket
+        if (this.procesadosEnMemoria.has(lastMessage.id)) {
+          await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
           continue;
         }
 
-        const messageData = await this.gmail.users.messages.get({
-          userId: 'me',
-          id: msg.id
-        });
+        const existingTicket = await db('tickets')
+          .where('description', 'like', `%[GMAIL_ID: ${lastMessage.id}]%`)
+          .first();
 
-        const headers = messageData.data.payload.headers;
+        if (existingTicket) {
+          this.procesadosEnMemoria.add(lastMessage.id);
+          await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
+          continue;
+        }
+
+        const headers = lastMessage.payload.headers;
         const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || 'Sin Asunto';
         const rawFrom = headers.find(h => h.name.toLowerCase() === 'from')?.value || 'Desconocido';
-        const snippet = messageData.data.snippet || 'Sin descripción';
+        const snippet = lastMessage.snippet || 'Sin descripción';
 
         const cleanSenderEmail = this.cleanEmailAddress(rawFrom);
         const targetStoreId = await this.resolveStoreId(cleanSenderEmail);
+
+        console.log(`⏳ Pausando 20 segundos para respetar cuota estricta de IA...`);
+        await new Promise(resolve => setTimeout(resolve, 20000));
 
         const aiData = await this.analyzeEmailWithGemini(subject, snippet, rawFrom);
 
         await TicketRepository.create({
           name: aiData.clean_name,
-          description: `[GMAIL_ID: ${msg.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\nResumen:\n${aiData.summary}\n\nMensaje Original:\n${snippet}`,
+          description: `[GMAIL_ID: ${lastMessage.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\nResumen:\n${aiData.summary}\n\nMensaje Original:\n${snippet}`,
           store_id: targetStoreId,
           priority: aiData.priority,
           task_type: aiData.task_type
         });
 
-        this.procesadosEnMemoria.add(msg.id);
-        await this.removerEtiquetas(msg.id, messageData.data.labelIds);
-        console.log(`✅ [EXITO] Ticket guardado: "${aiData.clean_name}"`);
+        this.procesadosEnMemoria.add(lastMessage.id);
+        
+        // REMOVER LA ETIQUETA A TODO EL HILO DE GOLPE
+        await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
+        console.log(`✅ [EXITO] 1 Ticket guardado para el hilo: "${aiData.clean_name}"`);
       }
     } catch (error) {
       console.error('❌ [Error]:', error.message);
+    } finally {
+      this.isProcessing = false; 
     }
   }
 
-  async removerEtiquetas(messageId, labelIds = null) {
+  async removerEtiquetasHilo(threadId, labelIds = []) {
     try {
-      if (!labelIds) {
-        const msgData = await this.gmail.users.messages.get({ userId: 'me', id: messageId });
-        labelIds = msgData.data.labelIds || [];
-      }
-      
       const removeIds = labelIds.filter(id => id.startsWith('Label_') || id === 'UNREAD');
       
       if (removeIds.length > 0) {
-        await this.gmail.users.messages.modify({
+        await this.gmail.users.threads.modify({
           userId: 'me',
-          id: messageId,
+          id: threadId,
           requestBody: { removeLabelIds: removeIds }
         });
       }
-    } catch (error) {}
+    } catch (error) {
+      console.error('Error removiendo etiqueta del hilo:', error.message);
+    }
   }
 }
 
