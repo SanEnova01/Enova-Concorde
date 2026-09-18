@@ -1,10 +1,11 @@
 const { google } = require('googleapis');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai'); // 🌟 Librería nueva
 const TicketRepository = require('../repositories/TicketRepository');
 const StoreRepository = require('../repositories/StoreRepository');
 const db = require('../config/db');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// 🌟 Inicialización con el nuevo SDK
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 class GmailSyncService {
   constructor() {
@@ -59,9 +60,6 @@ class GmailSyncService {
     if (!process.env.GEMINI_API_KEY) return dummyData;
 
     try {
-      // 🌟 SOLUCIÓN APLICADA: Actualizado al modelo vigente y recomendado
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
       const prompt = `Analiza el siguiente correo recibido y clasifícalo para registrar un ticket en el CRM.
 
 Remitente: ${from}
@@ -76,8 +74,13 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
   "summary": "Resumen ejecutivo profesional de la solicitud"
 }`;
 
-      const result = await model.generateContent(prompt);
-      let responseText = result.response.text();
+      // 🌟 Nueva estructura de llamada exigida por Google para cuentas actuales
+      const interaction = await ai.interactions.create({
+        model: "gemini-3.8-flash",
+        input: prompt,
+      });
+
+      let responseText = interaction.output_text;
       responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
       
       return JSON.parse(responseText);
