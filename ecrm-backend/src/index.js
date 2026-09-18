@@ -516,3 +516,11 @@ HubspotService.syncTickets();
 app.listen(PORT, HOST, () => {
   console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
 });
+
+
+const GmailSyncService = require('./services/GmailSyncService');
+
+// Revisar la etiqueta de Gmail cada 60 segundos
+setInterval(() => {
+  GmailSyncService.processTaggedEmails();
+}, 60 * 1000);
