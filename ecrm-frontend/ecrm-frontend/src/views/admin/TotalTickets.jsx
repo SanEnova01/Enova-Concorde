@@ -25,7 +25,7 @@ function TotalTickets() {
 
   // PAGINACIÓN DE 10 POR PÁGINA EN LISTA
   const [listPage, setListPage] = useState(1);
-  const listItemsPerPage = 10;
+  const listItemsPerPage = 20;
 
   // PAGINACIÓN KANBAN (6 por columna)
   const [kanbanPages, setKanbanPages] = useState({
