@@ -21,6 +21,7 @@ class GmailSyncService {
     
     this.procesadosEnMemoria = new Set();
     this.isProcessing = false; 
+    this.processedLabelId = null;
 
     console.log('[Gmail Sync] Modo Nivel 1 Activo (Sin pausas artificiales). Revisión cada 60s.');
     
@@ -38,6 +39,36 @@ class GmailSyncService {
     return match ? match[1].toLowerCase().trim() : rawFrom.toLowerCase().trim();
   }
 
+  async getProcessedLabelId() {
+    if (this.processedLabelId) return this.processedLabelId;
+
+    try {
+      const res = await this.gmail.users.labels.list({ userId: 'me' });
+      const labels = res.data.labels || [];
+      const target = labels.find(l => l.name.toLowerCase() === 'concorde---procesados');
+
+      if (target) {
+        this.processedLabelId = target.id;
+        return target.id;
+      }
+
+      // Si la etiqueta no existe en Gmail, se crea automáticamente
+      const newLabel = await this.gmail.users.labels.create({
+        userId: 'me',
+        requestBody: {
+          name: 'concorde---procesados',
+          labelListVisibility: 'labelShow',
+          messageListVisibility: 'show'
+        }
+      });
+      this.processedLabelId = newLabel.data.id;
+      return this.processedLabelId;
+    } catch (error) {
+      console.error('⚠️ Error obteniendo/creando etiqueta de procesados:', error.message);
+      return null;
+    }
+  }
+
   async resolveStoreId(senderEmail, inferredCompany = '') {
     try {
       const domainMatch = senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -47,7 +78,6 @@ class GmailSyncService {
       if (domain && !dominiosGenericos.includes(domain)) {
         const storeDb = await db('stores')
           .where('web', 'like', `%${domain}%`)
-          .orWhere('url', 'like', `%${domain}%`)
           .orWhere('email', 'like', `%${domain}%`)
           .first();
           
@@ -127,9 +157,10 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
     this.isProcessing = true;
 
     try {
+      // 🛡️ Filtro estricto: Trae los correos con la etiqueta de entrada pero EXCLUYE los procesados
       const response = await this.gmail.users.messages.list({
         userId: 'me',
-        q: 'label:concorde---tickets' 
+        q: 'label:concorde---tickets -label:concorde---procesados' 
       });
 
       const messages = response.data.messages || [];
@@ -151,20 +182,20 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
 
         const lastMessage = threadMessages[threadMessages.length - 1];
 
-        // ESCUDO 1: Verificación inmediata en memoria para evitar reingresos en el mismo ciclo
+        // ESCUDO 1: Verificación en memoria
         if (this.procesadosEnMemoria.has(lastMessage.id)) {
-          await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
+          await this.moverAProcesados(threadId, lastMessage.labelIds);
           continue;
         }
 
-        // ESCUDO 2: Verificación en Base de Datos para evitar duplicados si el servidor se reinicia
+        // ESCUDO 2: Verificación en Base de Datos
         const existingTicket = await db('tickets')
           .where('description', 'like', `%[GMAIL_ID: ${lastMessage.id}]%`)
           .first();
 
         if (existingTicket) {
           this.procesadosEnMemoria.add(lastMessage.id);
-          await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
+          await this.moverAProcesados(threadId, lastMessage.labelIds);
           continue;
         }
 
@@ -175,10 +206,8 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
 
         const cleanSenderEmail = this.cleanEmailAddress(rawFrom);
 
-        // Bloqueo preventivo instantáneo en memoria RAM
         this.procesadosEnMemoria.add(lastMessage.id);
 
-        // Procesamiento en tiempo real sin pausas de espera
         const aiData = await this.analyzeEmailWithGemini(subject, snippet, rawFrom);
         const targetStoreId = await this.resolveStoreId(cleanSenderEmail, aiData.inferred_company);
 
@@ -190,30 +219,34 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
           task_type: aiData.task_type
         });
 
-        // ESCUDO 3: Eliminación de etiqueta en Gmail inmediatamente después de insertar el ticket
-        await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
-        console.log(`⚡ [Sincronizado Inmediato] Ticket: "${aiData.clean_name}" (Tienda: ${targetStoreId})`);
+        // 🔄 Mover el hilo a 'concorde---procesados' para sacarlo del flujo de entrada
+        await this.moverAProcesados(threadId, lastMessage.labelIds);
+        console.log(`⚡ [Sincronizado] Ticket: "${aiData.clean_name}" (Tienda: ${targetStoreId}) -> Movido a Procesados`);
       }
     } catch (error) {
-      console.error('❌ [Error]:', error.message);
+      console.error('❌ [Error en Sync]:', error.message);
     } finally {
       this.isProcessing = false; 
     }
   }
 
-  async removerEtiquetasHilo(threadId, labelIds = []) {
+  async moverAProcesados(threadId, currentLabelIds = []) {
     try {
-      const removeIds = labelIds.filter(id => id.startsWith('Label_') || id === 'UNREAD');
+      const processedLabelId = await this.getProcessedLabelId();
       
-      if (removeIds.length > 0) {
-        await this.gmail.users.threads.modify({
-          userId: 'me',
-          id: threadId,
-          requestBody: { removeLabelIds: removeIds }
-        });
-      }
+      const removeIds = currentLabelIds.filter(id => id.startsWith('Label_') || id === 'UNREAD');
+      const addIds = processedLabelId ? [processedLabelId] : [];
+
+      await this.gmail.users.threads.modify({
+        userId: 'me',
+        id: threadId,
+        requestBody: { 
+          removeLabelIds: removeIds,
+          addLabelIds: addIds 
+        }
+      });
     } catch (error) {
-      console.error('Error removiendo etiqueta del hilo:', error.message);
+      console.error('Error moviendo etiquetas del hilo:', error.message);
     }
   }
 }
