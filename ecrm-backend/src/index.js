@@ -169,7 +169,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     if (!passwordValidoTradicional && password !== '123456') {
       return res.status(400).json({ 
         success: false, 
-        error: `DIAGNÓSTICO: El correo '${correoLimpio}' SÍ existe, pero la contraseña es incorrecta.` 
+        error: `DIAGNÓSTICO: El correo '${cleanIdentifier}' SÍ existe, pero la contraseña es incorrecta.` 
       });
     }
 
@@ -502,9 +502,9 @@ app.get(/.*/, (req, res) => {
   res.sendFile(path.join(reactBuildPath, 'index.html'));
 });
 
-const PORT = process.env.PORT || 8080;
-const HOST = '0.0.0.0'; 
-
+// ==========================================
+// 🚀 INICIALIZACIÓN DE SERVICIOS EN SEGUNDO PLANO
+// ==========================================
 const HubspotService = require('./services/HubspotService');
 setInterval(() => {
   HubspotService.syncTickets();
@@ -513,14 +513,15 @@ setInterval(() => {
 // Ejecutar primera sincronización al iniciar el servidor
 HubspotService.syncTickets();
 
+// 🔥 AQUÍ ENCENDEMOS EL MOTOR DE GMAIL (Tiene su propio temporizador)
+require('./services/GmailSyncService');
+
+// ==========================================
+// ARRANQUE DEL SERVIDOR
+// ==========================================
+const PORT = process.env.PORT || 8080;
+const HOST = '0.0.0.0'; 
+
 app.listen(PORT, HOST, () => {
   console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
 });
-
-
-const GmailSyncService = require('./services/GmailSyncService');
-
-// Revisar la etiqueta de Gmail cada 60 segundos
-setInterval(() => {
-  GmailSyncService.processTaggedEmails();
-}, 60 * 1000);

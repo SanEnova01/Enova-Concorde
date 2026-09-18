@@ -18,6 +18,19 @@ class GmailSyncService {
     });
 
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+
+    // 🔥 EL MOTOR DE ARRANQUE AUTOMÁTICO:
+    console.log('[Gmail Sync] 🚀 Servicio en línea. Revisando la bandeja automáticamente cada 60 segundos...');
+    
+    // Hace una primera revisión a los 5 segundos de prender el servidor
+    setTimeout(() => {
+      this.processTaggedEmails();
+    }, 5000);
+
+    // Luego se queda revisando cada 60 segundos por la eternidad
+    setInterval(() => {
+      this.processTaggedEmails();
+    }, 60000);
   }
 
   cleanEmailAddress(rawFrom) {
@@ -34,7 +47,7 @@ class GmailSyncService {
     } catch (error) {
       console.warn(`[Gmail Sync] Cliente no encontrado para ${senderEmail}. Asignando cliente por defecto.`);
     }
-    return 'enova_digital';
+    return 'enova.agency'; // Ajustado al ID por defecto que usas en tu BD
   }
 
   async analyzeEmailWithGemini(subject, body, from) {
@@ -46,11 +59,12 @@ class GmailSyncService {
     };
 
     if (!process.env.GEMINI_API_KEY) {
-      console.warn('[Gemini Sync] GEMINI_API_KEY no detectada. Procesando con datos dummy.');
+      console.warn('[Gemini Sync] ⚠️ GEMINI_API_KEY no detectada. Procesando sin IA.');
       return dummyData;
     }
 
     try {
+      console.log(`[Gemini Sync] 🧠 Analizando correo de ${from} con Inteligencia Artificial...`);
       const model = genAI.getGenerativeModel({
         model: 'gemini-1.5-flash',
         generationConfig: { responseMimeType: 'application/json' }
@@ -75,24 +89,28 @@ Responde en formato JSON con la siguiente estructura:
       return JSON.parse(responseText);
 
     } catch (e) {
-      console.error('[Gemini Sync Warning] Error de tokens/cuota o servicio no disponible. Aplicando datos dummy:', e.message);
+      console.error('[Gemini Sync Warning] Error procesando IA. Aplicando datos básicos:', e.message);
       return dummyData;
     }
   }
 
   async processTaggedEmails() {
     try {
-      // Al buscar solo por el nombre de la etiqueta, Gmail procesará el correo
-      // sin importar si es antiguo, nuevo, está leído, no leído o archivado.
+      console.log('[Gmail Sync] 🔍 Buscando correos con etiqueta "CONCORDE - TICKETS"...');
+      
       const response = await this.gmail.users.messages.list({
         userId: 'me',
         q: 'label:"CONCORDE - TICKETS"'
       });
 
       const messages = response.data.messages || [];
-      if (messages.length === 0) return;
+      if (messages.length === 0) {
+        console.log('[Gmail Sync] 📭 Bandeja limpia. No hay tickets pendientes.');
+        return;
+      }
 
-      // Obtenemos el ID interno de la etiqueta para poder quitársela y no duplicar el ticket
+      console.log(`[Gmail Sync] 📥 ¡Se encontraron ${messages.length} correos con etiqueta! Iniciando extracción...`);
+
       const labelsRes = await this.gmail.users.labels.list({ userId: 'me' });
       const concordeLabel = labelsRes.data.labels?.find(l => l.name === 'CONCORDE - TICKETS');
 
@@ -131,10 +149,10 @@ Responde en formato JSON con la siguiente estructura:
           }
         });
 
-        console.log(`[Gmail Sync] Ticket generado para [${targetStoreId}]: "${aiData.clean_name}" (${aiData.priority})`);
+        console.log(`✅ [Gmail Sync EXITO] Ticket guardado en Base de Datos para [${targetStoreId}]: "${aiData.clean_name}"`);
       }
     } catch (error) {
-      console.error('[Gmail Sync Error]:', error.message);
+      console.error('❌ [Gmail Sync Error]:', error.message);
     }
   }
 }
