@@ -2,7 +2,7 @@ const { google } = require('googleapis');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const TicketRepository = require('../repositories/TicketRepository');
 const StoreRepository = require('../repositories/StoreRepository');
-const db = require('../config/db'); // Necesitamos la DB para verificar si el correo ya existe
+const db = require('../config/db');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -19,8 +19,10 @@ class GmailSyncService {
     });
 
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    
+    this.procesadosEnMemoria = new Set();
 
-    console.log('[Gmail Sync] 🚀 Servicio en línea. Revisando la bandeja automáticamente cada 60 segundos...');
+    console.log('[Gmail Sync] Servicio iniciado. Revisión cada 60s.');
     
     setTimeout(() => {
       this.processTaggedEmails();
@@ -42,9 +44,7 @@ class GmailSyncService {
         const store = await StoreRepository.findByEmail(senderEmail);
         if (store && store.id) return store.id;
       }
-    } catch (error) {
-      console.warn(`[Gmail Sync] Cliente no encontrado para ${senderEmail}. Asignando cliente por defecto.`);
-    }
+    } catch (error) {}
     return 'enova.agency';
   }
 
@@ -56,15 +56,11 @@ class GmailSyncService {
       summary: body || 'Sin descripción disponible.'
     };
 
-    if (!process.env.GEMINI_API_KEY) {
-      return dummyData;
-    }
+    if (!process.env.GEMINI_API_KEY) return dummyData;
 
     try {
-      console.log(`[Gemini Sync] 🧠 Analizando correo de ${from} con Inteligencia Artificial...`);
-      
-      // Usamos el modelo más rápido y estable actualmente
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // 🌟 SOLUCIÓN APLICADA: Actualizado al modelo vigente y recomendado
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const prompt = `Analiza el siguiente correo recibido y clasifícalo para registrar un ticket en el CRM.
 
@@ -82,59 +78,38 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
 
       const result = await model.generateContent(prompt);
       let responseText = result.response.text();
-      
-      // Limpiamos cualquier formato markdown que pueda enviar la IA
       responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
       
       return JSON.parse(responseText);
-
     } catch (e) {
-      console.error('[Gemini Sync Warning] Error procesando IA. Aplicando datos básicos:', e.message);
+      console.error('[Gemini Error]', e.message);
       return dummyData;
     }
   }
 
   async processTaggedEmails() {
     try {
-      console.log('[Gmail Sync] 🔍 Buscando correos con la etiqueta de Concorde...');
-      
       const response = await this.gmail.users.messages.list({
         userId: 'me',
         q: 'label:concorde---tickets' 
       });
 
       const messages = response.data.messages || [];
-
-      if (messages.length === 0) {
-        console.log('[Gmail Sync] 📭 Bandeja limpia o sin correos nuevos.');
-        return;
-      }
-
-      console.log(`[Gmail Sync] 📥 Se encontraron ${messages.length} correos con etiqueta. Verificando en base de datos...`);
+      if (messages.length === 0) return;
 
       for (const msg of messages) {
-        // 🌟 LA VERDADERA SOLUCIÓN AL BUCLE: Verificamos si este correo YA EXISTE en la base de datos
-        // Usamos el ID del mensaje de Gmail para buscar en la descripción del ticket
+        if (this.procesadosEnMemoria.has(msg.id)) continue;
+
         const existingTicket = await db('tickets')
           .where('description', 'like', `%[GMAIL_ID: ${msg.id}]%`)
           .first();
 
         if (existingTicket) {
-          console.log(`[Gmail Sync] ⏩ Saltando correo ya procesado anteriormente: ${msg.id}`);
-          
-          // Intentamos borrar la etiqueta de nuevo (por si falló la vez anterior), pero sin crear el ticket
-          try {
-             await this.gmail.users.messages.modify({
-               userId: 'me',
-               id: msg.id,
-               requestBody: { removeLabelIds: ['UNREAD'] }
-             });
-          } catch(e){}
-          
-          continue; // Pasamos al siguiente correo
+          this.procesadosEnMemoria.add(msg.id);
+          this.removerEtiquetas(msg.id);
+          continue;
         }
 
-        // Si llegamos aquí, ES UN CORREO NUEVO de verdad
         const messageData = await this.gmail.users.messages.get({
           userId: 'me',
           id: msg.id
@@ -143,8 +118,6 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
         const headers = messageData.data.payload.headers;
         const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || 'Sin Asunto';
         const rawFrom = headers.find(h => h.name.toLowerCase() === 'from')?.value || 'Desconocido';
-        
-        // Tratar de obtener el cuerpo del mensaje (snippet suele ser suficiente para el resumen)
         const snippet = messageData.data.snippet || 'Sin descripción';
 
         const cleanSenderEmail = this.cleanEmailAddress(rawFrom);
@@ -152,7 +125,6 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
 
         const aiData = await this.analyzeEmailWithGemini(subject, snippet, rawFrom);
 
-        // 🌟 GUARDAMOS EL GMAIL_ID EN LA DESCRIPCIÓN PARA NO VOLVER A PROCESARLO
         await TicketRepository.create({
           name: aiData.clean_name,
           description: `[GMAIL_ID: ${msg.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\nResumen:\n${aiData.summary}\n\nMensaje Original:\n${snippet}`,
@@ -161,28 +133,32 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
           task_type: aiData.task_type
         });
 
-        // Intentamos limpiar las etiquetas
-        try {
-          const labelsRes = await this.gmail.users.labels.list({ userId: 'me' });
-          const concordeLabel = labelsRes.data.labels?.find(l => l.name.toUpperCase().includes('CONCORDE'));
-          
-          const removeIds = ['UNREAD'];
-          if (concordeLabel) removeIds.push(concordeLabel.id);
-          
-          await this.gmail.users.messages.modify({
-            userId: 'me',
-            id: msg.id,
-            requestBody: { removeLabelIds: removeIds }
-          });
-        } catch(labelError) {
-          console.warn(`[Gmail Sync] ⚠️ No se pudo remover la etiqueta, pero el ticket ya está en la BD: ${labelError.message}`);
-        }
-
-        console.log(`✅ [Gmail Sync EXITO] Nuevo ticket guardado en BD para [${targetStoreId}]: "${aiData.clean_name}"`);
+        this.procesadosEnMemoria.add(msg.id);
+        await this.removerEtiquetas(msg.id, messageData.data.labelIds);
+        console.log(`✅ [EXITO] Ticket guardado: "${aiData.clean_name}"`);
       }
     } catch (error) {
-      console.error('❌ [Gmail Sync Error]:', error.message);
+      console.error('❌ [Error]:', error.message);
     }
+  }
+
+  async removerEtiquetas(messageId, labelIds = null) {
+    try {
+      if (!labelIds) {
+        const msgData = await this.gmail.users.messages.get({ userId: 'me', id: messageId });
+        labelIds = msgData.data.labelIds || [];
+      }
+      
+      const removeIds = labelIds.filter(id => id.startsWith('Label_') || id === 'UNREAD');
+      
+      if (removeIds.length > 0) {
+        await this.gmail.users.messages.modify({
+          userId: 'me',
+          id: messageId,
+          requestBody: { removeLabelIds: removeIds }
+        });
+      }
+    } catch (error) {}
   }
 }
 
