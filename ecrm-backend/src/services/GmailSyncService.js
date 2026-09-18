@@ -38,7 +38,6 @@ class GmailSyncService {
   }
 
   async analyzeEmailWithGemini(subject, body, from) {
-    // Estructura de datos dummy por defecto en caso de falla o falta de tokens
     const dummyData = {
       priority: 'MEDIUM',
       task_type: 'CONSULTA',
@@ -83,13 +82,19 @@ Responde en formato JSON con la siguiente estructura:
 
   async processTaggedEmails() {
     try {
+      // Al buscar solo por el nombre de la etiqueta, Gmail procesará el correo
+      // sin importar si es antiguo, nuevo, está leído, no leído o archivado.
       const response = await this.gmail.users.messages.list({
         userId: 'me',
-        q: 'label:"CONCORDE - TICKETS" is:unread'
+        q: 'label:"CONCORDE - TICKETS"'
       });
 
       const messages = response.data.messages || [];
       if (messages.length === 0) return;
+
+      // Obtenemos el ID interno de la etiqueta para poder quitársela y no duplicar el ticket
+      const labelsRes = await this.gmail.users.labels.list({ userId: 'me' });
+      const concordeLabel = labelsRes.data.labels?.find(l => l.name === 'CONCORDE - TICKETS');
 
       for (const msg of messages) {
         const messageData = await this.gmail.users.messages.get({
@@ -105,7 +110,6 @@ Responde en formato JSON con la siguiente estructura:
         const cleanSenderEmail = this.cleanEmailAddress(rawFrom);
         const targetStoreId = await this.resolveStoreId(cleanSenderEmail);
 
-        // Si Gemini falla por agotamiento de tokens, aiData obtendrá la estructura dummy sin lanzar error
         const aiData = await this.analyzeEmailWithGemini(subject, snippet, rawFrom);
 
         await TicketRepository.create({
@@ -116,11 +120,14 @@ Responde en formato JSON con la siguiente estructura:
           task_type: aiData.task_type
         });
 
+        const removeIds = ['UNREAD'];
+        if (concordeLabel) removeIds.push(concordeLabel.id);
+
         await this.gmail.users.messages.batchModify({
           userId: 'me',
           requestBody: {
             ids: [msg.id],
-            removeLabelIds: ['UNREAD']
+            removeLabelIds: removeIds
           }
         });
 
