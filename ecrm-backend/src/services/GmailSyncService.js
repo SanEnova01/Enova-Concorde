@@ -1,7 +1,6 @@
 const { google } = require('googleapis');
 const { GoogleGenAI } = require('@google/genai');
 const TicketRepository = require('../repositories/TicketRepository');
-const StoreRepository = require('../repositories/StoreRepository');
 const db = require('../config/db');
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -23,11 +22,11 @@ class GmailSyncService {
     this.procesadosEnMemoria = new Set();
     this.isProcessing = false; 
 
-    console.log('[Gmail Sync] Servicio iniciado. Revisión cada 60s.');
+    console.log('[Gmail Sync] Modo Nivel 1 Activo (Sin pausas artificiales). Revisión cada 60s.');
     
     setTimeout(() => {
       this.processTaggedEmails();
-    }, 5000);
+    }, 2000);
 
     setInterval(() => {
       this.processTaggedEmails();
@@ -39,13 +38,40 @@ class GmailSyncService {
     return match ? match[1].toLowerCase().trim() : rawFrom.toLowerCase().trim();
   }
 
-  async resolveStoreId(senderEmail) {
+  async resolveStoreId(senderEmail, inferredCompany = '') {
     try {
-      if (StoreRepository && typeof StoreRepository.findByEmail === 'function') {
-        const store = await StoreRepository.findByEmail(senderEmail);
-        if (store && store.id) return store.id;
+      const domainMatch = senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      const domain = domainMatch && domainMatch[1] ? domainMatch[1].toLowerCase().trim() : '';
+      const dominiosGenericos = ['gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com', 'icloud.com'];
+
+      if (domain && !dominiosGenericos.includes(domain)) {
+        const storeDb = await db('stores')
+          .where('web', 'like', `%${domain}%`)
+          .orWhere('url', 'like', `%${domain}%`)
+          .orWhere('email', 'like', `%${domain}%`)
+          .first();
+          
+        if (storeDb && storeDb.id) {
+          return storeDb.id;
+        }
       }
-    } catch (error) {}
+
+      if (inferredCompany && inferredCompany.trim() !== '' && inferredCompany.toLowerCase() !== 'desconocido') {
+        const companyStr = inferredCompany.trim();
+        const storeDb = await db('stores')
+          .where('name', 'like', `%${companyStr}%`)
+          .orWhere('web', 'like', `%${companyStr.replace(/\s+/g, '').toLowerCase()}%`)
+          .first();
+          
+        if (storeDb && storeDb.id) {
+          console.log(`🧠 [IA Scanner] Tienda identificada: ${companyStr} -> ID: ${storeDb.id}`);
+          return storeDb.id;
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ [Error en Scanner de ID]:', error.message);
+    }
+    
     return 'enova.agency';
   }
 
@@ -54,7 +80,8 @@ class GmailSyncService {
       priority: 'MEDIUM',
       task_type: 'CONSULTA',
       clean_name: subject || 'Ticket desde Gmail',
-      summary: body || 'Sin descripción disponible.'
+      summary: body || 'Sin descripción disponible.',
+      inferred_company: ''
     };
 
     if (!process.env.GEMINI_API_KEY) return dummyData;
@@ -71,7 +98,8 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
   "clean_name": "Título conciso y limpio para el ticket (máximo 10 palabras)",
   "priority": "LOW" o "MEDIUM" o "HIGH" o "CRITICAL",
   "task_type": "BUG_FIX" o "TASK_INTERNA" o "CAMBIO" o "CONSULTA",
-  "summary": "Resumen ejecutivo profesional de la solicitud"
+  "summary": "Resumen ejecutivo profesional de la solicitud",
+  "inferred_company": "Nombre de la empresa, tienda o marca principal extraída del remitente, firmas o contexto del mensaje (Si no se puede deducir, déjalo vacío)"
 }`;
 
       const interaction = await ai.interactions.create({
@@ -85,8 +113,8 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
       return JSON.parse(responseText);
     } catch (e) {
       if (e.message.includes('429') && intentos > 0) {
-        console.warn(`⚠️ Error 429 detectado. Forzando pausa de 35 segundos. Intentos restantes: ${intentos}`);
-        await new Promise(r => setTimeout(r, 35000));
+        console.warn(`⚠️ Reintento rápido por fluctuación de red...`);
+        await new Promise(r => setTimeout(r, 2000));
         return this.analyzeEmailWithGemini(subject, body, from, intentos - 1);
       }
       console.error('[Gemini Error]', e.message);
@@ -110,7 +138,6 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
         return;
       }
 
-      // Agrupamos por Hilo para procesar 1 sola vez toda la conversación
       const threadIds = [...new Set(messages.map(msg => msg.threadId))];
 
       for (const threadId of threadIds) {
@@ -122,15 +149,15 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
         const threadMessages = threadData.data.messages || [];
         if (threadMessages.length === 0) continue;
 
-        // Tomamos únicamente el último mensaje del hilo
         const lastMessage = threadMessages[threadMessages.length - 1];
 
-        // Validamos si este mensaje en específico ya es un ticket
+        // ESCUDO 1: Verificación inmediata en memoria para evitar reingresos en el mismo ciclo
         if (this.procesadosEnMemoria.has(lastMessage.id)) {
           await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
           continue;
         }
 
+        // ESCUDO 2: Verificación en Base de Datos para evitar duplicados si el servidor se reinicia
         const existingTicket = await db('tickets')
           .where('description', 'like', `%[GMAIL_ID: ${lastMessage.id}]%`)
           .first();
@@ -147,12 +174,13 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
         const snippet = lastMessage.snippet || 'Sin descripción';
 
         const cleanSenderEmail = this.cleanEmailAddress(rawFrom);
-        const targetStoreId = await this.resolveStoreId(cleanSenderEmail);
 
-        console.log(`⏳ Pausando 20 segundos para respetar cuota estricta de IA...`);
-        await new Promise(resolve => setTimeout(resolve, 20000));
+        // Bloqueo preventivo instantáneo en memoria RAM
+        this.procesadosEnMemoria.add(lastMessage.id);
 
+        // Procesamiento en tiempo real sin pausas de espera
         const aiData = await this.analyzeEmailWithGemini(subject, snippet, rawFrom);
+        const targetStoreId = await this.resolveStoreId(cleanSenderEmail, aiData.inferred_company);
 
         await TicketRepository.create({
           name: aiData.clean_name,
@@ -162,11 +190,9 @@ Responde ÚNICA Y EXCLUSIVAMENTE en formato JSON con la siguiente estructura, si
           task_type: aiData.task_type
         });
 
-        this.procesadosEnMemoria.add(lastMessage.id);
-        
-        // REMOVER LA ETIQUETA A TODO EL HILO DE GOLPE
+        // ESCUDO 3: Eliminación de etiqueta en Gmail inmediatamente después de insertar el ticket
         await this.removerEtiquetasHilo(threadId, lastMessage.labelIds);
-        console.log(`✅ [EXITO] 1 Ticket guardado para el hilo: "${aiData.clean_name}"`);
+        console.log(`⚡ [Sincronizado Inmediato] Ticket: "${aiData.clean_name}" (Tienda: ${targetStoreId})`);
       }
     } catch (error) {
       console.error('❌ [Error]:', error.message);
