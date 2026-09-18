@@ -96,11 +96,12 @@ Responde en formato JSON con la siguiente estructura:
 
   async processTaggedEmails() {
     try {
-      console.log('[Gmail Sync] 🔍 Buscando correos con etiqueta "CONCORDE - TICKETS"...');
+      console.log('[Gmail Sync] 🔍 Buscando correos con la etiqueta de Concorde...');
       
       const response = await this.gmail.users.messages.list({
         userId: 'me',
-        q: 'label:"CONCORDE - TICKETS"'
+        // 🌟 EL FIX: Usamos el texto exacto que pide el buscador interno de tu Gmail
+        q: 'label:concorde---tickets' 
       });
 
       const messages = response.data.messages || [];
@@ -112,7 +113,8 @@ Responde en formato JSON con la siguiente estructura:
       console.log(`[Gmail Sync] 📥 ¡Se encontraron ${messages.length} correos con etiqueta! Iniciando extracción...`);
 
       const labelsRes = await this.gmail.users.labels.list({ userId: 'me' });
-      const concordeLabel = labelsRes.data.labels?.find(l => l.name === 'CONCORDE - TICKETS');
+      // 🌟 EL FIX 2: Buscamos la etiqueta usando solo la palabra clave para evitar errores de espacios
+      const concordeLabel = labelsRes.data.labels?.find(l => l.name.toUpperCase().includes('CONCORDE'));
 
       for (const msg of messages) {
         const messageData = await this.gmail.users.messages.get({
@@ -139,7 +141,11 @@ Responde en formato JSON con la siguiente estructura:
         });
 
         const removeIds = ['UNREAD'];
-        if (concordeLabel) removeIds.push(concordeLabel.id);
+        if (concordeLabel) {
+          removeIds.push(concordeLabel.id);
+        } else {
+          console.warn('[Gmail Sync] ⚠️ No se encontró el ID de la etiqueta para removerla, se quedará marcada.');
+        }
 
         await this.gmail.users.messages.batchModify({
           userId: 'me',
