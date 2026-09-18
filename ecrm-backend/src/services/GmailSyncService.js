@@ -45,18 +45,23 @@ class GmailSyncService {
     try {
       const res = await this.gmail.users.labels.list({ userId: 'me' });
       const labels = res.data.labels || [];
-      const target = labels.find(l => l.name.toLowerCase() === 'concorde---procesados');
+      
+      // Busca cualquier etiqueta que contenga 'concorde' y 'procesad'
+      const target = labels.find(l => {
+        const name = l.name.toLowerCase();
+        return name.includes('concorde') && name.includes('procesad');
+      });
 
       if (target) {
         this.processedLabelId = target.id;
         return target.id;
       }
 
-      // Si la etiqueta no existe en Gmail, se crea automáticamente
+      // Si no existe ninguna similar, crea la versión estándar
       const newLabel = await this.gmail.users.labels.create({
         userId: 'me',
         requestBody: {
-          name: 'concorde---procesados',
+          name: 'CONCORDE - PROCESADOS',
           labelListVisibility: 'labelShow',
           messageListVisibility: 'show'
         }
