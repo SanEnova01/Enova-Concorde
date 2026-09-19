@@ -306,9 +306,8 @@ app.post('/api/ingest', async (req, res) => {
       if (!ticketExistenteHoy) {
         console.log(`[INGEST] 🟢 No existe ticket de hoy. Procediendo a crearlo...`);
         
-        // Conversión a segundos
-        const loadSec = ((parseInt(metricData.load_ms) || 0) / 1000).toFixed(2);
-        const ttfbSec = ((parseInt(metricData.ttfb_ms) || 0) / 1000).toFixed(2);
+        const loadMs = parseInt(metricData.load_ms) || 0;
+        const ttfbMs = parseInt(metricData.ttfb_ms) || 0;
         const weightMb = parseFloat(metricData.total_weight_mb) || 0;
         const requests = parseInt(metricData.total_requests) || 0;
 
@@ -318,13 +317,13 @@ Este ticket se genera automáticamente con el primer análisis del día para ver
 🔍 Acciones realizadas por el bot:
 1. Simulación de usuario: El sistema entra a la tienda simulando la visita de un cliente desde un teléfono móvil.
 2. Respuesta del servidor (TTFB): Mide cuánto tarda el servidor en dar la primera respuesta desde que el cliente da clic.
-3. Tiempo de carga total: Mide cuántos segundos tarda la pantalla en mostrarse completamente funcional.
+3. Tiempo de carga total: Mide cuántos milisegundos tarda la pantalla en mostrarse completamente funcional.
 4. Peso y elementos: Suma el peso de todas las imágenes y scripts descargados (MB) y cuenta cuántas peticiones se hicieron a la red.
 5. Recursos del sistema: Revisa el consumo de memoria RAM utilizado durante el renderizado.
 
 📊 Resultado de la prueba de hoy:
-- Tiempo de carga total: ${loadSec} segundos
-- Respuesta inicial del servidor (TTFB): ${ttfbSec} segundos
+- Tiempo de carga total: ${loadMs} ms
+- Respuesta inicial del servidor (TTFB): ${ttfbMs} ms
 - Peso total de la página: ${weightMb} MB
 - Cantidad de elementos cargados (Requests): ${requests}
 - Consumo de memoria RAM: ${metricData.ram_core_mb || 0} MB`;
@@ -334,11 +333,10 @@ Este ticket se genera automáticamente con el primer análisis del día para ver
           description: descripcion,
           store_id: metricData.store_id,
           priority: 'MEDIUM',
-          task_type: 'TASK_INTERNA',
-          status: 'CLOSED' // <-- Ticket creado directamente como cerrado
+          task_type: 'TASK_INTERNA'
         });
 
-        console.log(`[INGEST] ✅ ¡ÉXITO! Ticket creado en BD (CERRADO) para la tienda ${metricData.store_id}.`);
+        console.log(`[INGEST] ✅ ¡ÉXITO! Ticket creado en BD para la tienda ${metricData.store_id}.`);
       } else {
         console.log(`[INGEST] 🟡 OMITIDO: Ya existe el ticket del primer análisis de hoy para esta tienda.`);
       }
