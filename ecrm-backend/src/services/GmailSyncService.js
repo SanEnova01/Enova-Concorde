@@ -67,7 +67,7 @@ class GmailSyncService {
     return { id: 'enova.agency', name: 'Cliente Desconocido', tecnologia: 'No especificada' };
   }
 
-  // 🤖 PROCESAMIENTO CON VERCEL AI SDK (IMPORT DINÁMICO)
+  // 🤖 PROCESAMIENTO CON VERCEL AI SDK Y SU GATEWAY
   async analyzeEmailWithAI(subject, body, from, storeInfo, intentos = 2) {
     const dummyData = {
       priority: 'MEDIUM',
@@ -77,15 +77,23 @@ class GmailSyncService {
       quick_solution: 'Revisión manual requerida.'
     };
 
-    if (!process.env.OPENAI_API_KEY && !process.env.AI_GATEWAY_API_KEY) {
-        console.warn('[Vercel AI] Llave no detectada. Procesando con datos dummy.');
+    const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+        console.warn('[Vercel AI] Llave no detectada en Variables de Entorno. Procesando con datos dummy.');
         return dummyData;
     }
 
     try {
-      // 🌟 FIX: Carga dinámica asíncrona de las dependencias ESM
+      // 🌟 CARGA DINÁMICA DE DEPENDENCIAS ESM
       const { generateText } = await import('ai');
-      const { openai } = await import('@ai-sdk/openai');
+      const { createOpenAI } = await import('@ai-sdk/openai');
+
+      // 🌟 CONFIGURAMOS EL CLIENTE PARA USAR EL GATEWAY DE VERCEL
+      const vercelGateway = createOpenAI({
+        baseURL: 'https://ai-gateway.vercel.sh/v1', // URL del Gateway de Vercel
+        apiKey: apiKey,
+      });
 
       const systemInstruction = `Eres un asistente de soporte técnico nivel 3. Analiza el correo y responde ÚNICAMENTE en formato JSON válido.
 Estructura obligatoria:
@@ -109,7 +117,7 @@ CONTEXTO DEL CLIENTE:
 `;
 
       const { text } = await generateText({
-        model: openai('gpt-4o-mini'), 
+        model: vercelGateway('openai/gpt-4o-mini'), // Llamada a través del Gateway
         system: systemInstruction,
         prompt: userPrompt,
       });
