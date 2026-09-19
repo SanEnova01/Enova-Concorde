@@ -5,8 +5,8 @@
 
 :root {
     /* Paleta Concorde */
-    --concorde-bg: #F1F0EA;       /* Fondo crema/gris claro */
-    --concorde-card: #FFFFFF;     /* Fondo blanco puro para tarjetas */
+    --concorde-bg: #F1F0EA;       /* Fondo crema/gris claro general */
+    --concorde-card: #FFFFFF;     /* Fondo blanco puro para tarjetas y sidebar */
     --concorde-black: #000000;    /* Negro puro para bordes y sombras */
     --concorde-text: #111111;     /* Texto principal */
     
@@ -454,7 +454,7 @@ body {
 }
 
 .crm-modal-content {
-    background-color: var(--concorde-bg);
+    background-color: var(--concorde-card);
     padding: 30px;
     width: 480px;
     border: var(--border-thick);
@@ -470,7 +470,7 @@ body {
     border-bottom: var(--border-thick);
     padding-bottom: 0px;
     gap: 16px;
-    background: var(--concorde-bg);
+    background: var(--concorde-card);
     padding: 20px;
     border: var(--border-thick);
     box-shadow: var(--shadow-hard);
@@ -499,11 +499,319 @@ body {
 
 
 /* ==========================================================================
-   ELEMENTOS DE CONTROL MÓVIL (OCULTOS EN ESCRITORIO POR DEFECTO)
+   ELEMENTOS DE CONTROL MÓVIL Y OVERLAYS
    ========================================================================== */
 .crm-mobile-header { display: none; }
 .crm-sidebar-overlay { display: none; }
 .crm-close-sidebar-btn { display: none; }
+
+
+/* ==========================================================================
+   ESTILOS ESPECÍFICOS PARA RUTAS (COMO EL REPORT GENERATOR)
+   ========================================================================== */
+.rg-container {
+    display: flex;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+    background: var(--concorde-bg);
+    color: var(--concorde-text);
+    text-align: left;
+}
+
+.rg-sidebar {
+    width: 450px;
+    background: var(--concorde-card);
+    border-right: var(--border-thick);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 20px;
+    box-shadow: var(--shadow-hard);
+    z-index: 10;
+}
+
+.rg-preview-area {
+    flex: 1;
+    background: var(--concorde-bg);
+    display: flex;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 40px;
+}
+
+.rg-panel-title {
+    margin-top: 0;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    border-bottom: var(--border-thick);
+    padding-bottom: 10px;
+    font-weight: 900;
+}
+
+.rg-form-group {
+    margin-bottom: 20px;
+    background: var(--concorde-bg);
+    padding: 15px;
+    border: var(--border-thin);
+    box-shadow: var(--shadow-btn);
+}
+
+.rg-form-group label {
+    display: block;
+    font-weight: 900;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}
+
+.rg-input {
+    width: 100%;
+    padding: 10px;
+    border: var(--border-thin);
+    background: var(--concorde-card);
+    color: var(--concorde-text);
+    font-family: inherit;
+    font-weight: bold;
+    margin-bottom: 5px;
+    box-sizing: border-box;
+}
+
+.rg-input:focus {
+    box-shadow: 2px 2px 0px var(--concorde-black);
+    outline: none;
+}
+
+.rg-btn-export {
+    background: var(--concorde-ok);
+    color: var(--concorde-black);
+    border: var(--border-thick);
+    padding: 15px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: sticky;
+    bottom: 0;
+    box-shadow: var(--shadow-hard);
+    transition: transform 0.1s, box-shadow 0.1s;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.rg-btn-export:hover {
+    background: var(--concorde-card);
+}
+
+.rg-btn-export:active {
+    transform: translate(3px, 3px);
+    box-shadow: 0px 0px 0px var(--concorde-black);
+}
+
+.rg-status-row {
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: var(--border-thin);
+}
+
+.rg-status-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.rg-status-label {
+    font-size: 0.85rem;
+    margin-bottom: 5px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.rg-status-btn-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.rg-btn-status {
+    flex: 1;
+    padding: 8px;
+    border: var(--border-thin);
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 0.75rem;
+    background: var(--concorde-card);
+    color: var(--concorde-text);
+    box-shadow: 2px 2px 0px var(--concorde-black);
+    transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+}
+
+.rg-btn-status:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0px 0px 0px var(--concorde-black);
+}
+
+.rg-btn-status.active.rg-btn-g { background: var(--concorde-ok); }
+.rg-btn-status.active.rg-btn-y { background: var(--concorde-warn); }
+.rg-btn-status.active.rg-btn-r { background: var(--concorde-danger); color: var(--concorde-card); }
+
+.rg-drop-zone {
+    border: 2px dashed var(--concorde-black);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--concorde-card);
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: var(--concorde-text);
+    box-shadow: var(--shadow-btn);
+}
+
+.rg-drop-zone:hover, .rg-drop-zone:focus {
+    background: var(--concorde-bg);
+    outline: none;
+}
+
+.rg-drop-zone img {
+    max-width: 100%;
+    max-height: 150px;
+    margin-top: 10px;
+    border: var(--border-thin);
+}
+
+
+/* ==========================================================================
+   DOCUMENTO A IMPRIMIR (PDF)
+   ========================================================================== */
+#document-to-print {
+    width: 210mm;
+    min-height: 297mm;
+    background-color: var(--concorde-card);
+    padding: 20mm 15mm;
+    box-shadow: 10px 10px 0px var(--concorde-black);
+    border: var(--border-thick);
+    color: var(--concorde-text);
+    font-size: 9.5pt;
+    line-height: 1.4;
+    box-sizing: border-box;
+}
+
+#document-to-print .header-container {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: var(--border-thick);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+#document-to-print .logo-title {
+    font-size: 14pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+#document-to-print .logo-subtitle {
+    font-size: 8pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin: 0;
+    letter-spacing: 1px;
+}
+
+#document-to-print .tag-sup {
+    display: inline-block;
+    border: var(--border-thin);
+    padding: 3px 8px;
+    font-weight: 900;
+    font-size: 8pt;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    background: var(--concorde-bg);
+}
+
+#document-to-print h1 {
+    font-size: 22pt;
+    font-weight: 900;
+    margin: 0 0 10px 0;
+    text-transform: uppercase;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+}
+
+#document-to-print .card {
+    background: var(--concorde-bg);
+    border: var(--border-thick);
+    box-shadow: var(--shadow-hard);
+    padding: 15px;
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+}
+
+#document-to-print .card-header {
+    font-size: 12pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    border-bottom: var(--border-thick);
+    padding-bottom: 5px;
+    margin: 0 0 10px 0;
+}
+
+#document-to-print .section-title {
+    font-weight: 900;
+    font-size: 9pt;
+    background: var(--concorde-black);
+    color: var(--concorde-card);
+    display: inline-block;
+    padding: 3px 8px;
+    margin: 10px 0 5px 0;
+    text-transform: uppercase;
+}
+
+#document-to-print .badge {
+    display: inline-block;
+    border: var(--border-thin);
+    font-weight: 900;
+    font-size: 7.5pt;
+    padding: 1px 5px;
+    margin-right: 5px;
+    text-transform: uppercase;
+}
+
+#document-to-print .item-list-none {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+#document-to-print .item-list-none li {
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: var(--border-thin);
+    display: flex;
+    align-items: flex-start;
+}
+
+#document-to-print .doc-image-container img {
+    width: 100%;
+    height: auto;
+    border: var(--border-thick);
+    display: block;
+    margin: 15px 0;
+}
+
+#document-to-print .plugin-ul {
+    margin: 0;
+    padding-left: 15px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+#document-to-print .bg-g { background-color: var(--concorde-ok) !important; color: var(--concorde-black) !important; }
+#document-to-print .bg-y { background-color: var(--concorde-warn) !important; color: var(--concorde-black) !important; }
+#document-to-print .bg-r { background-color: var(--concorde-danger) !important; color: var(--concorde-card) !important; }
+
 
 /* ==========================================================================
    ADAPTABILIDAD MÓVIL PARA EL ADMIN
@@ -518,7 +826,7 @@ body {
         border-bottom: var(--border-thick); position: sticky; top: 0; z-index: 900;
     }
 
-    .crm-hamburger-btn { background: none; border: none; color: var(--concorde-black); font-size: 26px; cursor: pointer; padding: 0; line-height: 1; }
+    .crm-hamburger-btn { background: none; border: none; color: var(--concorde-black); font-size: 26px; cursor: pointer; padding: 0; line-height: 1; font-weight: 900; }
 
     .crm-sidebar {
         position: fixed; top: 0; left: 0; width: 280px; height: 100vh;
@@ -530,7 +838,7 @@ body {
     .crm-sidebar.open { transform: translateX(0); }
     .desktop-only-logo { display: none !important; }
     
-    .crm-close-sidebar-btn { display: block; background: none; border: none; color: var(--concorde-black); font-size: 20px; font-weight: 900; cursor: pointer; }
+    .crm-close-sidebar-btn { display: block; background: none; border: none; color: var(--concorde-black); font-size: 24px; font-weight: 900; cursor: pointer; padding: 10px; }
     .crm-sidebar-overlay { display: block; position: fixed; inset: 0; background-color: rgba(0,0,0,0.8); z-index: 999; }
 
     .crm-main-content { margin-left: 0 !important; padding: 16px !important; width: 100% !important; max-width: 100vw !important; box-sizing: border-box !important; overflow-x: hidden !important; }
@@ -567,4 +875,8 @@ body {
 
     .crm-modal-content { width: 95% !important; padding: 20px !important; max-height: 85vh !important; overflow-y: auto !important; box-sizing: border-box !important; }
     .crm-modal-content form > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+    
+    .rg-container { flex-direction: column; height: auto; overflow: visible; }
+    .rg-sidebar { width: 100%; position: static; height: auto; border-right: none; border-bottom: var(--border-thick); }
+    .rg-preview-area { width: 100%; padding: 20px; }
 }
