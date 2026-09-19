@@ -1,6 +1,4 @@
 const { google } = require('googleapis');
-const { generateText } = require('ai');
-const { openai } = require('@ai-sdk/openai');
 const TicketRepository = require('../repositories/TicketRepository');
 const db = require('../config/db');
 
@@ -19,7 +17,7 @@ class GmailSyncService {
     this.isProcessing = false; 
     this.processedLabelId = null;
 
-    console.log('[Gmail Sync] Bot de Vercel AI SDK activo. Revisión cada 60s.');
+    console.log('[Gmail Sync] Bot activo (con Importación Dinámica AI SDK). Revisión cada 60s.');
     setTimeout(() => this.processTaggedEmails(), 2000);
     setInterval(() => this.processTaggedEmails(), 60000);
   }
@@ -69,7 +67,7 @@ class GmailSyncService {
     return { id: 'enova.agency', name: 'Cliente Desconocido', tecnologia: 'No especificada' };
   }
 
-  // 🤖 PROCESAMIENTO CON VERCEL AI SDK
+  // 🤖 PROCESAMIENTO CON VERCEL AI SDK (IMPORT DINÁMICO)
   async analyzeEmailWithAI(subject, body, from, storeInfo, intentos = 2) {
     const dummyData = {
       priority: 'MEDIUM',
@@ -79,13 +77,16 @@ class GmailSyncService {
       quick_solution: 'Revisión manual requerida.'
     };
 
-    // Si no hay API Key de OpenAI o del Gateway, usamos fallback
     if (!process.env.OPENAI_API_KEY && !process.env.AI_GATEWAY_API_KEY) {
         console.warn('[Vercel AI] Llave no detectada. Procesando con datos dummy.');
         return dummyData;
     }
 
     try {
+      // 🌟 FIX: Carga dinámica asíncrona de las dependencias ESM
+      const { generateText } = await import('ai');
+      const { openai } = await import('@ai-sdk/openai');
+
       const systemInstruction = `Eres un asistente de soporte técnico nivel 3. Analiza el correo y responde ÚNICAMENTE en formato JSON válido.
 Estructura obligatoria:
 {
@@ -107,9 +108,8 @@ CONTEXTO DEL CLIENTE:
 - Tecnología del e-commerce: ${storeInfo.tecnologia || 'General'}
 `;
 
-      // Vercel AI SDK Ejecución
       const { text } = await generateText({
-        model: openai('gpt-4o-mini'), // Cámbialo a 'gpt-4o' si necesitas más razonamiento
+        model: openai('gpt-4o-mini'), 
         system: systemInstruction,
         prompt: userPrompt,
       });
@@ -172,13 +172,9 @@ CONTEXTO DEL CLIENTE:
 
         this.procesadosEnMemoria.add(lastMessage.id);
 
-        // 1. Extraemos los datos del cliente
         const storeInfo = await this.resolveStoreData(cleanSenderEmail);
-
-        // 2. Procesamos usando Vercel AI
         const aiData = await this.analyzeEmailWithAI(subject, snippet, rawFrom, storeInfo);
 
-        // 3. Generamos el Ticket en Concorde
         const ticketDescription = `[GMAIL_ID: ${lastMessage.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\n📌 RESUMEN DE LA SOLICITUD:\n${aiData.summary}\n\n💡 SOLUCIÓN RÁPIDA SUGERIDA (IA):\n${aiData.quick_solution}\n\n------------------------\n✉️ MENSAJE ORIGINAL:\n${snippet}`;
 
         await TicketRepository.create({
