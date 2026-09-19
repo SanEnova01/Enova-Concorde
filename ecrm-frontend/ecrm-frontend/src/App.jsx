@@ -98,23 +98,24 @@ function AdminLayout({ children }) {
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
-    { path: '/admin/auditorias', label: 'Concorde Radar', allowed: ['super admin', 'admin'] },
+
+    // 1. Métricas Generales ahora arriba de Concorde Tools
+    { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
     
-    // 👇 SUBMENÚ MODULAR DE HERRAMIENTAS 👇
+    // 2. SUBMENÚ MODULAR DE HERRAMIENTAS (Concorde Radar e IA integrados)
     { 
       id: 'concorde_tools', 
       label: 'Concorde Tools', 
       allowed: ['super admin', 'admin'],
       subItems: [
+        { path: '/admin/auditorias', label: 'Concorde Radar' },
         { path: '/admin/analyzer', label: 'Concorde Analyzer' },
         { path: '/admin/reportes', label: 'Generador de reportes' },
-        { path: '/admin/extractor', label: 'Extractor de Imágenes' }
-        
+        { path: '/admin/extractor', label: 'Extractor de Imágenes' },
+        { path: '/admin/knowledge', label: 'Base de Conocimiento IA' }
       ]
     },
 
-    { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
-    { path: '/admin/knowledge', label: 'Base de Conocimiento IA', allowed: ['super admin', 'admin'] },
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
     { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
   ];
