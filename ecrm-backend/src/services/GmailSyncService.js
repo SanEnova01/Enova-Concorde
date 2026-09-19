@@ -75,7 +75,6 @@ class GmailSyncService {
     }
   }
 
-  // 📦 OBTIENE EL CATÁLOGO COMPLETO DE TIENDAS DESDE LA BASE DE DATOS
   async getAllStores() {
     try {
       return await db('stores').select('id', 'name', 'web', 'emails', 'tecnologia');
@@ -85,7 +84,6 @@ class GmailSyncService {
     }
   }
 
-  // 🔍 ESCANEO DE COINCIDENCIAS RÁPIDAS EN JS
   findStoreInText(text, allStores, senderEmail) {
     if (!text || !allStores.length) return null;
     const lowerText = text.toLowerCase();
@@ -93,7 +91,6 @@ class GmailSyncService {
     const senderDomain = domainMatch && domainMatch[1] ? domainMatch[1].toLowerCase().trim() : '';
     const dominiosGenericos = ['gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com', 'icloud.com', 'enova.agency'];
 
-    // 1. Match directo por dominio de correo del remitente
     if (senderDomain && !dominiosGenericos.includes(senderDomain)) {
       const byDomain = allStores.find(s => {
         const webMatch = s.web && s.web.toLowerCase().includes(senderDomain);
@@ -103,7 +100,6 @@ class GmailSyncService {
       if (byDomain) return byDomain;
     }
 
-    // 2. Match por coincidencia de nombre o ID de tienda en el cuerpo/asunto
     for (const store of allStores) {
       const storeNameLower = store.name ? store.name.toLowerCase().trim() : '';
       const storeIdLower = store.id ? store.id.toLowerCase().trim() : '';
@@ -119,7 +115,6 @@ class GmailSyncService {
     return null;
   }
 
-  // 🤖 PROCESAMIENTO Y MATCHING DE STORE ID CON IA
   async analyzeEmailWithAI(subject, fullConversation, from, initialStore, allStores, intentos = 2) {
     const dummyData = {
       identified_store_id: initialStore ? initialStore.id : 'enova.agency',
@@ -146,7 +141,6 @@ class GmailSyncService {
         apiKey: apiKey,
       });
 
-      // Creamos un resumen de las tiendas para que la IA elija la correcta
       const storesCatalog = allStores.map(s => 
         `- ID: "${s.id}" \vert{} Nombre: "${s.name || ''}" | Web: "${s.web \vert{}\vert{} ''}" \vert{} Emails: "${s.emails || ''}"`
       ).join('\n');
@@ -282,13 +276,10 @@ ${msgBody}
 
         this.procesadosEnMemoria.add(lastMessage.id);
 
-        // 1. Intento de matching inicial por JS
         let matchedStore = this.findStoreInText(`${subject}\n${rawFrom}\n${fullConversation}`, allStores, cleanSenderEmail);
 
-        // 2. Análisis con IA (pasa el catálogo de tiendas para autodetección profunda)
         const aiData = await this.analyzeEmailWithAI(subject, fullConversation, rawFrom, matchedStore, allStores);
 
-        // 3. Si la IA detectó un store_id válido de la lista, le damos prioridad
         if (aiData.identified_store_id) {
           const storeFromAI = allStores.find(s => s.id.toLowerCase() === aiData.identified_store_id.toLowerCase());
           if (storeFromAI) {
