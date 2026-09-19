@@ -723,8 +723,8 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
         </div>
         
       </div>
+      </div>
     </div>
   );
 }
-
 export default AdminDashboard;
