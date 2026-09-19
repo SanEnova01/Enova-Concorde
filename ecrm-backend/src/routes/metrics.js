@@ -271,6 +271,7 @@ router.post('/run-single-client', async (req, res) => {
         const result = await MetricsRepository.create(newMetric);
 
         // --- INICIO: GENERACIÓN DE TICKET (ANÁLISIS MANUAL) ---
+        // --- INICIO: GENERACIÓN DE TICKET (ANÁLISIS MANUAL) ---
         try {
           const db = require('../config/db');
           const TicketRepository = require('../repositories/TicketRepository');
@@ -284,12 +285,16 @@ router.post('/run-single-client', async (req, res) => {
             .first();
 
           if (!ticketExistenteHoy) {
+            // Conversión matemática a segundos con 2 decimales
+            const loadSec = ((botData.data.load_ms || 0) / 1000).toFixed(2);
+            const ttfbSec = ((botData.data.ttfb_ms || 0) / 1000).toFixed(2);
+
             const descripcion = `📌 ¿Qué hace esta revisión técnica?
 Este ticket se generó a partir de una ejecución forzada manual desde el panel.
 
 📊 Resultado de la prueba de hoy:
-- Tiempo de carga total: ${botData.data.load_ms || 0} ms
-- Tiempo al primer byte (TTFB): ${botData.data.ttfb_ms || 0} ms
+- Tiempo de carga total: ${loadSec} segundos
+- Tiempo al primer byte (TTFB): ${ttfbSec} segundos
 - Peso de la página: ${botData.data.total_weight_mb || 0} MB
 - Total peticiones: ${botData.data.total_requests || 0}
 - RAM Consumida: ${botData.data.ram_core_mb || 0} MB`;
@@ -299,9 +304,10 @@ Este ticket se generó a partir de una ejecución forzada manual desde el panel.
               description: descripcion,
               store_id: store_id,
               priority: 'MEDIUM',
-              task_type: 'TASK_INTERNA'
+              task_type: 'TASK_INTERNA',
+              status: 'CLOSED' // <-- Ticket creado directamente como cerrado
             });
-            console.log(`[SINGLE-RUN] ✅ ¡ÉXITO! Ticket creado en BD para ${store_id}`);
+            console.log(`[SINGLE-RUN] ✅ ¡ÉXITO! Ticket creado en BD (CERRADO) para ${store_id}`);
           } else {
             console.log(`[SINGLE-RUN] 🟡 OMITIDO: Ya existe un ticket de revisión hoy para ${store_id}.`);
           }
@@ -311,13 +317,6 @@ Este ticket se generó a partir de una ejecución forzada manual desde el panel.
           console.log(`========================================\n`);
         }
         // --- FIN: GENERACIÓN DE TICKET ---
-
-        res.json({ success: true, data: result });
-    } catch (error) {
-        console.error('[ERROR] Single client run:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
 
 // ======================================================
 // 2. RUTAS DE BÚSQUEDA GENERAL Y DINÁMICAS (HASTA ABAJO)
