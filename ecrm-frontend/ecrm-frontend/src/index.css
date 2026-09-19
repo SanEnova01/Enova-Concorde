@@ -1,7 +1,7 @@
 /* ==========================================================================
    SISTEMA DE ESTILOS PREMIUM - REPLICACIÓN PRECISIÓN AMAZON KINDLE
    ========================================================================== */
-
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;700;900&display=swap');
 :root {
     /* Paleta e-Ink Calibrada */
     --kindle-device-frame: #1c1c1c;   /* Negro profundo mate para el marco/sidebar */
@@ -21,16 +21,33 @@
     --radius-card: 8px;               /* Bordes redondeados para tarjetas internas */
 }
 
-/* Base Editorial Kindle */
+/* Base Editorial Kindle - Reemplazar font-family */
 body {
     margin: 0;
     padding: 0;
     background-color: var(--kindle-paper-bg);
-    font-family: "Amazon Ember", Georgia, serif;
+    font-family: 'Nunito', system-ui, sans-serif; /* Cambio aquí */
     color: var(--ink-black);
     -webkit-font-smoothing: antialiased;
 }
 
+/* Aplicar la fuente redondeada globalmente forzando herencia en elementos clave */
+.crm-logo-text,
+.crm-link-active,
+.crm-link-inactive,
+.crm-section-title,
+.crm-stat-label,
+.crm-input-text, 
+.crm-select-dropdown,
+.crm-btn-black,
+.crm-btn-border,
+.crm-btn-red,
+.crm-badge,
+.crm-table-data th,
+.crm-kanban-column-title-box,
+.crm-pagination-box {
+    font-family: 'Nunito', system-ui, sans-serif !important; /* Reemplaza todos los system-ui del archivo original */
+}
 /* Layout e-Ink Estructurado */
 .crm-layout {
     display: flex;

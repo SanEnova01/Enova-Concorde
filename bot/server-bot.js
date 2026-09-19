@@ -3,18 +3,18 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const pidusage = require('pidusage');
 const cron = require('node-cron');
-const { exec } = require('child_process');
 
 puppeteer.use(StealthPlugin());
 
+// 🌟 ESTA ES LA CONFIGURACIÓN MAESTRA BLINDADA PARA RAILWAY
 const RAILWAY_PUPPETEER_ARGS = [
   '--no-sandbox',
   '--disable-setuid-sandbox',
-  '--disable-dev-shm-usage',
-  '--disable-gpu',
-  '--no-zygote',
-  '--disable-crash-reporter',
-  '--disable-breakpad',
+  '--disable-dev-shm-usage',         // Evita que la memoria compartida colapse
+  '--disable-gpu',                   // Apaga la tarjeta gráfica (innecesaria en servidores)
+  '--no-zygote',                     // Evita que se queden procesos "zombies" colgados
+  '--disable-crash-reporter',        // Apaga el crashpad_handler (El causante del error 11)
+  '--disable-breakpad',              // Apaga el reportador interno de errores de Chrome
   '--disable-software-rasterizer',
   '--disable-ipc-flooding-protection',
   '--enable-precise-memory-info',
@@ -28,10 +28,12 @@ const PORT = process.env.PORT || 3001;
 const API_BASE_URL = process.env.API_BASE_URL || 'https://enova-concorde-staging-2027.up.railway.app/api';
 const API_KEY = process.env.API_KEY || 'ENOVA_SECRET_API_KEY_2026';
 
+// Planes permitidos para ser analizados
 const PLANES_VALIDOS = ['go', 'growth', 'escale', 'scale', 'scale_plus'];
 
 let estaEjecutando = false;
 
+// 1. Obtener tiendas dinámicamente desde la BD de Concorde
 async function obtenerTiendasFiltradas() {
   try {
     const res = await fetch(`${API_BASE_URL}/stores`, {
@@ -55,6 +57,7 @@ async function obtenerTiendasFiltradas() {
       return [];
     }
 
+    // Filtrar solo tiendas con web y con planes válidos
     const filtradas = tiendas.filter(t => {
       const planLimpio = String(t.plan_type || t.plan || '').toLowerCase().trim();
       const tieneWeb = (t.web || t.url) && String(t.web || t.url).trim() !== '';
@@ -107,6 +110,7 @@ async function notificarFinalizacion(total, exitosos, fallidos, fechaActual) {
   }
 }
 
+// 2. Función principal de auditoría (CRON / BULK)
 async function ejecutarAnalisisAutomated() {
   if (estaEjecutando) {
     console.log("⚠️ Ya hay un análisis en curso. Solicitud omitida.");
@@ -125,44 +129,12 @@ async function ejecutarAnalisisAutomated() {
 
   console.log(`\n▶ [${new Date().toLocaleTimeString()}] INICIANDO ANÁLISIS AUTOMÁTICO EN ${tiendas.length} TIENDAS...`);
 
-  // Matar procesos atascados antes de iniciar todo
-  try {
-    exec('pkill -9 chrome');
-  } catch(e) {}
-
   let exitosos = 0;
   let fallidos = 0;
 
-  // 🌟 ABRIMOS EL NAVEGADOR UNA SOLA VEZ FUERA DEL BUCLE
-  let browser;
-  try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: RAILWAY_PUPPETEER_ARGS,
-      env: { ...process.env, DISABLE_CRASHPAD: 'true' }
-    });
-  } catch (error) {
-    console.error("❌ Error fatal al lanzar Puppeteer:", error.message);
-    estaEjecutando = false;
-    return { success: false, message: 'Error iniciando Chrome.' };
-  }
-
-  const browserPid = browser.process().pid;
-
   for (let i = 0; i < tiendas.length; i++) {
     const web = tiendas[i];
-    let page;
-
-    // 🌟 AUTO-RECOVERY: Si Chrome explotó o se cerró, lo revivimos antes de seguir
-    if (!browser || !browser.isConnected()) {
-        console.warn(`♻️ [AUTO-RECOVERY] Chrome colapsó. Reiniciando navegador a la fuerza...`);
-        try { exec('pkill -9 chrome'); } catch(e) {}
-        browser = await puppeteer.launch({
-            headless: 'new',
-            args: RAILWAY_PUPPETEER_ARGS,
-            env: { ...process.env, DISABLE_CRASHPAD: 'true' }
-        });
-    }
+    let browser;
 
     try {
       let urlLimpia = web.web.trim();
@@ -170,30 +142,34 @@ async function ejecutarAnalisisAutomated() {
         urlLimpia = `https://${urlLimpia}`;
       }
 
-      // 🌟 ABRIMOS SOLO UNA PESTAÑA NUEVA POR CADA TIENDA
-      page = await browser.newPage();
+      // 🌟 SE APLICA LA CONFIGURACIÓN MAESTRA
+      browser = await puppeteer.launch({
+        headless: 'new',
+        args: RAILWAY_PUPPETEER_ARGS
+      });
 
-      // 🌟 FIX: Bot sin restricciones de red ni CPU. Simula conexión Wi-Fi rápida.
+      const browserPid = browser.process().pid;
+      const page = await browser.newPage();
+
+      const client = await page.target().createCDPSession();
+      await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+      await client.send('Network.emulateNetworkConditions', {
+        offline: false,
+        downloadThroughput: (4 * 1024 * 1024) / 8,
+        uploadThroughput: (1.5 * 1024 * 1024) / 8,
+        latency: 150
+      });
+
       await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-      // Cambiar el User-Agent para identificarte formalmente ante Cloudflare:
-await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1 EnovaConcordeBot/1.0');
+      await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
       await page.setCacheEnabled(false);
 
       try {
-        const navResponse = await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        const status = navResponse ? navResponse.status() : 200;
-        const title = await page.title();
-        
-        // 🌟 DETECTOR DE BLOQUEOS (Cloudflare / Sucuri / Wordfence)
-        if (status === 403 || status === 503 || title.includes('Just a moment...') || title.includes('Attention Required')) {
-            throw new Error('WAF_BLOCKED');
-        }
-        
+        await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 }); // Reducido a 30s
         await new Promise(r => setTimeout(r, 4000));
       } catch (navError) {
-        if (navError.message === 'WAF_BLOCKED') throw navError; // Lanza el error directo al Catch principal
-        console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción...`);
+        console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción de métricas...`);
+        // 🌟 FIX: Forzamos a la página a detener las descargas pesadas para que no congele a Puppeteer
         await page.evaluate(() => window.stop()).catch(() => {});
       }
 
@@ -247,53 +223,24 @@ await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) 
 
       console.log(`✔ [${i + 1}/${tiendas.length}] ${web.name} (${web.plan_type}) | ${ramTotalMB}MB RAM | ${datosReporte.loadTime}ms`);
 
-      // 🌟 CERRAMOS SOLO LA PESTAÑA AL TERMINAR
-      if (page) await page.close().catch(()=>{});
-
+      await browser.close();
     } catch (error) {
-      let flujoAviso = 'Crash_Placebo';
-      
-      if (error.message === 'WAF_BLOCKED') {
-          console.error(`🛑 [WAF_BLOCKED] Firewall bloqueó el análisis en ${web.name}.`);
-          flujoAviso = 'Bloqueado_WAF';
-      } else {
-          console.error(`✖ ${web.name} | ERROR: ${error.message} -> Inyectando PLACEBO.`);
-      }
-      
-      exitosos++;
-      
-      const getRandom = (min, max) => Math.random() * (max - min) + min;
-      const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-      const payloadPlacebo = {
-        store_id: web.id,
-        date: fechaActual,
-        server_status: 'ONLINE',
-        web_flow: flujoAviso, // 🌟 Envía el aviso al Dashboard
-        redirect_ms: getRandomInt(10, 35),
-        dns_ms: getRandomInt(15, 45),
-        tcp_ms: getRandomInt(20, 60),
-        ttfb_ms: getRandomInt(150, 300),
-        dom_interactive_ms: getRandomInt(1200, 1800),
-        dom_ms: getRandomInt(1300, 1900),
-        load_ms: getRandomInt(2500, 4200),
-        total_weight_mb: parseFloat(getRandom(1.8, 3.5).toFixed(2)),
-        total_requests: getRandomInt(45, 85),
-        ram_core_mb: parseFloat(getRandom(60, 110).toFixed(2)),
-        ram_total_mb: parseFloat(getRandom(120, 200).toFixed(2))
-      };
-
-      await enviarMetricasAPI(payloadPlacebo);
-      if (page) await page.close().catch(()=>{});
+      console.error(`✖ ${web.name} | ERROR: ${error.message}`);
+      fallidos++;
+      await enviarMetricasAPI({ 
+        store_id: web.id, date: fechaActual, server_status: 'OFFLINE', 
+        web_flow: 'Crash', ram_core_mb: 0, ram_total_mb: 0, redirect_ms: 0, 
+        dns_ms: 0, tcp_ms: 0, ttfb_ms: 0, dom_interactive_ms: 0, dom_ms: 0, 
+        load_ms: 0, total_weight_mb: 0, total_requests: 0 
+      });
+      if (browser) await browser.close();
     }
+    pidusage.clear();
 
-    console.log(`⏳ [Cooldown] Esperando 10 segundos antes de la siguiente pestaña...`);
-    await new Promise(r => setTimeout(r, 10000));
-  } // <-- Fin del bucle for
-
-  // 🌟 CERRAMOS EL NAVEGADOR PRINCIPAL AL TERMINAR TODAS LAS TIENDAS
-  if (browser) await browser.close().catch(()=>{});
-  pidusage.clear();
+    // 🌟 ENFRIAMIENTO DEL SERVIDOR (COOLDOWN 15 SEGUNDOS)
+    console.log(`⏳ [Cooldown] Esperando 15 segundos para liberar memoria antes de la siguiente tienda...`);
+    await new Promise(r => setTimeout(r, 15000));
+  }
 
   console.log(`\n✅ ANÁLISIS FINALIZADO.`);
   estaEjecutando = false;
@@ -301,6 +248,7 @@ await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) 
   return { success: true, message: 'Análisis finalizado exitosamente' };
 }
 
+// 3. Heartbeat periódico
 async function enviarHeartbeat() {
   try {
     const res = await fetch(`${API_BASE_URL}/metrics/bot-heartbeat`, {
@@ -322,12 +270,14 @@ async function enviarHeartbeat() {
   }
 }
 
-setInterval(enviarHeartbeat, 5 * 60 * 1000);
+// 🌟 FIX: Enviar latidos cada 1 minuto (60,000 ms) para que el backend nunca lo pierda de vista
+setInterval(enviarHeartbeat, 60 * 1000);
 
 setTimeout(() => {
     enviarHeartbeat();
 }, 15000);
 
+// 4. ENDPOINTS DEL BOT
 app.post('/run-force', async (req, res) => {
   const rawKey = req.headers['x-api-key'] || '';
   if (rawKey.trim() !== API_KEY) {
@@ -346,6 +296,9 @@ app.get('/status', (req, res) => {
   res.json({ running: estaEjecutando });
 });
 
+// ==============================================================
+// 🌟 MÓDULO: EXTRACTOR MASIVO DE PRODUCTOS
+// ==============================================================
 const extractionProgress = {};
 
 async function extractStoreImages(targetUrl) {
@@ -457,10 +410,10 @@ async function extractStoreImages(targetUrl) {
     if (linksArray.length > 0) {
         let browser;
         try {
+            // 🌟 SE APLICA LA CONFIGURACIÓN MAESTRA
             browser = await puppeteer.launch({ 
                 headless: 'new', 
-                args: RAILWAY_PUPPETEER_ARGS,
-                env: { ...process.env, DISABLE_CRASHPAD: 'true' }
+                args: RAILWAY_PUPPETEER_ARGS 
             });
             const page = await browser.newPage();
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
@@ -483,9 +436,9 @@ async function extractStoreImages(targetUrl) {
                     prodImages.forEach(img => addImage(img.url, img.origen, img.url.split('/').pop(), img.ancho, img.alto));
                 } catch(e) {}
             }
-            if (browser) await browser.close().catch(()=>{});
+            await browser.close();
         } catch(e) {
-            if (browser) await browser.close().catch(()=>{});
+            if (browser) await browser.close();
         }
     }
 
@@ -549,6 +502,7 @@ app.get('/extract-progress', (req, res) => {
     const currentProgress = extractionProgress[urlLimpia] || { total: 0, scanned: 0, phase: 'Iniciando motor...' };
     res.json(currentProgress);
 });
+// ==============================================================
 
 app.listen(PORT, () => {
   console.log(`Bot escuchando comandos manuales en el puerto ${PORT}`);
@@ -589,35 +543,34 @@ async function performPuppeteerAnalysis(targetUrl) {
         urlLimpia = `https://${urlLimpia}`;
     }
 
+    // 🌟 SE APLICA LA CONFIGURACIÓN MAESTRA
     const browser = await puppeteer.launch({
         headless: 'new',
-        args: RAILWAY_PUPPETEER_ARGS,
-        env: { ...process.env, DISABLE_CRASHPAD: 'true' }
+        args: RAILWAY_PUPPETEER_ARGS
     });
     
     try {
         const page = await browser.newPage();
         
-        // 🌟 FIX: Bot sin restricciones de red ni CPU.
+        const client = await page.target().createCDPSession();
+        await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+        await client.send('Network.emulateNetworkConditions', {
+            offline: false,
+            downloadThroughput: (4 * 1024 * 1024) / 8,
+            uploadThroughput: (1.5 * 1024 * 1024) / 8,
+            latency: 150
+        });
+
         await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-        // 🌟 Identificamos el bot formalmente
-        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1 EnovaConcordeBot/1.0');
+        await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1');
         await page.setCacheEnabled(false);
 
         try {
-            const navResponse = await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            const status = navResponse ? navResponse.status() : 200;
-            const title = await page.title();
-            
-            // 🌟 Detector de bloqueos
-            if (status === 403 || status === 503 || title.includes('Just a moment...') || title.includes('Attention Required')) {
-                throw new Error('WAF_BLOCKED');
-            }
-            
+            await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 30000 });
             await new Promise(r => setTimeout(r, 4000));
         } catch (navError) {
-            if (navError.message === 'WAF_BLOCKED') throw navError;
-            console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción...`);
+            console.warn(`⚠️ [Timeout Parcial] La red no hizo silencio en ${urlLimpia}, forzando extracción de métricas...`);
+            // 🌟 FIX: Forzamos a la página a detener las descargas pesadas
             await page.evaluate(() => window.stop()).catch(() => {});
         }
         
@@ -640,7 +593,7 @@ async function performPuppeteerAnalysis(targetUrl) {
             };
         });
 
-        if (browser) await browser.close().catch(()=>{});
+        await browser.close();
 
         return {
             url: urlLimpia,
@@ -652,25 +605,7 @@ async function performPuppeteerAnalysis(targetUrl) {
             total_weight_mb: pageMetrics.total_weight_mb
         };
     } catch (err) {
-        if (browser) await browser.close().catch(()=>{});
-        
-        if (err.message === 'WAF_BLOCKED') {
-            console.error(`🛑 [WAF_BLOCKED] Firewall bloqueó el análisis individual en ${urlLimpia}.`);
-        } else {
-            console.warn(`⚠️ Falló el escaneo en ${urlLimpia}. Retornando métricas PLACEBO.`);
-        }
-        
-        const getRandom = (min, max) => Math.random() * (max - min) + min;
-        const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-        return {
-            url: urlLimpia,
-            load_ms: getRandomInt(2500, 4200),
-            dom_ms: getRandomInt(1300, 1900),
-            ram_total_mb: parseFloat(getRandom(120, 200).toFixed(2)),
-            ram_core_mb: parseFloat(getRandom(60, 110).toFixed(2)),
-            total_requests: getRandomInt(45, 85),
-            total_weight_mb: parseFloat(getRandom(1.8, 3.5).toFixed(2))
-        };
+        if (browser) await browser.close();
+        throw err;
     }
 }

@@ -28,8 +28,11 @@ function ClientPerformance({ metrics }) {
 
   // Configuración del gráfico (SVG)
   const viewW = isExpanded ? 1000 : 650;
-  const viewH = isExpanded ? 400 : 220;
-  const padL = 50; const padR = 40; const padT = 30; const padB = 40; 
+  const viewH = isExpanded ? 400 : 230; // Altura ligeramente aumentada
+  const padL = 50; 
+  const padR = 40; 
+  const padT = 30; 
+  const padB = 55; // Mayor padding inferior para acomodar las fechas rotadas
   const graphW = viewW - padL - padR;
   const graphH = viewH - padT - padB;
 
@@ -48,16 +51,16 @@ function ClientPerformance({ metrics }) {
   const domPoints = chartMetrics.map((m, i) => `${getX(i)},${getYTime(m.dom_ms / 1000)}`).join(' ');
 
   const renderContent = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "'Nunito', system-ui, sans-serif" }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2 className="crm-section-title" style={{ margin: 0 }}>Rendimiento: Tiempos de Carga</h2>
+        <h2 className="crm-section-title" style={{ margin: 0, fontFamily: "'Nunito', system-ui, sans-serif" }}>Rendimiento: Tiempos de Carga</h2>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <select 
             value={selectedMonth} 
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="crm-select-dropdown"
-            style={{ padding: '4px 8px', fontSize: '12px' }}
+            style={{ padding: '4px 8px', fontSize: '12px', fontFamily: "'Nunito', system-ui, sans-serif" }}
           >
             {availableMonths.length === 0 ? <option value="">Sin datos</option> : null}
             {availableMonths.map(m => (
@@ -66,7 +69,7 @@ function ClientPerformance({ metrics }) {
           </select>
           
           {!isExpanded && (
-            <button onClick={() => setIsExpanded(true)} className="crm-btn-border" style={{ fontSize: '11px', padding: '4px 8px' }}>
+            <button onClick={() => setIsExpanded(true)} className="crm-btn-border" style={{ fontSize: '11px', padding: '4px 8px', fontFamily: "'Nunito', system-ui, sans-serif" }}>
               ↗ Ampliar
             </button>
           )}
@@ -80,7 +83,7 @@ function ClientPerformance({ metrics }) {
       ) : (
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ width: '100%', overflowX: 'auto', backgroundColor: '#fcfbfa', border: '1px solid #cccccc', padding: '10px 0', flexGrow: 1 }}>
-            <svg viewBox={`0 0 ${viewW} ${viewH}`} style={{ width: '100%', height: isExpanded ? '100%' : 'auto', display: 'block' }}>
+            <svg viewBox={`0 0 ${viewW} ${viewH}`} style={{ width: '100%', minWidth: '700px', height: isExpanded ? '100%' : 'auto', display: 'block' }}>
               <line x1={padL} y1={padT} x2={viewW - padR} y2={padT} stroke="#e5e5e5" strokeWidth="1" strokeDasharray="3,3" />
               <line x1={padL} y1={padT + graphH / 2} x2={viewW - padR} y2={padT + graphH / 2} stroke="#e5e5e5" strokeWidth="1" strokeDasharray="3,3" />
               <line x1={padL} y1={viewH - padB} x2={viewW - padR} y2={viewH - padB} stroke="#111111" strokeWidth="1.5" />
@@ -99,10 +102,26 @@ function ClientPerformance({ metrics }) {
                   <g key={m.id || i}>
                     <circle cx={cx} cy={getYTime(domInSeconds)} r="4" fill="#2563eb" />
                     <circle cx={cx} cy={getYTime(loadInSeconds)} r="5" fill="#16a34a" />
-                    <text x={cx} y={viewH - 15} textAnchor="middle" style={{ fontSize: '10px', fontFamily: 'monospace', fill: '#555555' }}>
+                    
+                    {/* Eje X (Fechas) - Rotadas y alineadas */}
+                    <text 
+                      x={cx} 
+                      y={viewH - 35} 
+                      textAnchor="end" 
+                      transform={`rotate(-60 ${cx} ${viewH - 35})`}
+                      style={{ fontSize: '9px', fontFamily: "'Nunito', monospace", fill: '#555555' }}
+                    >
                       {dateStr}
                     </text>
-                    <text x={cx} y={getYTime(loadInSeconds) - 12} textAnchor="middle" style={{ fontSize: '10px', fontWeight: 'bold', fill: '#16a34a' }}>
+
+                    {/* Valores Y (Segundos) - Rotados y reducidos */}
+                    <text 
+                      x={cx} 
+                      y={getYTime(loadInSeconds) - 8} 
+                      textAnchor="start" 
+                      transform={`rotate(-35 ${cx} ${getYTime(loadInSeconds) - 8})`}
+                      style={{ fontSize: '8.5px', fontWeight: 'bold', fontFamily: "'Nunito', sans-serif", fill: '#16a34a' }}
+                    >
                       {m.load_ms !== null ? `${loadInSeconds.toFixed(2)}s` : ''}
                     </text>
                   </g>
@@ -127,7 +146,7 @@ function ClientPerformance({ metrics }) {
 
   return (
     <>
-      <div className="crm-card-paper">
+      <div className="crm-card-paper" style={{ fontFamily: "'Nunito', system-ui, sans-serif" }}>
         {renderContent()}
       </div>
 
@@ -139,7 +158,7 @@ function ClientPerformance({ metrics }) {
             style={{ width: '90vw', height: '80vh', maxWidth: '1200px', display: 'flex', flexDirection: 'column' }}
           >
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-              <button onClick={() => setIsExpanded(false)} className="crm-btn-red" style={{ padding: '6px 12px' }}>Cerrar ✕</button>
+              <button onClick={() => setIsExpanded(false)} className="crm-btn-red" style={{ padding: '6px 12px', fontFamily: "'Nunito', system-ui, sans-serif" }}>Cerrar ✕</button>
             </div>
             {renderContent()}
           </div>
