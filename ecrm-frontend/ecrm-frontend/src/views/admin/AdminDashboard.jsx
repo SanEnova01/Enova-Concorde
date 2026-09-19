@@ -7,39 +7,91 @@ import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 
-// 🌟 SUBCOMPONENTE: Contador estilo Odómetro (Analógico)
+// 🌟 SUBCOMPONENTE: Contador estilo Odómetro Analógico Claro (Blanco con texto Negro)
 const AnalogOdometer = ({ value, digits = 5 }) => {
   const paddedValue = String(value).padStart(digits, '0');
 
   return (
     <div style={{ 
       display: 'inline-flex', 
-      gap: '2px', 
-      backgroundColor: '#111', 
-      padding: '4px', 
+      gap: '3px', 
+      backgroundColor: '#e5e5e5', 
+      padding: '5px 6px', 
       borderRadius: '6px', 
-      border: '2px solid #222',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(0,0,0,0.8)'
+      border: '1px solid #cccccc',
+      boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0,0,0,0.05)'
     }}>
       {paddedValue.split('').map((digit, index) => (
         <div key={index} style={{
-          backgroundColor: '#000',
-          color: '#fff',
-          fontSize: '28px',
+          backgroundColor: '#ffffff',
+          color: '#111111',
+          fontSize: '26px',
           fontWeight: 'bold',
           fontFamily: "'Courier New', Courier, monospace",
-          padding: '4px 8px',
-          borderRadius: '2px',
-          boxShadow: 'inset 0 1px 5px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.15)',
-          background: 'linear-gradient(180deg, #333 0%, #000 35%, #000 65%, #333 100%)',
+          padding: '2px 7px',
+          borderRadius: '3px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.9)',
+          background: 'linear-gradient(180deg, #f8f8f8 0%, #ffffff 40%, #ffffff 60%, #ececec 100%)',
           textAlign: 'center',
-          minWidth: '22px',
-          borderLeft: index > 0 ? '1px solid #222' : 'none'
+          minWidth: '20px',
+          border: '1px solid #cfcfcf'
         }}>
           {digit}
         </div>
       ))}
     </div>
+  );
+};
+
+// 🌟 SUBCOMPONENTE: Manejador Inteligente de Logo de Cliente con Fallback de Iniciales
+const ClientLogo = ({ url, name }) => {
+  const [hasError, setHasError] = useState(false);
+
+  const fullUrl = React.useMemo(() => {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    // Si la URL es relativa (/assets/logo-xxx.png), le adjuntamos el host del backend
+    const baseURL = crmApi.defaults.baseURL || '';
+    const host = baseURL.replace(/\/api\/?$/, '');
+    return `${host}${url.startsWith('/') ? '' : '/'}${url}`;
+  }, [url]);
+
+  if (!fullUrl || hasError) {
+    return (
+      <div style={{ 
+        width: '32px', 
+        height: '32px', 
+        borderRadius: '6px', 
+        backgroundColor: '#111111', 
+        color: '#ffffff', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        fontWeight: 'bold',
+        fontSize: '12px',
+        flexShrink: 0
+      }}>
+        {name ? name.substring(0, 2).toUpperCase() : 'CL'}
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={fullUrl} 
+      alt={name} 
+      onError={() => setHasError(true)}
+      style={{ 
+        width: '32px', 
+        height: '32px', 
+        borderRadius: '6px', 
+        objectFit: 'contain',
+        backgroundColor: '#ffffff',
+        border: '1px solid #e0e0e0',
+        padding: '2px',
+        flexShrink: 0
+      }} 
+    />
   );
 };
 
@@ -242,6 +294,7 @@ const StatusWidget = ({ title, data, icon }) => {
 
 function AdminDashboard() {
   const [stats, setStats] = useState({ tickets: 0, clients: 0 });
+  const [planStats, setPlanStats] = useState({ go: 0, growth: 0, escale: 0, warranty: 0, leads: 0 });
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -249,7 +302,7 @@ function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // 🌟 ESTADOS PARA LA PAGINACIÓN A 11 ELEMENTOS
+  // Paginación a 11 elementos
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 11;
 
@@ -325,7 +378,7 @@ function AdminDashboard() {
               const allTickets = ticketsRes.data.data || [];
               const allStores = clientsRes.data.data || [];
 
-              // Mapa para contar tickets reales por store_id en tiempo real
+              // Mapa para contar tickets reales por store_id
               const ticketCountsMap = {};
               allTickets.forEach(t => {
                 if (t.store_id) {
@@ -339,9 +392,20 @@ function AdminDashboard() {
                 real_ticket_count: ticketCountsMap[store.id] || 0
               }));
 
-              const planesValidos = ['go', 'growth', 'escale', 'warranty', 'leads'];
+              const planesValidos = ['go', 'growth', 'escale', 'scale', 'scale_plus', 'warranty', 'leads', 'lead'];
+              
+              // Conteo individual por cada tipo de plan
+              const counts = { go: 0, growth: 0, escale: 0, warranty: 0, leads: 0 };
+
               const clientesActivos = storesWithRealCounts.filter(client => {
                 const planLimpio = String(client.plan_type || '').toLowerCase().trim();
+                
+                if (planLimpio === 'go') counts.go++;
+                else if (planLimpio === 'growth') counts.growth++;
+                else if (planLimpio === 'escale' || planLimpio === 'scale' || planLimpio === 'scale_plus') counts.escale++;
+                else if (planLimpio === 'warranty') counts.warranty++;
+                else if (planLimpio === 'leads' || planLimpio === 'lead') counts.leads++;
+
                 return planesValidos.includes(planLimpio);
               });
 
@@ -349,7 +413,8 @@ function AdminDashboard() {
                 tickets: allTickets.length,
                 clients: clientesActivos.length
               });
-              
+
+              setPlanStats(counts);
               setClients(storesWithRealCounts);
             }
           } catch (error) {
@@ -412,7 +477,7 @@ function AdminDashboard() {
       return 0;
     });
 
-  // Lógica de paginación (11 ítems)
+  // Paginación a 11 elementos
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage) || 1;
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -437,13 +502,25 @@ function AdminDashboard() {
         <div style={{ flex: '2 1 600px', display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
           
           <div className="crm-grid-stats" style={{ marginBottom: 0 }}>
-            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <span className="crm-stat-label" style={{ fontSize: '13px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
+            {/* CARD: TICKETS TOTALES */}
+            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
               <AnalogOdometer value={stats.tickets} digits={5} />
             </div>
-            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <span className="crm-stat-label" style={{ fontSize: '13px', fontWeight: '800', letterSpacing: '0.5px' }}>CLIENTES ACTIVOS</span>
+
+            {/* CARD: CLIENTES ACTIVOS CON DESGROSE DE PLANES */}
+            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>CLIENTES ACTIVOS</span>
               <AnalogOdometer value={stats.clients} digits={4} /> 
+              
+              {/* 🌟 DESGLOSE DE PLANES SOLICITADO */}
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '4px' }}>
+                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>GO: <strong>{planStats.go}</strong></span>
+                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>GROWTH: <strong>{planStats.growth}</strong></span>
+                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>ESCALE: <strong>{planStats.escale}</strong></span>
+                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>WARRANTY: <strong>{planStats.warranty}</strong></span>
+                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>LEADS: <strong>{planStats.leads}</strong></span>
+              </div>
             </div>
           </div>
 
@@ -456,7 +533,7 @@ function AdminDashboard() {
                 value={searchQuery} 
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  setCurrentPage(1); // Reiniciar a pág 1 al buscar
+                  setCurrentPage(1);
                 }} 
                 className="crm-input-text"
                 style={{ width: '250px' }}
@@ -491,38 +568,8 @@ function AdminDashboard() {
                       <tr key={client.id} className="crm-table-row-interactive" onClick={() => navigate(`/admin/clientes/${client.id}`)} style={{ cursor: 'pointer' }}>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            {client.logo_url ? (
-                              <img 
-                                src={client.logo_url} 
-                                alt={client.name} 
-                                style={{ 
-                                  width: '32px', 
-                                  height: '32px', 
-                                  borderRadius: '6px', 
-                                  objectFit: 'contain',
-                                  backgroundColor: '#f5f5f5',
-                                  border: '1px solid #e0e0e0',
-                                  padding: '2px',
-                                  flexShrink: 0
-                                }} 
-                              />
-                            ) : (
-                              <div style={{ 
-                                width: '32px', 
-                                height: '32px', 
-                                borderRadius: '6px', 
-                                backgroundColor: '#111111', 
-                                color: '#ffffff', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                fontWeight: 'bold',
-                                fontSize: '13px',
-                                flexShrink: 0
-                              }}>
-                                {client.name.substring(0, 2).toUpperCase()}
-                              </div>
-                            )}
+                            {/* 🌟 MANEJADOR DE LOGOS CON FALLBACK Y COMPATIBILIDAD CON RUTA BACKEND */}
+                            <ClientLogo url={client.logo_url} name={client.name} />
                             <strong>{client.name}</strong>
                           </div>
                         </td>
