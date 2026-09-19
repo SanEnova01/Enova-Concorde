@@ -44,7 +44,9 @@ class GmailSyncService {
   decodeBase64(data) {
     if (!data) return '';
 
-    const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = data
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
 
     return Buffer.from(base64, 'base64').toString('utf-8');
   }
@@ -63,20 +65,30 @@ class GmailSyncService {
           part.body &&
           part.body.data
         ) {
-          bodyText += this.decodeBase64(part.body.data) + '\n';
+          bodyText +=
+            this.decodeBase64(part.body.data) + '\n';
         } else if (part.parts) {
           extractParts(part.parts);
         }
       }
     };
 
-    if (message.payload.body && message.payload.body.data) {
-      bodyText = this.decodeBase64(message.payload.body.data);
+    if (
+      message.payload.body &&
+      message.payload.body.data
+    ) {
+      bodyText = this.decodeBase64(
+        message.payload.body.data
+      );
     } else if (message.payload.parts) {
       extractParts(message.payload.parts);
     }
 
-    return bodyText.trim() || message.snippet || 'Sin contenido de texto.';
+    return (
+      bodyText.trim() ||
+      message.snippet ||
+      'Sin contenido de texto.'
+    );
   }
 
   async getProcessedLabelId() {
@@ -85,30 +97,37 @@ class GmailSyncService {
     }
 
     try {
-      const res = await this.gmail.users.labels.list({
-        userId: 'me'
-      });
+      const res =
+        await this.gmail.users.labels.list({
+          userId: 'me'
+        });
 
       const target = (res.data.labels || []).find(
         (l) =>
-          l.name.toLowerCase().includes('concorde') &&
-          l.name.toLowerCase().includes('procesad')
+          l.name
+            .toLowerCase()
+            .includes('concorde') &&
+          l.name
+            .toLowerCase()
+            .includes('procesad')
       );
 
       if (target) {
         return (this.processedLabelId = target.id);
       }
 
-      const newLabel = await this.gmail.users.labels.create({
-        userId: 'me',
-        requestBody: {
-          name: 'CONCORDE - PROCESADOS',
-          labelListVisibility: 'labelShow',
-          messageListVisibility: 'show'
-        }
-      });
+      const newLabel =
+        await this.gmail.users.labels.create({
+          userId: 'me',
+          requestBody: {
+            name: 'CONCORDE - PROCESADOS',
+            labelListVisibility: 'labelShow',
+            messageListVisibility: 'show'
+          }
+        });
 
-      return (this.processedLabelId = newLabel.data.id);
+      return (this.processedLabelId =
+        newLabel.data.id);
     } catch (error) {
       return null;
     }
@@ -133,20 +152,29 @@ class GmailSyncService {
     }
   }
 
-  findStoreInText(text, allStores, senderEmail) {
+  findStoreInText(
+    text,
+    allStores,
+    senderEmail
+  ) {
     if (!text || !allStores.length) {
       return null;
     }
 
-    const lowerText = text.toLowerCase();
+    const lowerText =
+      text.toLowerCase();
 
     const domainMatch = senderEmail
-      ? senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/)
+      ? senderEmail.match(
+          /@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
+        )
       : null;
 
     const senderDomain =
       domainMatch && domainMatch[1]
-        ? domainMatch[1].toLowerCase().trim()
+        ? domainMatch[1]
+            .toLowerCase()
+            .trim()
         : '';
 
     const dominiosGenericos = [
@@ -162,17 +190,22 @@ class GmailSyncService {
       senderDomain &&
       !dominiosGenericos.includes(senderDomain)
     ) {
-      const byDomain = allStores.find((s) => {
-        const webMatch =
-          s.web &&
-          s.web.toLowerCase().includes(senderDomain);
+      const byDomain =
+        allStores.find((s) => {
+          const webMatch =
+            s.web &&
+            s.web
+              .toLowerCase()
+              .includes(senderDomain);
 
-        const emailMatch =
-          s.emails &&
-          s.emails.toLowerCase().includes(senderDomain);
+          const emailMatch =
+            s.emails &&
+            s.emails
+              .toLowerCase()
+              .includes(senderDomain);
 
-        return webMatch || emailMatch;
-      });
+          return webMatch || emailMatch;
+        });
 
       if (byDomain) {
         return byDomain;
@@ -181,11 +214,15 @@ class GmailSyncService {
 
     for (const store of allStores) {
       const storeNameLower = store.name
-        ? store.name.toLowerCase().trim()
+        ? store.name
+            .toLowerCase()
+            .trim()
         : '';
 
       const storeIdLower = store.id
-        ? store.id.toLowerCase().trim()
+        ? store.id
+            .toLowerCase()
+            .trim()
         : '';
 
       if (
@@ -227,10 +264,24 @@ class GmailSyncService {
         subject || 'Ticket desde Gmail',
 
       summary:
-        fullConversation || 'Sin descripción',
+        fullConversation ||
+        'Sin descripción',
 
       quick_solution:
-        'Revisión manual requerida por el equipo técnico.'
+        'Revisión manual requerida por el equipo técnico.',
+
+      extracted_entities: {
+        order_ids: [],
+        urls_affected: [],
+        error_codes: []
+      },
+
+      action_plan: {
+        hypothesis:
+          'Revisión manual requerida.',
+        investigation_steps: [],
+        missing_info: null
+      }
     };
 
     const apiKey =
@@ -246,22 +297,36 @@ class GmailSyncService {
     }
 
     try {
-      const { generateText } = await import('ai');
-      const { createOpenAI } = await import('@ai-sdk/openai');
+      const { generateText } =
+        await import('ai');
+
+      const { createOpenAI } =
+        await import('@ai-sdk/openai');
 
       const vercelGateway = createOpenAI({
-        baseURL: 'https://ai-gateway.vercel.sh/v1',
+        baseURL:
+          'https://ai-gateway.vercel.sh/v1',
         apiKey: apiKey
       });
 
-      const storesCatalog = allStores
-        .map(
-          (s) =>
-            `- ID: "${s.id}" | Nombre: "${s.name || ''}" | Web: "${s.web || ''}" | Emails: "${s.emails || ''}"`
-        )
-        .join('\n');
+      const storesCatalog =
+        allStores
+          .map(
+            (s) =>
+              `- ID: "${s.id}" | Nombre: "${s.name || ''}" | Web: "${s.web || ''}" | Emails: "${s.emails || ''}"`
+          )
+          .join('\n');
 
-      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3). Tu función es analizar LA CADENA ENTERA DE CORREOS para entender el problema, identificar exactamente a qué cliente/tienda corresponde el mensaje y devolver un objeto JSON estricto.
+      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3).
+
+Tu función es analizar LA CADENA ENTERA DE CORREOS para entender el problema, identificar exactamente a qué cliente/tienda corresponde el mensaje y devolver un objeto JSON estricto.
+
+IMPORTANTE SOBRE EL RESUMEN:
+- El resumen debe ser autónomo y entendible sin necesidad de leer la cadena original.
+- Resume el problema actual, lo que el cliente solicita, los antecedentes importantes y cualquier acción que ya se haya realizado.
+- No repitas innecesariamente toda la conversación.
+- Máximo 4 oraciones.
+- Debe ser suficientemente claro para que un técnico pueda entender el caso rápidamente.
 
 REGLAS DE IDENTIFICACIÓN DE TIENDA (CRÍTICO):
 1. Analiza el remitente (${from}), el asunto, el cuerpo de los mensajes, las firmas, URLs mencionadas o nombres de marcas/tiendas dentro del texto.
@@ -271,9 +336,11 @@ REGLAS DE IDENTIFICACIÓN DE TIENDA (CRÍTICO):
 5. Si no coincide con ninguna tienda registrada de la lista, asigna 'enova.agency'.
 
 REGLAS GENERALES:
-- NINGÚN texto fuera del JSON. Ni saludos, ni bloques de código (\`\`\`).
+- NINGÚN texto fuera del JSON.
+- No utilices bloques de código.
 - Idioma: Siempre en Español.
-- Datos faltantes: Si un dato no se menciona, devuelve 'null'.
+- Datos faltantes: Si un dato no se menciona, devuelve null.
+- No inventes información que no aparezca en la conversación.
 
 LISTA DE TIENDAS REGISTRADAS EN EL CRM:
 ${storesCatalog}
@@ -284,7 +351,7 @@ CRITERIOS DE CLASIFICACIÓN EXACTOS:
 
 ESTRUCTURA JSON EXACTA REQUERIDA:
 {
-  "identified_store_id": "El 'ID' exacto de la tienda identificada de la lista o 'enova.agency'",
+  "identified_store_id": "El ID exacto de la tienda identificada de la lista o 'enova.agency'",
   "clean_name": "Formato: '[Módulo/Área] - Descripción del fallo'. Máximo 10 palabras.",
   "priority": "LOW|MEDIUM|HIGH|CRITICAL",
   "task_type": "BUG_FIX|TASK_INTERNA|CAMBIO|CONSULTA",
@@ -313,16 +380,22 @@ HISTORIAL COMPLETO DE LA CONVERSACIÓN:
 ${fullConversation}
 `;
 
-      const { text } = await generateText({
-        model: vercelGateway('openai/gpt-4o-mini'),
-        system: systemInstruction,
-        prompt: userPrompt
-      });
+      const { text } =
+        await generateText({
+          model:
+            vercelGateway(
+              'openai/gpt-4o-mini'
+            ),
 
-      let responseText = text
-        .replace(/```json/gi, '')
-        .replace(/```/g, '')
-        .trim();
+          system: systemInstruction,
+          prompt: userPrompt
+        });
+
+      const responseText =
+        text
+          .replace(/```json/gi, '')
+          .replace(/```/g, '')
+          .trim();
 
       return JSON.parse(responseText);
 
@@ -332,7 +405,9 @@ ${fullConversation}
         e.message.includes('429') &&
         intentos > 0
       ) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) =>
+          setTimeout(r, 2000)
+        );
 
         return this.analyzeEmailWithAI(
           subject,
@@ -380,16 +455,20 @@ ${fullConversation}
 
       const threadIds = [
         ...new Set(
-          messages.map((msg) => msg.threadId)
+          messages.map(
+            (msg) => msg.threadId
+          )
         )
       ];
 
       for (const threadId of threadIds) {
         const threadData =
-          await this.gmail.users.threads.get({
-            userId: 'me',
-            id: threadId
-          });
+          await this.gmail.users.threads.get(
+            {
+              userId: 'me',
+              id: threadId
+            }
+          );
 
         const threadMessages =
           threadData.data.messages || [];
@@ -438,6 +517,14 @@ ${fullConversation}
           continue;
         }
 
+        /*
+         * Esta cadena completa se sigue construyendo
+         * porque la IA la necesita para analizar todo
+         * el contexto del correo.
+         *
+         * IMPORTANTE:
+         * Ya NO se guarda en el ticket.
+         */
         const fullConversation =
           threadMessages
             .map((msg, index) => {
@@ -492,7 +579,9 @@ ${msgBody}
           )?.value || 'Desconocido';
 
         const cleanSenderEmail =
-          this.cleanEmailAddress(rawFrom);
+          this.cleanEmailAddress(
+            rawFrom
+          );
 
         this.procesadosEnMemoria.add(
           lastMessage.id
@@ -514,7 +603,9 @@ ${msgBody}
             allStores
           );
 
-        if (aiData.identified_store_id) {
+        if (
+          aiData.identified_store_id
+        ) {
           const storeFromAI =
             allStores.find(
               (s) =>
@@ -523,7 +614,8 @@ ${msgBody}
             );
 
           if (storeFromAI) {
-            matchedStore = storeFromAI;
+            matchedStore =
+              storeFromAI;
           }
         }
 
@@ -538,10 +630,20 @@ ${msgBody}
           aiData.quick_solution ||
           (
             aiData.action_plan?.hypothesis
-              ? aiData.action_plan.hypothesis
+              ? aiData.action_plan
+                  .hypothesis
               : 'Revisión manual requerida.'
           );
 
+        /*
+         * AQUÍ ESTÁ EL CAMBIO PRINCIPAL:
+         *
+         * Ya NO se guarda:
+         * - fullConversation
+         * - la cadena completa del correo
+         *
+         * Solo guardamos un resumen útil para el técnico.
+         */
         const ticketDescription =
           `[GMAIL_ID: ${lastMessage.id}]
 Origen: Gmail
@@ -551,11 +653,7 @@ Remitente: ${rawFrom}
 ${aiData.summary || 'Sin resumen disponible.'}
 
 💡 SOLUCIÓN RÁPIDA SUGERIDA:
-${quickSolutionText}
-
-------------------------
-✉️ CADENA COMPLETA DE LA CONVERSACIÓN:
-${fullConversation}`;
+${quickSolutionText}`;
 
         await TicketRepository.create({
           name: aiData.clean_name,
