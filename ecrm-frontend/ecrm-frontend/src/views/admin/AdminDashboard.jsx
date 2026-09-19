@@ -7,7 +7,7 @@ import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 
-// 🌟 SUBCOMPONENTE: Widget del Concorde Analyzer
+// 🌟 SUBCOMPONENTE: Widget del Concorde Analyzer (AHORA CLICKEABLE)
 const AnalyzerStatusWidget = () => {
   const [botStatus, setBotStatus] = useState({ status: 'LOADING', last_heartbeat: null, is_running: false });
 
@@ -32,13 +32,19 @@ const AnalyzerStatusWidget = () => {
   const isOnline = botStatus.status === 'ONLINE';
 
   return (
-    <div style={{ 
-      display: 'flex', gap: '10px', alignItems: 'center', 
-      backgroundColor: '#ffffff', padding: '8px 16px', 
-      borderRadius: '8px', border: '1px solid #c8c6c1', 
-      borderLeft: isOnline ? '4px solid #16a34a' : '4px solid #dc2626',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontFamily: "'Nunito', system-ui, sans-serif" 
-    }}>
+    <div 
+      onClick={() => window.location.href = 'https://enova-concorde-2027.up.railway.app/admin/analyzer'}
+      style={{ 
+        display: 'flex', gap: '10px', alignItems: 'center', cursor: 'pointer',
+        backgroundColor: '#ffffff', padding: '8px 16px', 
+        borderRadius: '8px', border: '1px solid #c8c6c1', 
+        borderLeft: isOnline ? '4px solid #16a34a' : '4px solid #dc2626',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontFamily: "'Nunito', system-ui, sans-serif",
+        transition: 'background-color 0.2s ease'
+    }}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fcfbfa'}
+      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+    >
       <div style={{
         width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
         backgroundColor: isOnline ? '#16a34a' : '#dc2626',
