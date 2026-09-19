@@ -350,7 +350,7 @@ app.use('/api/metrics', verificarToken, require('./routes/metrics'));
 app.use('/api/tickets', verificarToken, require('./routes/tickets'));
 app.use('/api/stores', verificarToken, require('./routes/stores'));
 app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
-
+app.use('/api/ai', verificarToken, require('./routes/ai'));
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE SHOPIFY
 // ==========================================
