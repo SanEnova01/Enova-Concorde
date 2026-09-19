@@ -508,45 +508,38 @@ const [aiBanner, setAiBanner] = useState({
 
   return (
     <div>
-      {/* 🌟 ENCABEZADO CON CARD OSCURA DE IA + WIDGETS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px', marginBottom: '28px', flexWrap: 'wrap', gap: '20px' }}>
+      {/* 🌟 ENCABEZADO SIMÉTRICO CON CARD GRIS CLARO DE IA + WIDGETS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         
-        {/* TARJETA / CARD OSCURA PARA LA INFORMACIÓN DE IA */}
+        {/* TARJETA DE IA - ESTILO GRIS CLARO Y MISMA ALTURA/DISENO QUE LOS WIDGETS */}
         <div style={{ 
-          flex: '1 1 450px', 
+          flex: '1 1 400px', 
           minWidth: 0,
-          backgroundColor: '#111111',
-          color: '#ffffff',
-          padding: '16px 20px 16px 24px',
-          borderRadius: '10px',
-          border: '1px solid #222222',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
-          position: 'relative',
-          overflow: 'hidden'
+          backgroundColor: '#f8f9fa',
+          color: '#111111',
+          padding: '8px 16px',
+          borderRadius: '8px',
+          border: '1px solid #c8c6c1',
+          borderLeft: '4px solid #2563eb',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          fontFamily: "'Nunito', system-ui, sans-serif"
         }}>
-          {/* Lógica de acento de línea vertical a la izquierda */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '4px',
-            height: '100%',
-            backgroundColor: '#2563eb'
-          }} />
-
-          <span style={{ fontSize: '10px', fontWeight: '900', letterSpacing: '1px', color: '#9ca3af', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+          <span style={{ fontSize: '9px', fontWeight: '900', letterSpacing: '0.5px', color: '#666666', textTransform: 'uppercase', marginBottom: '1px' }}>
             {aiBanner.greeting}
           </span>
-          <h1 className="crm-main-title" style={{ border: 'none', margin: '0 0 6px 0', padding: 0, fontSize: '20px', lineHeight: '1.2', color: '#ffffff' }}>
+          <h1 className="crm-main-title" style={{ border: 'none', margin: 0, padding: 0, fontSize: '14px', fontWeight: 'bold', color: '#111111', lineHeight: '1.2' }}>
             {aiBanner.headline}
           </h1>
-          <p style={{ margin: 0, fontSize: '12px', color: '#d1d5db', lineHeight: '1.4', maxWidth: '750px' }}>
+          <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#555555', lineHeight: '1.3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {aiBanner.subtext}
           </p>
         </div>
 
         {/* WIDGETS DERECHOS */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'stretch', flexWrap: 'wrap' }}>
           <AnalyzerStatusWidget />
           <TopBarWidget />
         </div>
