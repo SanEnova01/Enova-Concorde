@@ -693,50 +693,130 @@ body {
 }
 
 /* ==============================================================
-   ESTILOS DEL GENERADOR DE REPORTES PDF
+   ESTILOS DEL GENERADOR DE REPORTES PDF - INTEGRACIÓN E-INK KINDLE
 ============================================================== */
-.rg-container { display: flex; height: calc(100vh - 60px); overflow: hidden; background: #1e1e1e; color: #fff; text-align: left;}
-.rg-sidebar { width: 450px; background: #2d2d2d; border-right: 2px solid #000; display: flex; flex-direction: column; overflow-y: auto; padding: 20px; }
-.rg-preview-area { flex: 1; background: #555; display: flex; justify-content: center; overflow-y: auto; padding: 40px; }
+.rg-container { display: flex; height: calc(100vh - 60px); overflow: hidden; background: var(--kindle-device-frame); color: var(--kindle-paper-bg); text-align: left; font-family: "Amazon Ember", Georgia, serif;}
+.rg-sidebar { width: 450px; background: var(--kindle-device-frame); border-right: 1px solid var(--kindle-border-fine); display: flex; flex-direction: column; overflow-y: auto; padding: 20px; }
+.rg-preview-area { flex: 1; background: var(--ink-charcoal); display: flex; justify-content: center; overflow-y: auto; padding: 40px; }
 
-.rg-panel-title { margin-top: 0; font-size: 1.2rem; text-transform: uppercase; border-bottom: 2px solid #fff; padding-bottom: 10px; }
-.rg-form-group { margin-bottom: 20px; background: #3d3d3d; padding: 15px; border-radius: 6px; border: 1px solid #444; }
-.rg-form-group label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.9rem; color: #cbd5e1; }
-.rg-input { width: 100%; padding: 8px; border: 1px solid #555; background: #1e1e1e; color: #fff; border-radius: 4px; font-family: inherit; margin-bottom: 5px; box-sizing: border-box; }
+.rg-panel-title { margin-top: 0; font-size: 1.2rem; text-transform: uppercase; border-bottom: 1px solid var(--kindle-paper-bg); padding-bottom: 10px; font-family: system-ui, sans-serif;}
+.rg-form-group { margin-bottom: 20px; background: var(--ink-charcoal); padding: 15px; border-radius: var(--radius-main); border: 1px solid var(--kindle-border-fine); }
+.rg-form-group label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.9rem; color: var(--kindle-paper-surface); font-family: system-ui, sans-serif;}
+.rg-input { width: 100%; padding: 8px; border: 1px solid var(--kindle-border-fine); background: var(--kindle-device-frame); color: var(--kindle-paper-bg); border-radius: var(--radius-card); font-family: system-ui, sans-serif; margin-bottom: 5px; box-sizing: border-box; }
 
-.rg-btn-export { background: #10b981; color: #fff; border: none; padding: 15px; font-size: 1.1rem; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: 6px; position: sticky; bottom: 0; box-shadow: 0 -4px 10px rgba(0,0,0,0.5); transition: background 0.2s; width: 100%; }
-.rg-btn-export:hover { background: #059669; }
+.rg-btn-export { background: var(--kindle-paper-bg); color: var(--ink-black); border: 1px solid var(--ink-black); padding: 15px; font-size: 1.1rem; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: var(--radius-main); position: sticky; bottom: 0; box-shadow: 0 -4px 10px rgba(0,0,0,0.2); transition: background 0.2s; width: 100%; font-family: system-ui, sans-serif;}
+.rg-btn-export:hover { background: var(--kindle-paper-surface); }
 
-.rg-status-row { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #555; }
+.rg-status-row { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid var(--ink-muted); }
 .rg-status-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-.rg-status-label { font-size: 0.85rem; margin-bottom: 5px; font-weight: 600; }
+.rg-status-label { font-size: 0.85rem; margin-bottom: 5px; font-weight: 600; font-family: system-ui, sans-serif;}
 .rg-status-btn-group { display: flex; gap: 5px; margin-bottom: 8px; }
-.rg-btn-status { flex: 1; padding: 6px; border: none; cursor: pointer; font-weight: bold; border-radius: 3px; font-size: 0.75rem; opacity: 0.4; transition: opacity 0.2s; }
-.rg-btn-status.active { opacity: 1; border: 2px solid #fff; }
-.rg-btn-g { background: #10b981; color: #000; }
-.rg-btn-y { background: #f59e0b; color: #000; }
-.rg-btn-r { background: #ef4444; color: #fff; }
+.rg-btn-status { flex: 1; padding: 6px; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 0.75rem; opacity: 0.4; transition: opacity 0.2s; font-family: system-ui, sans-serif;}
+.rg-btn-status.active { opacity: 1; border: 1px solid var(--kindle-paper-bg); }
+.rg-btn-g { background: var(--kindle-paper-surface); color: var(--ink-black); }
+.rg-btn-y { background: var(--ink-muted); color: var(--kindle-paper-bg); }
+.rg-btn-r { background: var(--ink-charcoal); color: var(--kindle-paper-bg); border: 1px solid var(--kindle-paper-bg); }
 
-.rg-drop-zone { border: 2px dashed #888; border-radius: 6px; padding: 20px; text-align: center; cursor: pointer; background: #2d2d2d; transition: all 0.2s; margin-bottom: 8px; font-size: 0.85rem; color: #aaa; }
-.rg-drop-zone:hover, .rg-drop-zone:focus { border-color: #3b82f6; background: #1e293b; color: #fff; outline: none;}
-.rg-drop-zone img { max-width: 100%; max-height: 150px; margin-top: 10px; border: 1px solid #000; }
+.rg-drop-zone { border: 1px dashed var(--ink-muted); border-radius: var(--radius-main); padding: 20px; text-align: center; cursor: pointer; background: var(--ink-charcoal); transition: all 0.2s; margin-bottom: 8px; font-size: 0.85rem; color: var(--kindle-paper-surface); font-family: system-ui, sans-serif;}
+.rg-drop-zone:hover, .rg-drop-zone:focus { border-color: var(--kindle-paper-bg); background: var(--kindle-device-frame); color: var(--kindle-paper-bg); outline: none;}
+.rg-drop-zone img { max-width: 100%; max-height: 150px; margin-top: 10px; border: 1px solid var(--kindle-border-fine); border-radius: 4px;}
 
-/* ESTILOS DEL DOCUMENTO A IMPRIMIR */
-#document-to-print { width: 210mm; min-height: 297mm; background-color: #F1F0EA; padding: 20mm 15mm; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: #111; font-family: 'Arial', sans-serif; font-size: 9.5pt; line-height: 1.4; box-sizing: border-box; }
-#document-to-print .header-container { display: flex; justify-content: space-between; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 20px; align-items: center; }
-#document-to-print .logo-title { font-size: 14pt; font-weight: 900; text-transform: uppercase; margin: 0; }
-#document-to-print .logo-subtitle { font-size: 8pt; color: #555; text-transform: uppercase; margin: 0; letter-spacing: 1px; }
-#document-to-print .tag-sup { display: inline-block; border: 2px solid #000; padding: 3px 8px; font-weight: bold; font-size: 8pt; text-transform: uppercase; margin-bottom: 10px; background: #fff; }
-#document-to-print h1 { font-size: 22pt; font-weight: 900; margin: 0 0 10px 0; text-transform: uppercase; line-height: 1.1; }
-#document-to-print .card { background: #FFF; border: 3px solid #000; box-shadow: 5px 5px 0px #000; padding: 15px; margin-bottom: 20px; page-break-inside: avoid; }
-#document-to-print .card-header { font-size: 12pt; font-weight: 900; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; margin: 0 0 10px 0; }
-#document-to-print .section-title { font-weight: 900; font-size: 9pt; background: #000; color: #fff; display: inline-block; padding: 3px 8px; margin: 10px 0 5px 0; text-transform: uppercase; }
-#document-to-print .badge { display: inline-block; border: 2px solid #000; font-weight: 900; font-size: 7.5pt; padding: 1px 5px; margin-right: 5px; text-transform: uppercase; }
+/* ESTILOS DEL DOCUMENTO A IMPRIMIR - MAPEADO AL TEMA E-INK */
+#document-to-print { 
+    width: 210mm; 
+    min-height: 297mm; 
+    background-color: var(--kindle-paper-bg); 
+    padding: 20mm 15mm; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
+    color: var(--ink-black); 
+    font-family: "Amazon Ember", Georgia, serif; 
+    font-size: 9.5pt; 
+    line-height: 1.4; 
+    box-sizing: border-box; 
+    -webkit-font-smoothing: antialiased;
+}
+
+#document-to-print .header-container { 
+    display: flex; 
+    justify-content: space-between; 
+    border-bottom: 1px solid var(--kindle-border-fine); 
+    padding-bottom: 10px; 
+    margin-bottom: 20px; 
+    align-items: center; 
+}
+
+#document-to-print .logo-title { font-size: 14pt; font-weight: normal; text-transform: uppercase; margin: 0; color: var(--ink-black); }
+#document-to-print .logo-subtitle { font-size: 8pt; color: var(--ink-muted); text-transform: uppercase; margin: 0; letter-spacing: 1px; font-family: system-ui, sans-serif;}
+
+#document-to-print .tag-sup { 
+    display: inline-block; 
+    border: 1px solid var(--kindle-border-soft); 
+    padding: 3px 8px; 
+    font-weight: bold; 
+    font-size: 8pt; 
+    text-transform: uppercase; 
+    margin-bottom: 10px; 
+    background: var(--kindle-paper-surface); 
+    color: var(--ink-charcoal);
+    border-radius: 4px;
+    font-family: system-ui, sans-serif;
+}
+
+#document-to-print h1 { font-size: 22pt; font-weight: normal; margin: 0 0 10px 0; text-transform: uppercase; line-height: 1.1; color: var(--ink-black); border-bottom: 1px solid var(--kindle-border-fine); padding-bottom: 12px;}
+
+#document-to-print .card { 
+    background: var(--kindle-paper-card); 
+    border: 1px solid var(--kindle-border-soft); 
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04); 
+    padding: 24px; 
+    margin-bottom: 20px; 
+    page-break-inside: avoid; 
+    border-radius: var(--radius-main);
+    color: var(--ink-charcoal);
+}
+
+#document-to-print .card-header { 
+    font-size: 14pt; 
+    font-weight: bold; 
+    text-transform: uppercase; 
+    border-bottom: 1px dotted var(--kindle-border-soft); 
+    padding-bottom: 10px; 
+    margin: 0 0 14px 0; 
+    color: var(--ink-black);
+    font-family: system-ui, sans-serif;
+}
+
+#document-to-print .section-title { 
+    font-weight: bold; 
+    font-size: 9pt; 
+    color: var(--ink-black); 
+    display: inline-block; 
+    border-bottom: 1px dashed var(--kindle-border-fine);
+    padding: 0 0 4px 0; 
+    margin: 10px 0 8px 0; 
+    text-transform: uppercase; 
+    font-family: system-ui, sans-serif;
+    letter-spacing: 0.5px;
+}
+
+#document-to-print .badge { 
+    display: inline-block; 
+    border: 1px solid var(--kindle-border-soft); 
+    font-weight: bold; 
+    font-size: 7.5pt; 
+    padding: 2px 6px; 
+    margin-right: 5px; 
+    text-transform: uppercase; 
+    border-radius: 4px;
+    font-family: system-ui, sans-serif;
+}
+
 #document-to-print .item-list-none { margin: 0; padding: 0; list-style: none; }
-#document-to-print .item-list-none li { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dotted #ccc; display: flex; align-items: flex-start;}
-#document-to-print .doc-image-container img { width: 100%; height: auto; border: 2px solid #000; display: block; margin: 15px 0; }
-#document-to-print .plugin-ul { margin: 0; padding-left: 15px; margin-bottom: 10px; }
+#document-to-print .item-list-none li { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--kindle-border-soft); display: flex; align-items: flex-start; color: var(--ink-charcoal);}
+#document-to-print .doc-image-container img { width: 100%; height: auto; border: 1px solid var(--kindle-border-soft); display: block; margin: 15px 0; border-radius: var(--radius-card); box-shadow: 0 1px 3px rgba(0,0,0,0.02);}
+#document-to-print .plugin-ul { margin: 0; padding-left: 15px; margin-bottom: 10px; color: var(--ink-charcoal);}
 
-#document-to-print .bg-g { background-color: #10b981 !important; color: #000 !important; }
-#document-to-print .bg-y { background-color: #f59e0b !important; color: #000 !important; }
-#document-to-print .bg-r { background-color: #ef4444 !important; color: #fff !important; }
+/* Badges e-Ink Style */
+#document-to-print .bg-g { background-color: var(--kindle-paper-surface) !important; color: var(--ink-black) !important; border-color: var(--kindle-border-soft) !important;}
+#document-to-print .bg-y { background-color: var(--kindle-paper-bg) !important; color: var(--ink-charcoal) !important; border-color: var(--ink-muted) !important;}
+#document-to-print .bg-r { background-color: var(--kindle-paper-card) !important; color: var(--ink-black) !important; border-color: var(--kindle-border-fine) !important; font-weight: 900;}
