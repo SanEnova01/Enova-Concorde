@@ -2,18 +2,113 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
+// 🌟 SUBCOMPONENTE: Widget de Monitoreo (Basado en ClientExternalMonitor)
+const StatusWidget = ({ title, data }) => {
+  if (!data) return <div className="crm-card-paper" style={{ padding: '16px' }}><div className="crm-text-loading">Cargando {title}...</div></div>;
+
+  const isOperational = data.global?.indicator === 'none';
+
+  return (
+    <div className="crm-card-paper" style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: 'fit-content' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px dotted #111111', paddingBottom: '12px', marginBottom: '14px' }}>
+        <div>
+          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Infraestructura Externa</span>
+          <h4 style={{ margin: '2px 0 0 0', fontSize: '14px', fontWeight: 'bold', color: '#111111' }}>
+            {title}: {data.global?.status}
+          </h4>
+        </div>
+        <span style={{ 
+          width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
+          backgroundColor: isOperational ? '#16a34a' : '#dc2626',
+          boxShadow: isOperational ? '0 0 8px #16a34a' : '0 0 8px #dc2626'
+        }}></span>
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+        {(data.components || []).map((comp, idx) => {
+          let statusLabel = 'Operativo';
+          let statusColor = '#16a34a'; 
+          let statusBg = '#f0fdf4';
+          let statusIcon = '✓';
+
+          if (comp.status === 'degraded_performance') {
+            statusLabel = 'Rendimiento deficiente';
+            statusColor = '#eab308'; statusBg = '#fef9c3'; statusIcon = '➖';
+          } else if (comp.status === 'partial_outage') {
+            statusLabel = 'Interrupción parcial';
+            statusColor = '#f97316'; statusBg = '#ffedd5'; statusIcon = '⚠️';
+          } else if (comp.status === 'major_outage') {
+            statusLabel = 'Interrupción importante';
+            statusColor = '#dc2626'; statusBg = '#fef2f2'; statusIcon = '❌';
+          } else if (comp.status === 'under_maintenance' || comp.status === 'maintenance') {
+            statusLabel = 'Mantenimiento';
+            statusColor = '#2563eb'; statusBg = '#eff6ff'; statusIcon = '🔧';
+          }
+
+          return (
+            <div key={idx} style={{ 
+              padding: '8px 10px', borderRadius: '6px', backgroundColor: '#fcfbfa', 
+              border: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={comp.name}>
+                {comp.name}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', backgroundColor: statusBg }}>
+                <span style={{ fontSize: '10px', color: statusColor, fontWeight: 'bold' }}>{statusIcon}</span>
+                <span style={{ fontSize: '10px', fontWeight: 'bold', color: statusColor }}>{statusLabel}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
 function AdminDashboard() {
   const [stats, setStats] = useState({ tickets: 0, clients: 0 });
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // 🌟 NUEVOS ESTADOS PARA BÚSQUEDA Y ORDENAMIENTO
+  // Estados para Búsqueda y Ordenamiento
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
+  // 🌟 Estado para Status de Tecnologías (Con data realista Placebo / Lista para API)
+  const [techStatus, setTechStatus] = useState({
+    shopify: {
+      global: { status: 'Todos los sistemas operativos', indicator: 'none' },
+      components: [
+        { name: 'Shopify Checkout', status: 'operational' },
+        { name: 'Shopify Admin', status: 'operational' },
+        { name: 'Storefront', status: 'operational' },
+        { name: 'Third-party apps', status: 'operational' }
+      ]
+    },
+    vtex: {
+      global: { status: 'Todos los sistemas operativos', indicator: 'none' },
+      components: [
+        { name: 'VTEX Checkout', status: 'operational' },
+        { name: 'VTEX IO', status: 'operational' },
+        { name: 'API REST', status: 'operational' },
+        { name: 'Portal Admin', status: 'operational' }
+      ]
+    },
+    woo: {
+      global: { status: 'Operativo / Analizando...', indicator: 'none' },
+      components: [
+        { name: 'Resolución de DNS y SSL', status: 'operational' },
+        { name: 'Tiempo de Respuesta (TTFB)', status: 'operational' },
+        { name: 'Estabilidad de Base de Datos', status: 'operational' },
+        { name: 'Núcleo de Aplicación (PHP)', status: 'operational' }
+      ]
+    }
+  });
+
   useEffect(() => {
-    let intervalId; // Variable para guardar el temporizador
+    let intervalId; 
 
     const dataInitialization = async () => {
       try {
@@ -63,11 +158,9 @@ function AdminDashboard() {
           }
         };
 
-        // 1. Carga inicial
         await fetchData();
         setLoading(false);
 
-        // 2. Polling cada 10 segundos
         intervalId = setInterval(fetchData, 10000);
 
       } catch (error) {
@@ -78,13 +171,11 @@ function AdminDashboard() {
     
     dataInitialization();
 
-    // 3. Limpiar temporizador al cambiar de pestaña
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
   }, [navigate]);
 
-  // 🌟 FUNCIÓN PARA ACCIONAR EL FILTRO DE ORDENAMIENTO AL DAR CLIC
   const handleSort = (key) => {
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -93,7 +184,6 @@ function AdminDashboard() {
     setSortConfig({ key, direction });
   };
 
-  // 🌟 PROCESAMIENTO EN TIEMPO REAL: FILTRADO + ORDENAMIENTO
   const processedClients = [...clients]
     .filter(client => {
       const query = searchQuery.toLowerCase().trim();
@@ -121,6 +211,7 @@ function AdminDashboard() {
     <div>
       <h1 className="crm-main-title">Panel de Control Principal</h1>
       
+      {/* INDICADORES TOP SE MANTIENEN INTACTOS */}
       <div className="crm-grid-stats">
         <div className="crm-card-paper">
           <span className="crm-stat-label">Tickets Totales</span>
@@ -132,67 +223,66 @@ function AdminDashboard() {
         </div>
       </div>
 
-      <div className="crm-card-paper">
-        {/* 🌟 CABECERA DINÁMICA CON BARRA DE BÚSQUEDA INTEGRADA */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-          <h2 className="crm-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Lista General de Clientes</h2>
-          <input 
-            type="text" 
-            placeholder="Buscar por cliente o plan..." 
-            value={searchQuery} 
-            onChange={(e) => setSearchQuery(e.target.value)} 
-            className="crm-input-text"
-            style={{ width: '250px' }}
-          />
+      {/* 🌟 NUEVO LAYOUT EN DOS COLUMNAS */}
+      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        
+        {/* COLUMNA IZQUIERDA: LISTA DE CLIENTES */}
+        <div className="crm-card-paper" style={{ flex: '2 1 600px', minWidth: 0, margin: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <h2 className="crm-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Lista General de Clientes</h2>
+            <input 
+              type="text" 
+              placeholder="Buscar por cliente o plan..." 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="crm-input-text"
+              style={{ width: '250px' }}
+            />
+          </div>
+
+          <div className="crm-table-container">
+            <table className="crm-table-data">
+              <thead>
+                <tr>
+                  <th onClick={() => handleSort('name')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Nombre">
+                    Nombre del Cliente {sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                  </th>
+                  <th>Sitio Web</th>
+                  <th onClick={() => handleSort('plan_type')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Plan">
+                    Plan Contratado {sortConfig.key === 'plan_type' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                  </th>
+                  <th>Tickets Creados</th>
+                </tr>
+              </thead>
+              <tbody>
+                {processedClients.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="crm-text-loading" style={{ textAlign: 'center', padding: '24px' }}>
+                      No se encontraron clientes que coincidan con la búsqueda.
+                    </td>
+                  </tr>
+                ) : (
+                  processedClients.map(client => (
+                    <tr key={client.id} className="crm-table-row-interactive" onClick={() => navigate(`/admin/clientes/${client.id}`)} style={{ cursor: 'pointer' }}>
+                      <td><strong>{client.name}</strong></td>
+                      <td>{client.web || 'No asignada'}</td>
+                      <td><span className="crm-badge">{client.plan_type}</span></td>
+                      <td>{client.ticket_count}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <div className="crm-table-container">
-          <table className="crm-table-data">
-            <thead>
-              <tr>
-                {/* 🌟 CABECERAS INTERACTIVAS CON INDICADORES DE DIRECCIÓN ↑ ↓ */}
-                <th 
-                  onClick={() => handleSort('name')} 
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  title="Haz clic para ordenar por Nombre"
-                >
-                  Nombre del Cliente {sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
-                </th>
-                <th>Sitio Web</th>
-                <th 
-                  onClick={() => handleSort('plan_type')} 
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  title="Haz clic para ordenar por Plan"
-                >
-                  Plan Contratado {sortConfig.key === 'plan_type' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
-                </th>
-                <th>Tickets Creados</th>
-              </tr>
-            </thead>
-            <tbody>
-              {processedClients.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="crm-text-loading" style={{ textAlign: 'center', padding: '24px' }}>
-                    No se encontraron clientes que coincidan con la búsqueda.
-                  </td>
-                </tr>
-              ) : (
-                processedClients.map(client => (
-                  <tr 
-                    key={client.id} 
-                    className="crm-table-row-interactive"
-                    onClick={() => navigate(`/admin/clientes/${client.id}`)}
-                  >
-                    <td><strong>{client.name}</strong></td>
-                    <td>{client.web || 'No asignada'}</td>
-                    <td><span className="crm-badge">{client.plan_type}</span></td>
-                    <td>{client.ticket_count}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS */}
+        <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <StatusWidget name="Ecosistema Shopify Inc." data={techStatus.shopify} />
+          <StatusWidget name="Plataforma VTEX Global" data={techStatus.vtex} />
+          <StatusWidget name="WooCommerce Monitoreo" data={techStatus.woo} />
         </div>
+        
       </div>
     </div>
   );

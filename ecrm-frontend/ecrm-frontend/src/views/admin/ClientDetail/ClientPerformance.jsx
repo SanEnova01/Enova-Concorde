@@ -28,11 +28,11 @@ function ClientPerformance({ metrics }) {
 
   // Configuración del gráfico (SVG)
   const viewW = isExpanded ? 1000 : 650;
-  const viewH = isExpanded ? 400 : 230; // Altura ligeramente aumentada
+  const viewH = isExpanded ? 400 : 230; 
   const padL = 50; 
   const padR = 40; 
   const padT = 30; 
-  const padB = 55; // Mayor padding inferior para acomodar las fechas rotadas
+  const padB = 55; 
   const graphW = viewW - padL - padR;
   const graphH = viewH - padT - padB;
 
@@ -84,10 +84,23 @@ function ClientPerformance({ metrics }) {
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ width: '100%', overflowX: 'auto', backgroundColor: '#fcfbfa', border: '1px solid #cccccc', padding: '10px 0', flexGrow: 1 }}>
             <svg viewBox={`0 0 ${viewW} ${viewH}`} style={{ width: '100%', minWidth: '700px', height: isExpanded ? '100%' : 'auto', display: 'block' }}>
+              
+              {/* Líneas de fondo */}
               <line x1={padL} y1={padT} x2={viewW - padR} y2={padT} stroke="#e5e5e5" strokeWidth="1" strokeDasharray="3,3" />
               <line x1={padL} y1={padT + graphH / 2} x2={viewW - padR} y2={padT + graphH / 2} stroke="#e5e5e5" strokeWidth="1" strokeDasharray="3,3" />
               <line x1={padL} y1={viewH - padB} x2={viewW - padR} y2={viewH - padB} stroke="#111111" strokeWidth="1.5" />
               <line x1={padL} y1={padT} x2={padL} y2={viewH - padB} stroke="#111111" strokeWidth="1.5" />
+
+              {/* NUEVO: Etiquetas del Eje Y (Métricas laterales) */}
+              <text x={padL - 8} y={padT + 4} textAnchor="end" style={{ fontSize: '10px', fill: '#666666', fontFamily: "'Nunito', sans-serif" }}>
+                {maxTime.toFixed(1)}s
+              </text>
+              <text x={padL - 8} y={padT + (graphH / 2) + 4} textAnchor="end" style={{ fontSize: '10px', fill: '#666666', fontFamily: "'Nunito', sans-serif" }}>
+                {(maxTime / 2).toFixed(1)}s
+              </text>
+              <text x={padL - 8} y={viewH - padB + 4} textAnchor="end" style={{ fontSize: '10px', fill: '#666666', fontFamily: "'Nunito', sans-serif" }}>
+                0s
+              </text>
 
               <polyline fill="none" stroke="#2563eb" strokeWidth="2" strokeDasharray="4,4" points={domPoints} />
               <polyline fill="none" stroke="#16a34a" strokeWidth="3" points={loadPoints} />
@@ -114,13 +127,13 @@ function ClientPerformance({ metrics }) {
                       {dateStr}
                     </text>
 
-                    {/* Valores Y (Segundos) - Rotados y reducidos */}
+                    {/* Valores Y (Segundos) - Actualizado a Gris Oscuro (#444444) */}
                     <text 
                       x={cx} 
                       y={getYTime(loadInSeconds) - 8} 
                       textAnchor="start" 
                       transform={`rotate(-35 ${cx} ${getYTime(loadInSeconds) - 8})`}
-                      style={{ fontSize: '8.5px', fontWeight: 'bold', fontFamily: "'Nunito', sans-serif", fill: '#16a34a' }}
+                      style={{ fontSize: '8.5px', fontWeight: 'bold', fontFamily: "'Nunito', sans-serif", fill: '#444444' }}
                     >
                       {m.load_ms !== null ? `${loadInSeconds.toFixed(2)}s` : ''}
                     </text>
