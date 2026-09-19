@@ -14,14 +14,18 @@ class GmailSyncService {
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
     
     this.procesadosEnMemoria = new Set();
-    this.isProcessing = false; 
-    this.processedLabelId = null;
+  this.isProcessing = false; 
+  this.processedLabelId = null;
 
-    console.log('[Gmail Sync] Bot activo (con Importación Dinámica AI SDK y Doble Validación). Revisión cada 5s.');
-    setTimeout(() => this.processTaggedEmails(), 2000);
-    // Ejecución reducida a 5 segundos[cite: 1]
-    setInterval(() => this.processTaggedEmails(), 5000); 
-  }
+  // 1. Modifica el mensaje de la consola
+  console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
+
+  // 2. Ejecución inicial (espera 2000 ms / 2 segundos al arrancar)
+  setTimeout(() => this.processTaggedEmails(), 2000);
+
+  // 3. Bucle recurrente (se ejecuta cada 2000 ms / 2 segundos)
+  setInterval(() => this.processTaggedEmails(), 2000);
+}
 
   cleanEmailAddress(rawFrom) {
     const match = rawFrom.match(/<([^>]+)>/) || rawFrom.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/);
@@ -45,6 +49,7 @@ class GmailSyncService {
     }
   }
 
+  // 🌟 BUSCAMOS TODA LA DATA DEL CLIENTE ANTES DE LLAMAR A LA IA
   async resolveStoreData(senderEmail) {
     try {
       const domainMatch = senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -63,36 +68,39 @@ class GmailSyncService {
       console.error('⚠️ [Error en Scanner de ID]:', error.message);
     }
     
+    // Fallback si no lo encuentra
     return { id: 'enova.agency', name: 'Cliente Desconocido', tecnologia: 'No especificada' };
   }
 
+  // 🤖 PROCESAMIENTO CON VERCEL AI SDK Y SU GATEWAY
   async analyzeEmailWithAI(subject, body, from, storeInfo, intentos = 2) {
     const dummyData = {
-      clean_name: subject || 'Ticket desde Gmail',
       priority: 'MEDIUM',
       task_type: 'CONSULTA',
+      clean_name: subject || 'Ticket desde Gmail',
       summary: body || 'Sin descripción',
-      extracted_entities: { order_ids: [], urls_affected: [], error_codes: [] },
-      action_plan: { hypothesis: 'Revisión manual', investigation_steps: [], missing_info: null }
+      quick_solution: 'Revisión manual requerida.'
     };
 
     const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY;
+
     if (!apiKey) {
-        console.warn('[Vercel AI] Llave no detectada. Procesando con datos dummy.');
+        console.warn('[Vercel AI] Llave no detectada en Variables de Entorno. Procesando con datos dummy.');
         return dummyData;
     }
 
     try {
+      // 🌟 CARGA DINÁMICA DE DEPENDENCIAS ESM
       const { generateText } = await import('ai');
       const { createOpenAI } = await import('@ai-sdk/openai');
-      const vercelGateway = createOpenAI({ baseURL: 'https://ai-gateway.vercel.sh/v1', apiKey: apiKey });
 
-      const emailContext = `Remitente: ${from}\nAsunto:${subject}\nMensaje: ${body}\nTecnología: ${storeInfo.tecnologia || 'General'}`;
+      // 🌟 CONFIGURAMOS EL CLIENTE PARA USAR EL GATEWAY DE VERCEL
+      const vercelGateway = createOpenAI({
+        baseURL: 'https://ai-gateway.vercel.sh/v1', // URL del Gateway de Vercel
+        apiKey: apiKey,
+      });
 
-      // ==========================================
-      // PASO 1: IA EXTRACTORA (Prompt ultra-específico)
-      // ==========================================
-      const extractorInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3). Tu única función es extraer datos técnicos de correos no estructurados y devolver un objeto JSON estricto.
+      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3). Tu única función es extraer datos técnicos de correos no estructurados y devolver un objeto JSON estricto.
 
 REGLAS DE COMPORTAMIENTO:
 1. NINGÚN texto fuera del JSON. Ni saludos, ni "Aquí tienes", ni bloques de código (\`\`\`).
@@ -133,58 +141,26 @@ ESTRUCTURA JSON EXACTA REQUERIDA:
   }
 }`;
 
-      const { text: step1Text } = await generateText({
-        model: vercelGateway('openai/gpt-4o-mini'),
-        system: extractorInstruction,
-        prompt: emailContext,
-      });
-      const firstDraftJSON = step1Text.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const userPrompt = `
+Remitente: ${from}
+Asunto: ${subject}
+Mensaje original: ${body}
 
-      // ==========================================
-      // PASO 2: IA AUDITORA (Valida estructura compleja y alucinaciones)
-      // ==========================================
-      const auditorInstruction = `Eres un auditor automatizado de control de calidad (Soporte Técnico L3). Tu tarea es validar el JSON generado por el sistema de triaje frente al correo original del cliente.
+CONTEXTO DEL CLIENTE:
+- Tienda ID: ${storeInfo.id}
+- Nombre: ${storeInfo.name}
+- Tecnología del e-commerce: ${storeInfo.tecnologia || 'General'}
+`;
 
-REGLAS DE AUDITORÍA:
-1. Anti-Alucinación (CRÍTICO): Verifica que los 'order_ids', 'urls_affected' y 'error_codes' existan LITERALMENTE en el correo original. Si la IA inventó un ID o un error, elimínalo (devuelve []).
-2. Coherencia de Prioridad: Asegura que la 'priority' coincida con las reglas de negocio (CRITICAL solo para bloqueos globales).
-3. Responde SOLO en JSON con esta estructura exacta:
-{
-  "is_valid": true o false,
-  "audit_reason": "Breve explicación técnica de las correcciones realizadas, o por qué se aprobó.",
-  "final_ticket": {
-    "clean_name": "...",
-    "priority": "LOW|MEDIUM|HIGH|CRITICAL",
-    "task_type": "BUG_FIX|TASK_INTERNA|CAMBIO|CONSULTA",
-    "summary": "...",
-    "extracted_entities": {
-      "order_ids": [],
-      "urls_affected": [],
-      "error_codes": []
-    },
-    "action_plan": {
-      "hypothesis": "...",
-      "investigation_steps": [],
-      "missing_info": "..."
-    }
-  }
-}`;
-      const auditorPrompt = `CORREO ORIGINAL:\n${emailContext}\n\nBORRADOR JSON GENERADO:\n${firstDraftJSON}\n\nEvalúa y corrige el borrador.`;
-
-      const { text: step2Text } = await generateText({
-        model: vercelGateway('openai/gpt-4o-mini'),
-        system: auditorInstruction,
-        prompt: auditorPrompt,
+      const { text } = await generateText({
+        model: vercelGateway('openai/gpt-4o-mini'), // Llamada a través del Gateway
+        system: systemInstruction,
+        prompt: userPrompt,
       });
 
-      const finalAuditJSON = JSON.parse(step2Text.replace(/```json/gi, '').replace(/```/g, '').trim());
+      let responseText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+      return JSON.parse(responseText);
       
-      if (!finalAuditJSON.is_valid) {
-        console.log(`🤖 [IA Auditora] Corrigió el ticket: ${finalAuditJSON.audit_reason}`);
-      }
-
-      return finalAuditJSON.final_ticket;
-
     } catch (e) {
       if (e.message.includes('429') && intentos > 0) {
         await new Promise(r => setTimeout(r, 2000));
@@ -241,22 +217,9 @@ REGLAS DE AUDITORÍA:
         this.procesadosEnMemoria.add(lastMessage.id);
 
         const storeInfo = await this.resolveStoreData(cleanSenderEmail);
-        
-        // Ejecuta Doble Validación IA con prompt ultra-específico
         const aiData = await this.analyzeEmailWithAI(subject, snippet, rawFrom, storeInfo);
 
-        // Adaptamos la construcción de la descripción del ticket para mostrar las entidades extraídas
-        const ticketDescription = `[GMAIL_ID: ${lastMessage.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}
-\n📌 RESUMEN DE LA SOLICITUD:\n${aiData.summary}
-\n🔍 ENTIDADES DETECTADAS:
-- Órdenes: ${aiData.extracted_entities?.order_ids?.join(', ') || 'N/A'}
-- URLs Afectadas: ${aiData.extracted_entities?.urls_affected?.join(', ') || 'N/A'}
-- Códigos de Error: ${aiData.extracted_entities?.error_codes?.join(', ') || 'N/A'}
-\n💡 PLAN DE ACCIÓN RECOMENDADO (IA):
-- Hipótesis: ${aiData.action_plan?.hypothesis || 'N/A'}
-- Pasos a revisar: \n  * ${aiData.action_plan?.investigation_steps?.join('\n  * ') || 'N/A'}
-- Información faltante: ${aiData.action_plan?.missing_info || 'Ninguna'}
-\n------------------------\n✉️ MENSAJE ORIGINAL:\n${snippet}`;
+        const ticketDescription = `[GMAIL_ID: ${lastMessage.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\n📌 RESUMEN DE LA SOLICITUD:\n${aiData.summary}\n\n💡 SOLUCIÓN RÁPIDA SUGERIDA (IA):\n${aiData.quick_solution}\n\n------------------------\n✉️ MENSAJE ORIGINAL:\n${snippet}`;
 
         await TicketRepository.create({
           name: aiData.clean_name,
