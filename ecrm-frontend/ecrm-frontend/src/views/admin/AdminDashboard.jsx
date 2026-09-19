@@ -305,7 +305,11 @@ function AdminDashboard() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-
+const [aiBanner, setAiBanner] = useState({
+    greeting: 'CARGANDO STATUS...',
+    headline: 'Panel de Control Principal',
+    subtext: 'Analizando tickets y clientes registrados en la base de datos...'
+  });
   // Paginación a 11 elementos
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 11;
@@ -373,6 +377,16 @@ function AdminDashboard() {
 
         const fetchData = async () => {
           try {
+            // 🌟 1. CONSULTAMOS EL RESUMEN DE IA DEL BACKEND
+            crmApi.get('/ai/dashboard-summary')
+              .then(res => {
+                if (res.data?.success && res.data?.data) {
+                  setAiBanner(res.data.data);
+                }
+              })
+              .catch(err => console.error("Error al cargar banner IA:", err));
+
+            // 2. TUS CONSULTAS HABITUALES DE TICKETS Y TIENDAS
             const [ticketsRes, clientsRes] = await Promise.all([
               crmApi.get('/tickets'),
               crmApi.get('/stores')
@@ -497,9 +511,23 @@ function AdminDashboard() {
 
   return (
     <div>
-      {/* 🌟 ENCABEZADO CON WIDGETS INTEGRADOS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid #111111', paddingBottom: '12px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
-        <h1 className="crm-main-title" style={{ border: 'none', margin: 0, padding: 0 }}>Panel de Control Principal</h1>
+      {/* 🌟 ENCABEZADO DINÁMICO DE IA CON WIDGETS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #111111', paddingBottom: '14px', marginBottom: '28px', flexWrap: 'wrap', gap: '20px' }}>
+        
+        {/* CONTENEDOR EXPANDIDO PARA LA INFORMACIÓN DINÁMICA DE IA */}
+        <div style={{ flex: '1 1 450px', minWidth: 0 }}>
+          <span style={{ fontSize: '11px', fontWeight: '900', letterSpacing: '0.8px', color: '#666666', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+            {aiBanner.greeting}
+          </span>
+          <h1 className="crm-main-title" style={{ border: 'none', margin: '0 0 4px 0', padding: 0, fontSize: '22px', lineHeight: '1.2' }}>
+            {aiBanner.headline}
+          </h1>
+          <p style={{ margin: 0, fontSize: '12px', color: '#555555', lineHeight: '1.4', maxWidth: '750px' }}>
+            {aiBanner.subtext}
+          </p>
+        </div>
+
+        {/* WIDGETS DERECHOS */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
           <AnalyzerStatusWidget />
           <TopBarWidget />
