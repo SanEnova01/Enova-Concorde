@@ -7,7 +7,43 @@ import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 
-// 🌟 SUBCOMPONENTE: Widget del Concorde Analyzer (AHORA CLICKEABLE)
+// 🌟 SUBCOMPONENTE: Contador estilo Odómetro (Analógico)
+const AnalogOdometer = ({ value, digits = 5 }) => {
+  const paddedValue = String(value).padStart(digits, '0');
+
+  return (
+    <div style={{ 
+      display: 'inline-flex', 
+      gap: '2px', 
+      backgroundColor: '#111', 
+      padding: '4px', 
+      borderRadius: '6px', 
+      border: '2px solid #222',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(0,0,0,0.8)'
+    }}>
+      {paddedValue.split('').map((digit, index) => (
+        <div key={index} style={{
+          backgroundColor: '#000',
+          color: '#fff',
+          fontSize: '28px',
+          fontWeight: 'bold',
+          fontFamily: "'Courier New', Courier, monospace",
+          padding: '4px 8px',
+          borderRadius: '2px',
+          boxShadow: 'inset 0 1px 5px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.15)',
+          background: 'linear-gradient(180deg, #333 0%, #000 35%, #000 65%, #333 100%)',
+          textAlign: 'center',
+          minWidth: '22px',
+          borderLeft: index > 0 ? '1px solid #222' : 'none'
+        }}>
+          {digit}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// 🌟 SUBCOMPONENTE: Widget del Concorde Analyzer
 const AnalyzerStatusWidget = () => {
   const [botStatus, setBotStatus] = useState({ status: 'LOADING', last_heartbeat: null, is_running: false });
 
@@ -66,17 +102,15 @@ const TopBarWidget = () => {
   const [weather, setWeather] = useState({ temp: '--', status: 'Cargando...' });
 
   useEffect(() => {
-    // Reloj local en tiempo real
     const timer = setInterval(() => setTime(new Date()), 1000);
     
-    // Conexión a API pública de clima (Coordenadas de Lima, Perú)
     fetch('https://api.open-meteo.com/v1/forecast?latitude=-12.0432&longitude=-77.0282&current_weather=true')
       .then(res => res.json())
       .then(data => {
         if (data && data.current_weather) {
           setWeather({
             temp: data.current_weather.temperature,
-            status: 'Despejado' // Placeholder base
+            status: 'Despejado'
           });
         }
       })
@@ -87,7 +121,6 @@ const TopBarWidget = () => {
 
   const dateString = time.toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
 
-  // Configuración de zonas horarias a mostrar
   const timeZones = [
     { label: 'PERÚ', tz: 'America/Lima' },
     { label: 'EE.UU (EST)', tz: 'America/New_York' },
@@ -102,8 +135,6 @@ const TopBarWidget = () => {
       borderRadius: '8px', border: '1px solid #c8c6c1', 
       boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontFamily: "'Nunito', system-ui, sans-serif" 
     }}>
-      
-      {/* 1. Múltiples Zonas Horarias */}
       <div style={{ display: 'flex', gap: '16px' }}>
         {timeZones.map((z, i) => (
           <div key={i} style={{ textAlign: 'center', lineHeight: '1.2' }}>
@@ -117,7 +148,6 @@ const TopBarWidget = () => {
 
       <div style={{ width: '1px', height: '28px', backgroundColor: '#e5e5e5' }}></div>
 
-      {/* 2. Fecha Local */}
       <div style={{ textAlign: 'center', lineHeight: '1.2' }}>
         <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>FECHA</span><br/>
         <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#111111' }}>{dateString}</span>
@@ -125,7 +155,6 @@ const TopBarWidget = () => {
 
       <div style={{ width: '1px', height: '28px', backgroundColor: '#e5e5e5' }}></div>
 
-      {/* 3. Clima y Estado Local */}
       <div style={{ lineHeight: '1.2', textAlign: 'center' }}>
         <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>LIMA, PE</span><br/>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -133,12 +162,11 @@ const TopBarWidget = () => {
           <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', marginLeft: '6px' }}>● {weather.status}</span>
         </div>
       </div>
-
     </div>
   );
 };
 
-// SUBCOMPONENTE: Widget de Monitoreo (se mantiene igual)
+// SUBCOMPONENTE: Widget de Monitoreo
 const StatusWidget = ({ title, data, icon }) => {
   if (!data) return <div className="crm-card-paper" style={{ padding: '16px' }}><div className="crm-text-loading">Cargando {title}...</div></div>;
 
@@ -147,7 +175,6 @@ const StatusWidget = ({ title, data, icon }) => {
   return (
     <div className="crm-card-paper" style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: 'fit-content' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px dotted #111111', paddingBottom: '12px', marginBottom: '14px' }}>
-        
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {icon && (
             <img 
@@ -222,7 +249,11 @@ function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  const [techStatus, setTechStatus] = useState({
+  // 🌟 ESTADOS PARA LA PAGINACIÓN A 11 ELEMENTOS
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 11;
+
+  const [techStatus] = useState({
     shopify: {
       global: { status: 'Todos los sistemas operativos', indicator: 'none' },
       components: [
@@ -291,11 +322,35 @@ function AdminDashboard() {
             ]);
             
             if (ticketsRes.data.success && clientsRes.data.success) {
-              setStats({
-                tickets: ticketsRes.data.data.length,
-                clients: clientsRes.data.data.length
+              const allTickets = ticketsRes.data.data || [];
+              const allStores = clientsRes.data.data || [];
+
+              // Mapa para contar tickets reales por store_id en tiempo real
+              const ticketCountsMap = {};
+              allTickets.forEach(t => {
+                if (t.store_id) {
+                  ticketCountsMap[t.store_id] = (ticketCountsMap[t.store_id] || 0) + 1;
+                }
               });
-              setClients(clientsRes.data.data);
+
+              // Asignar el conteo real en vivo a cada tienda
+              const storesWithRealCounts = allStores.map(store => ({
+                ...store,
+                real_ticket_count: ticketCountsMap[store.id] || 0
+              }));
+
+              const planesValidos = ['go', 'growth', 'escale', 'warranty', 'leads'];
+              const clientesActivos = storesWithRealCounts.filter(client => {
+                const planLimpio = String(client.plan_type || '').toLowerCase().trim();
+                return planesValidos.includes(planLimpio);
+              });
+
+              setStats({
+                tickets: allTickets.length,
+                clients: clientesActivos.length
+              });
+              
+              setClients(storesWithRealCounts);
             }
           } catch (error) {
             console.error("Error en polling:", error);
@@ -328,7 +383,7 @@ function AdminDashboard() {
     setSortConfig({ key, direction });
   };
 
-  const processedClients = [...clients]
+  const filteredClients = clients
     .filter(client => {
       const query = searchQuery.toLowerCase().trim();
       if (!query) return true;
@@ -341,13 +396,27 @@ function AdminDashboard() {
     .sort((a, b) => {
       if (!sortConfig.key) return 0;
       
-      const valA = String(a[sortConfig.key] || '').toLowerCase();
-      const valB = String(b[sortConfig.key] || '').toLowerCase();
+      let valA = a[sortConfig.key];
+      let valB = b[sortConfig.key];
+
+      if (sortConfig.key === 'real_ticket_count') {
+        valA = Number(valA || 0);
+        valB = Number(valB || 0);
+      } else {
+        valA = String(valA || '').toLowerCase();
+        valB = String(valB || '').toLowerCase();
+      }
 
       if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
       if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
+
+  // Lógica de paginación (11 ítems)
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage) || 1;
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentClients = filteredClients.slice(indexOfFirstItem, indexOfLastItem);
 
   if (loading) return <div className="crm-text-loading">Cargando resumen...</div>;
 
@@ -368,13 +437,13 @@ function AdminDashboard() {
         <div style={{ flex: '2 1 600px', display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
           
           <div className="crm-grid-stats" style={{ marginBottom: 0 }}>
-            <div className="crm-card-paper">
-              <span className="crm-stat-label">Tickets Totales</span>
-              <span className="crm-stat-number">{stats.tickets}</span>
+            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <span className="crm-stat-label" style={{ fontSize: '13px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
+              <AnalogOdometer value={stats.tickets} digits={5} />
             </div>
-            <div className="crm-card-paper">
-              <span className="crm-stat-label">Clientes Registrados</span>
-              <span className="crm-stat-number">{stats.clients}</span>
+            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <span className="crm-stat-label" style={{ fontSize: '13px', fontWeight: '800', letterSpacing: '0.5px' }}>CLIENTES ACTIVOS</span>
+              <AnalogOdometer value={stats.clients} digits={4} /> 
             </div>
           </div>
 
@@ -385,7 +454,10 @@ function AdminDashboard() {
                 type="text" 
                 placeholder="Buscar por cliente o plan..." 
                 value={searchQuery} 
-                onChange={(e) => setSearchQuery(e.target.value)} 
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1); // Reiniciar a pág 1 al buscar
+                }} 
                 className="crm-input-text"
                 style={{ width: '250px' }}
               />
@@ -402,29 +474,96 @@ function AdminDashboard() {
                     <th onClick={() => handleSort('plan_type')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Plan">
                       Plan Contratado {sortConfig.key === 'plan_type' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
                     </th>
-                    <th>Tickets Creados</th>
+                    <th onClick={() => handleSort('real_ticket_count')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Tickets">
+                      Tickets Creados {sortConfig.key === 'real_ticket_count' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {processedClients.length === 0 ? (
+                  {currentClients.length === 0 ? (
                     <tr>
                       <td colSpan="4" className="crm-text-loading" style={{ textAlign: 'center', padding: '24px' }}>
                         No se encontraron clientes que coincidan con la búsqueda.
                       </td>
                     </tr>
                   ) : (
-                    processedClients.map(client => (
+                    currentClients.map(client => (
                       <tr key={client.id} className="crm-table-row-interactive" onClick={() => navigate(`/admin/clientes/${client.id}`)} style={{ cursor: 'pointer' }}>
-                        <td><strong>{client.name}</strong></td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {client.logo_url ? (
+                              <img 
+                                src={client.logo_url} 
+                                alt={client.name} 
+                                style={{ 
+                                  width: '32px', 
+                                  height: '32px', 
+                                  borderRadius: '6px', 
+                                  objectFit: 'contain',
+                                  backgroundColor: '#f5f5f5',
+                                  border: '1px solid #e0e0e0',
+                                  padding: '2px',
+                                  flexShrink: 0
+                                }} 
+                              />
+                            ) : (
+                              <div style={{ 
+                                width: '32px', 
+                                height: '32px', 
+                                borderRadius: '6px', 
+                                backgroundColor: '#111111', 
+                                color: '#ffffff', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                fontWeight: 'bold',
+                                fontSize: '13px',
+                                flexShrink: 0
+                              }}>
+                                {client.name.substring(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <strong>{client.name}</strong>
+                          </div>
+                        </td>
                         <td>{client.web || 'No asignada'}</td>
                         <td><span className="crm-badge">{client.plan_type}</span></td>
-                        <td>{client.ticket_count}</td>
+                        <td><strong>{client.real_ticket_count}</strong></td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
+
+            {/* CONTROLES DE PAGINACIÓN A 11 ELEMENTOS */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #eeeeee', paddingTop: '12px' }}>
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                Mostrando {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredClients.length)} de {filteredClients.length} clientes
+              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="crm-button-secondary"
+                  style={{ padding: '4px 12px', fontSize: '12px', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  Anterior
+                </button>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', padding: '0 8px' }}>
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="crm-button-secondary"
+                  style={{ padding: '4px 12px', fontSize: '12px', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
 
