@@ -75,29 +75,54 @@ class GmailSyncService {
     }
   }
 
-  async resolveStoreData(senderEmail) {
+  // 📦 OBTIENE EL CATÁLOGO COMPLETO DE TIENDAS DESDE LA BASE DE DATOS
+  async getAllStores() {
     try {
-      const domainMatch = senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-      const domain = domainMatch && domainMatch[1] ? domainMatch[1].toLowerCase().trim() : '';
-      const dominiosGenericos = ['gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com', 'icloud.com'];
-
-      if (domain && !dominiosGenericos.includes(domain)) {
-        const storeDb = await db('stores')
-          .where('web', 'like', `%${domain}%`)
-          .orWhere('emails', 'like', `%${domain}%`)
-          .first();
-          
-        if (storeDb) return storeDb;
-      }
-    } catch (error) {
-      console.error('⚠️ [Error en Scanner de ID]:', error.message);
+      return await db('stores').select('id', 'name', 'web', 'emails', 'tecnologia');
+    } catch (e) {
+      console.error('⚠️ [Error obteniendo tiendas]:', e.message);
+      return [];
     }
-    
-    return { id: 'enova.agency', name: 'Cliente Desconocido', tecnologia: 'No especificada' };
   }
 
-  async analyzeEmailWithAI(subject, fullConversation, from, storeInfo, intentos = 2) {
+  // 🔍 ESCANEO DE COINCIDENCIAS RÁPIDAS EN JS
+  findStoreInText(text, allStores, senderEmail) {
+    if (!text || !allStores.length) return null;
+    const lowerText = text.toLowerCase();
+    const domainMatch = senderEmail ? senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/) : null;
+    const senderDomain = domainMatch && domainMatch[1] ? domainMatch[1].toLowerCase().trim() : '';
+    const dominiosGenericos = ['gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com', 'icloud.com', 'enova.agency'];
+
+    // 1. Match directo por dominio de correo del remitente
+    if (senderDomain && !dominiosGenericos.includes(senderDomain)) {
+      const byDomain = allStores.find(s => {
+        const webMatch = s.web && s.web.toLowerCase().includes(senderDomain);
+        const emailMatch = s.emails && s.emails.toLowerCase().includes(senderDomain);
+        return webMatch || emailMatch;
+      });
+      if (byDomain) return byDomain;
+    }
+
+    // 2. Match por coincidencia de nombre o ID de tienda en el cuerpo/asunto
+    for (const store of allStores) {
+      const storeNameLower = store.name ? store.name.toLowerCase().trim() : '';
+      const storeIdLower = store.id ? store.id.toLowerCase().trim() : '';
+
+      if (storeNameLower.length >= 3 && lowerText.includes(storeNameLower)) {
+        return store;
+      }
+      if (storeIdLower.length >= 3 && lowerText.includes(storeIdLower)) {
+        return store;
+      }
+    }
+
+    return null;
+  }
+
+  // 🤖 PROCESAMIENTO Y MATCHING DE STORE ID CON IA
+  async analyzeEmailWithAI(subject, fullConversation, from, initialStore, allStores, intentos = 2) {
     const dummyData = {
+      identified_store_id: initialStore ? initialStore.id : 'enova.agency',
       priority: 'MEDIUM',
       task_type: 'CONSULTA',
       clean_name: subject || 'Ticket desde Gmail',
@@ -121,45 +146,49 @@ class GmailSyncService {
         apiKey: apiKey,
       });
 
-      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3). Tu función es analizar LA CADENA ENTERA DE CORREOS (de más antiguo a más reciente) para entender el problema real en su totalidad, extraer datos técnicos y devolver un objeto JSON estricto.
+      // Creamos un resumen de las tiendas para que la IA elija la correcta
+      const storesCatalog = allStores.map(s => 
+        `- ID: "${s.id}" \vert{} Nombre: "${s.name || ''}" | Web: "${s.web \vert{}\vert{} ''}" \vert{} Emails: "${s.emails || ''}"`
+      ).join('\n');
 
-REGLAS DE COMPORTAMIENTO:
-1. NINGÚN texto fuera del JSON. Ni saludos, ni "Aquí tienes", ni bloques de código (\`\`\`).
-2. Idioma: El JSON debe estar siempre en Español, sin importar el idioma del correo original.
-3. Analiza toda la secuencia de mensajes para identificar la evolución de la solicitud.
-4. Datos faltantes: Si un dato no se menciona en toda la conversación, devuelve 'null' (sin comillas). NUNCA inventes IDs, URLs o errores.
+      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3). Tu función es analizar LA CADENA ENTERA DE CORREOS para entender el problema, identificar exactamente a qué cliente/tienda corresponde el mensaje y devolver un objeto JSON estricto.
+
+REGLAS DE IDENTIFICACIÓN DE TIENDA (CRÍTICO):
+1. Analiza el remitente (${from}), el asunto, el cuerpo de los mensajes, las firmas, URLs mencionadas o nombres de marcas/tiendas dentro del texto.
+2. Compara el contenido contra la LISTA DE TIENDAS REGISTRADAS.
+3. Asigna en 'identified_store_id' el ID exacto de la tienda que coincida.
+4. Si el correo viene de un correo genérico (ej: gmail) o de un miembro interno de la agencia pero habla de una tienda específica, asigna la tienda de la que habla.
+5. Si no coincide con ninguna tienda registrada de la lista, asigna 'enova.agency'.
+
+REGLAS GENERALES:
+- NINGÚN texto fuera del JSON. Ni saludos, ni bloques de código (\`\`\`).
+- Idioma: Siempre en Español.
+- Datos faltantes: Si un dato no se menciona, devuelve 'null'.
+
+LISTA DE TIENDAS REGISTRADAS EN EL CRM:
+${storesCatalog}
 
 CRITERIOS DE CLASIFICACIÓN EXACTOS:
-- priority (Basado en impacto de negocio):
-  * CRITICAL: Bloquea ventas/operaciones globales (ej: Checkout caído, pasarela de pagos, base de datos offline, error 500 general).
-  * HIGH: Funcionalidad clave rota para múltiples usuarios, sin alternativa (ej: Integración ERP fallando, error en cálculo de envíos).
-  * MEDIUM: Falla en funciones secundarias o afecta a un solo usuario (ej: Un cliente no puede resetear contraseña, lentitud específica).
-  * LOW: Dudas de configuración, cambios estéticos, o peticiones de información.
-- task_type:
-  * BUG_FIX: Hay un error en el sistema (excepciones, pantalla blanca, botones que no hacen nada).
-  * CAMBIO: El sistema funciona como fue diseñado, pero piden modificarlo.
-  * CONSULTA: Preguntas sobre el uso de la plataforma.
-  * TASK_INTERNA: Alertas automáticas de monitoreo (AWS, Datadog, Sentry).
+- priority: CRITICAL | HIGH | MEDIUM | LOW
+- task_type: BUG_FIX | CAMBIO | CONSULTA | TASK_INTERNA
 
 ESTRUCTURA JSON EXACTA REQUERIDA:
 {
-  "clean_name": "Formato: '[Módulo/Área] - Descripción del fallo'. Ej: '[Checkout] - Fallo en token de Stripe'. Máximo 10 palabras.",
+  "identified_store_id": "El 'ID' exacto de la tienda identificada de la lista o 'enova.agency'",
+  "clean_name": "Formato: '[Módulo/Área] - Descripción del fallo'. Máximo 10 palabras.",
   "priority": "LOW|MEDIUM|HIGH|CRITICAL",
   "task_type": "BUG_FIX|TASK_INTERNA|CAMBIO|CONSULTA",
   "summary": "Resumen técnico completo del estado actual de la conversación. Máximo 4 oraciones.",
   "quick_solution": "Diagnóstico inicial, confirmación requerida o paso a paso recomendado basado en la tecnología de la tienda.",
   "extracted_entities": {
-    "order_ids": ["array de strings con números de orden/pedido si existen, sino []"],
-    "urls_affected": ["array de enlaces o rutas mencionadas, sino []"],
-    "error_codes": ["array de códigos de error literales mencionados, sino []"]
+    "order_ids": [],
+    "urls_affected": [],
+    "error_codes": []
   },
   "action_plan": {
-    "hypothesis": "Causa raíz técnica más probable analizando toda la historia del caso.",
-    "investigation_steps": [
-      "Paso 1 a revisar basado en la última situación descrita.",
-      "Paso 2 a revisar."
-    ],
-    "missing_info": "Qué datos técnicos aún faltan solicitar al cliente, sino null."
+    "hypothesis": "Causa raíz técnica más probable.",
+    "investigation_steps": ["Paso 1", "Paso 2"],
+    "missing_info": null
   }
 }`;
 
@@ -167,13 +196,8 @@ ESTRUCTURA JSON EXACTA REQUERIDA:
 ASUNTO DEL THREAD: ${subject}
 REMITENTE INICIAL: ${from}
 
-CONTEXTO DEL CLIENTE:
-- Tienda ID: ${storeInfo.id}
-- Nombre: ${storeInfo.name}
-- Tecnología del e-commerce: ${storeInfo.tecnologia || 'General'}
-
 ==================================================
-HISTORIAL COMPLETO DE LA CONVERSACIÓN (CADENA):
+HISTORIAL COMPLETO DE LA CONVERSACIÓN:
 ==================================================
 ${fullConversation}
 `;
@@ -190,7 +214,7 @@ ${fullConversation}
     } catch (e) {
       if (e.message.includes('429') && intentos > 0) {
         await new Promise(r => setTimeout(r, 2000));
-        return this.analyzeEmailWithAI(subject, fullConversation, from, storeInfo, intentos - 1);
+        return this.analyzeEmailWithAI(subject, fullConversation, from, initialStore, allStores, intentos - 1);
       }
       console.error('[Vercel AI Error]:', e.message);
       return dummyData;
@@ -213,6 +237,7 @@ ${fullConversation}
         return;
       }
 
+      const allStores = await this.getAllStores();
       const threadIds = [...new Set(messages.map(msg => msg.threadId))];
 
       for (const threadId of threadIds) {
@@ -257,10 +282,22 @@ ${msgBody}
 
         this.procesadosEnMemoria.add(lastMessage.id);
 
-        const storeInfo = await this.resolveStoreData(cleanSenderEmail);
-        const aiData = await this.analyzeEmailWithAI(subject, fullConversation, rawFrom, storeInfo);
+        // 1. Intento de matching inicial por JS
+        let matchedStore = this.findStoreInText(`${subject}\n${rawFrom}\n${fullConversation}`, allStores, cleanSenderEmail);
 
-        // Garantiza que si no hay solución rápida, devuelva un texto por defecto en lugar de undefined
+        // 2. Análisis con IA (pasa el catálogo de tiendas para autodetección profunda)
+        const aiData = await this.analyzeEmailWithAI(subject, fullConversation, rawFrom, matchedStore, allStores);
+
+        // 3. Si la IA detectó un store_id válido de la lista, le damos prioridad
+        if (aiData.identified_store_id) {
+          const storeFromAI = allStores.find(s => s.id.toLowerCase() === aiData.identified_store_id.toLowerCase());
+          if (storeFromAI) {
+            matchedStore = storeFromAI;
+          }
+        }
+
+        const finalStoreInfo = matchedStore || { id: 'enova.agency', name: 'Cliente Desconocido', tecnologia: 'General' };
+
         const quickSolutionText = aiData.quick_solution || (aiData.action_plan?.hypothesis ? aiData.action_plan.hypothesis : 'Revisión manual requerida.');
 
         const ticketDescription = `[GMAIL_ID: ${lastMessage.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\n📌 RESUMEN DE LA SOLICITUD:\n${aiData.summary || 'Sin resumen disponible.'}\n\n💡 SOLUCIÓN RÁPIDA SUGERIDA:\n${quickSolutionText}\n\n------------------------\n✉️ CADENA COMPLETA DE LA CONVERSACIÓN:\n${fullConversation}`;
@@ -268,13 +305,13 @@ ${msgBody}
         await TicketRepository.create({
           name: aiData.clean_name,
           description: ticketDescription,
-          store_id: storeInfo.id,
+          store_id: finalStoreInfo.id,
           priority: aiData.priority,
           task_type: aiData.task_type
         });
 
         await this.moverAProcesados(threadId, lastMessage.labelIds);
-        console.log(`⚡ [Sincronizado] Ticket: "${aiData.clean_name}" (Tienda: ${storeInfo.id})`);
+        console.log(`⚡ [Sincronizado] Ticket: "${aiData.clean_name}" -> Tienda Asignada: [${finalStoreInfo.id}]`);
       }
     } catch (error) {
       console.error('❌ [Error en Sync]:', error.message);
