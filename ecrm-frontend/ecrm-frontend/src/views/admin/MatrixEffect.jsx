@@ -1,77 +1,78 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
-const MatrixEffect = () => {
+const MatrixEffect = ({ targetRef }) => {
   const canvasRef = useRef(null);
+  const [words, setWords] = useState([]);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
+    if (!targetRef?.current) return;
+
+    // 1. Extraer texto SOLO del dashboard (ignora el navbar)
+    const text = targetRef.current.innerText;
+    // Limpiar texto y sacar palabras de más de 3 letras (nombres de clientes, métricas, etc.)
+    const extractedWords = text.split(/[\s\n]+/).filter(w => w.trim().length > 3);
+    setWords(extractedWords.length > 0 ? extractedWords : ['ERROR', 'SISTEMA']);
+
+    // 2. Medir el dashboard para que la lluvia solo cubra esa zona
+    const rect = targetRef.current.getBoundingClientRect();
+    setDimensions({ width: rect.width, height: targetRef.current.scrollHeight });
+  }, [targetRef]);
+
+  useEffect(() => {
+    if (words.length === 0 || dimensions.width === 0) return;
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-
-    // Hacer que el canvas ocupe toda la pantalla
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    // Caracteres a utilizar (letras, números y símbolos)
-    const matrix = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()*&^%+-/~{[|`]}';
-    const characters = matrix.split('');
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
 
     const fontSize = 16;
-    const columns = canvas.width / fontSize;
+    const columnWidth = fontSize * 8; // Espacio para que quepan las palabras
+    const columns = Math.floor(canvas.width / columnWidth);
 
-    // Arreglo para rastrear la posición Y de cada gota
-    const drops = [];
-    for (let x = 0; x < columns; x++) {
-      drops[x] = 1;
-    }
+    // Iniciar las "gotas" en posiciones Y negativas aleatorias para un inicio más natural
+    const drops = Array(columns).fill(0).map(() => Math.random() * -50);
 
     const draw = () => {
-      // Fondo translúcido para crear el rastro de la cascada
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'; // Fondo para dejar rastro
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = '#0F0'; // Color verde clásico de Matrix
-      ctx.font = fontSize + 'px monospace';
+      ctx.fillStyle = '#0F0';
+      ctx.font = `bold ${fontSize}px monospace`;
+      ctx.textAlign = 'center';
 
       for (let i = 0; i < drops.length; i++) {
-        const text = characters[Math.floor(Math.random() * characters.length)];
-        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] > 0) {
+          // Escoger una palabra aleatoria de las que sacó de tu web
+          const word = words[Math.floor(Math.random() * words.length)];
+          ctx.fillText(word, i * columnWidth + (columnWidth / 2), drops[i] * fontSize);
+        }
 
-        // Reiniciar la gota al principio aleatoriamente cuando sale de la pantalla
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+        // Reiniciar cuando llega abajo
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.95) {
           drops[i] = 0;
         }
         drops[i]++;
       }
     };
 
-    // Velocidad de la cascada
-    const interval = setInterval(draw, 33);
-
-    // Ajustar si el usuario cambia el tamaño de la ventana
-    const handleResize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+    const interval = setInterval(draw, 50); // Velocidad de Matrix
+    return () => clearInterval(interval);
+  }, [words, dimensions]);
 
   return (
     <canvas
       ref={canvasRef}
       style={{
-        position: 'fixed',
+        position: 'absolute', // Absolute para que se confine dentro del contenedor padre
         top: 0,
         left: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: 99999, // Asegura que cubra todos los componentes
+        width: '100%',
+        height: '100%',
+        zIndex: 99999,
         backgroundColor: '#000',
-        pointerEvents: 'none' // Evita que bloquee clics accidentales si intentan refrescar con F5
+        pointerEvents: 'none'
       }}
     />
   );

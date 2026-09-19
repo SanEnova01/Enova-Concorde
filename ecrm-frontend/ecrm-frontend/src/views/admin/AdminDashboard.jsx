@@ -7,6 +7,7 @@ import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 import MatrixEffect from './MatrixEffect';
+import React, { useState, useEffect, useRef } from 'react';
 // 🌟 SUBCOMPONENTE: Contador estilo Odómetro Analógico Claro (Blanco con texto Negro)
 const AnalogOdometer = ({ value, digits = 5 }) => {
   const paddedValue = String(value).padStart(digits, '0');
@@ -343,6 +344,7 @@ const [aiBanner, setAiBanner] = useState({
       ]
     }
   });
+  const dashboardRef = useRef(null); // <-- Agrega esto
 const [isMatrixMode, setIsMatrixMode] = useState(false);
   useEffect(() => {
     let intervalId; 
