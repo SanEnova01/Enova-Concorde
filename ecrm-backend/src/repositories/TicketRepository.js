@@ -95,20 +95,16 @@ class TicketRepository {
   }
 
   static async update(id, data) {
-    const validPriority = sanitizePriority(data.priority);
-    const validTaskType = sanitizeTaskType(data.task_type);
-    
-    const updatePayload = {
-      name: data.name,
-      description: data.description,
-      assigned_to: data.assigned_to || null,
-      priority: validPriority,
-      task_type: validTaskType
-    };
+    const updatePayload = {};
 
-    if (data.store_id && data.store_id !== 'null') {
-      updatePayload.store_id = data.store_id;
-    }
+    // Solo agrega al payload los campos que realmente se enviaron desde el frontend
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.description !== undefined) updatePayload.description = data.description;
+    if (data.assigned_to !== undefined) updatePayload.assigned_to = data.assigned_to || null;
+    
+    if (data.priority !== undefined) updatePayload.priority = sanitizePriority(data.priority);
+    if (data.task_type !== undefined) updatePayload.task_type = sanitizeTaskType(data.task_type);
+    if (data.store_id !== undefined && data.store_id !== 'null') updatePayload.store_id = data.store_id;
 
     const [updated] = await db('tickets')
       .where({ id })

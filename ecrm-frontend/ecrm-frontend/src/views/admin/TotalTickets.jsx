@@ -109,19 +109,20 @@ function TotalTickets() {
   }, [ticketView, statusTab, searchTerm]);
 
   // EDICIÓN INDIVIDUAL EN LÍNEA
-  const handleSingleFieldChange = async (ticketId, field, value) => {
-    try {
-      if (field === 'status') {
-        await crmApi.patch(`/tickets/${ticketId}/status`, { status: value });
-      } else {
-        await crmApi.patch(`/tickets/${ticketId}`, { [field]: value });
-      }
-      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, [field]: value } : t));
-    } catch (error) {
-      console.error(`Error actualizando ${field}:`, error);
-      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, [field]: value } : t));
+const handleSingleFieldChange = async (ticketId, field, value) => {
+  try {
+    if (field === 'status') {
+      await crmApi.patch(`/tickets/${ticketId}/status`, { status: value });
+    } else {
+      await crmApi.put(`/tickets/${ticketId}`, { [field]: value });
     }
-  };
+    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, [field]: value } : t));
+  } catch (error) {
+    console.error(`Error actualizando ${field}:`, error);
+    alert(`No se pudo guardar el cambio de ${field} en la base de datos.`);
+    fetchData(); // Recarga los datos reales si falló
+  }
+};
 
   // SELECCIÓN MASIVA
   const handleSelectAll = (e) => {
@@ -143,25 +144,25 @@ function TotalTickets() {
 
   // ACTUALIZACIÓN MASIVA (ESTADO, PRIORIDAD, TIPO TAREA, STORE ID)
   const handleBulkUpdate = async (field, value) => {
-    if (!value || selectedIds.length === 0) return;
-    try {
-      await Promise.all(
-        selectedIds.map(id => {
-          if (field === 'status') {
-            return crmApi.patch(`/tickets/${id}/status`, { status: value });
-          }
-          return crmApi.patch(`/tickets/${id}`, { [field]: value });
-        })
-      );
-      setTickets(prev => prev.map(t => selectedIds.includes(t.id) ? { ...t, [field]: value } : t));
-      setSelectedIds([]);
-      alert(`Se actualizó ${field} en ${selectedIds.length} ticket(s) seleccionado(s).`);
-    } catch (error) {
-      console.error('Error en actualización masiva:', error);
-      setTickets(prev => prev.map(t => selectedIds.includes(t.id) ? { ...t, [field]: value } : t));
-      setSelectedIds([]);
-    }
-  };
+  if (!value || selectedIds.length === 0) return;
+  try {
+    await Promise.all(
+      selectedIds.map(id => {
+        if (field === 'status') {
+          return crmApi.patch(`/tickets/${id}/status`, { status: value });
+        }
+        return crmApi.put(`/tickets/${id}`, { [field]: value });
+      })
+    );
+    setTickets(prev => prev.map(t => selectedIds.includes(t.id) ? { ...t, [field]: value } : t));
+    setSelectedIds([]);
+    alert(`Se actualizó ${field} en ${selectedIds.length} ticket(s) seleccionado(s).`);
+  } catch (error) {
+    console.error('Error en actualización masiva:', error);
+    alert('Ocurrió un error al guardar los cambios masivos.');
+    fetchData();
+  }
+};
 
   // ELIMINACIÓN MASIVA DE TICKETS
   const handleBulkDelete = async () => {

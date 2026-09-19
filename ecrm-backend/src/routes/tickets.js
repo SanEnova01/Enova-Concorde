@@ -64,15 +64,28 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 // CORRECCIÓN 2: Ruta PUT agregada para solucionar el error 404 al guardar la edición
+// PUT y PATCH: Actualizar datos de un ticket
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updatedTicket = await TicketRepository.update(id, req.body);
-    
     if (!updatedTicket) {
       return res.status(404).json({ success: false, error: 'Ticket no encontrado.' });
     }
-    
+    res.status(200).json({ success: true, data: updatedTicket });
+  } catch (error) {
+    console.error('Error al actualizar ticket:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedTicket = await TicketRepository.update(id, req.body);
+    if (!updatedTicket) {
+      return res.status(404).json({ success: false, error: 'Ticket no encontrado.' });
+    }
     res.status(200).json({ success: true, data: updatedTicket });
   } catch (error) {
     console.error('Error al actualizar ticket:', error);
