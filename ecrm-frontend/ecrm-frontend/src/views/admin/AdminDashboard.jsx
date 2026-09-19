@@ -2,8 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
-// 🌟 SUBCOMPONENTE: Widget de Monitoreo (Basado en ClientExternalMonitor)
-const StatusWidget = ({ title, data }) => {
+// 🌟 Importación de logos
+import wooIcon from '../../assets/woo-icon.png';
+import vtexIcon from '../../assets/vtex-icon.png';
+import shopifyIcon from '../../assets/shopify-icon.png';
+
+// 🌟 SUBCOMPONENTE: Widget de Monitoreo con soporte para Logo
+const StatusWidget = ({ title, data, icon }) => {
   if (!data) return <div className="crm-card-paper" style={{ padding: '16px' }}><div className="crm-text-loading">Cargando {title}...</div></div>;
 
   const isOperational = data.global?.indicator === 'none';
@@ -11,12 +16,25 @@ const StatusWidget = ({ title, data }) => {
   return (
     <div className="crm-card-paper" style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: 'fit-content' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px dotted #111111', paddingBottom: '12px', marginBottom: '14px' }}>
-        <div>
-          <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Infraestructura Externa</span>
-          <h4 style={{ margin: '2px 0 0 0', fontSize: '14px', fontWeight: 'bold', color: '#111111' }}>
-            {title}: {data.global?.status}
-          </h4>
+        
+        {/* Contenedor del Logo y los Títulos */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {icon && (
+            <img 
+              src={icon} 
+              alt={`Logo de ${title}`} 
+              style={{ width: '28px', height: '28px', objectFit: 'contain', flexShrink: 0 }} 
+            />
+          )}
+          <div>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Infraestructura Externa</span>
+            <h4 style={{ margin: '2px 0 0 0', fontSize: '14px', fontWeight: 'bold', color: '#111111' }}>
+              {title}: {data.global?.status}
+            </h4>
+          </div>
         </div>
+
+        {/* Indicador de Estado (Punto Verde/Rojo) */}
         <span style={{ 
           width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
           backgroundColor: isOperational ? '#16a34a' : '#dc2626',
@@ -76,7 +94,7 @@ function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // 🌟 Estado para Status de Tecnologías (Con data realista Placebo / Lista para API)
+  // Estado para Status de Tecnologías
   const [techStatus, setTechStatus] = useState({
     shopify: {
       global: { status: 'Todos los sistemas operativos', indicator: 'none' },
@@ -138,7 +156,6 @@ function AdminDashboard() {
           }
         }
 
-        // Función aislada para recargar solo la data
         const fetchData = async () => {
           try {
             const [ticketsRes, clientsRes] = await Promise.all([
@@ -211,7 +228,7 @@ function AdminDashboard() {
     <div>
       <h1 className="crm-main-title">Panel de Control Principal</h1>
       
-      {/* INDICADORES TOP SE MANTIENEN INTACTOS */}
+      {/* INDICADORES TOP */}
       <div className="crm-grid-stats">
         <div className="crm-card-paper">
           <span className="crm-stat-label">Tickets Totales</span>
@@ -223,7 +240,7 @@ function AdminDashboard() {
         </div>
       </div>
 
-      {/* 🌟 NUEVO LAYOUT EN DOS COLUMNAS */}
+      {/* LAYOUT EN DOS COLUMNAS */}
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
         
         {/* COLUMNA IZQUIERDA: LISTA DE CLIENTES */}
@@ -276,11 +293,11 @@ function AdminDashboard() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS */}
+        {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS (AHORA CON ICONOS) */}
         <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <StatusWidget name="Ecosistema Shopify Inc." data={techStatus.shopify} />
-          <StatusWidget name="Plataforma VTEX Global" data={techStatus.vtex} />
-          <StatusWidget name="WooCommerce Monitoreo" data={techStatus.woo} />
+          <StatusWidget title="Ecosistema Shopify Inc." data={techStatus.shopify} icon={shopifyIcon} />
+          <StatusWidget title="Plataforma VTEX Global" data={techStatus.vtex} icon={vtexIcon} />
+          <StatusWidget title="WooCommerce Monitoreo" data={techStatus.woo} icon={wooIcon} />
         </div>
         
       </div>
