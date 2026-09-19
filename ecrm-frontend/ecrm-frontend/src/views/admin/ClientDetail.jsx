@@ -10,11 +10,47 @@ import ClientMetricsHistory from './ClientDetail/ClientMetricsHistory';
 import ClientExternalMonitor from './ClientDetail/ClientExternalMonitor';
 import QuickAnalysis from './ClientDetail/QuickAnalysis';
 
+// 🌟 SUBCOMPONENTE: Contador Odómetro Analógico (Tamaño Reducido)
+const SmallAnalogOdometer = ({ value, digits = 4 }) => {
+  const paddedValue = String(value).padStart(digits, '0');
+
+  return (
+    <div style={{
+      display: 'inline-flex',
+      gap: '2px',
+      backgroundColor: '#e5e5e5',
+      padding: '3px 4px',
+      borderRadius: '4px',
+      border: '1px solid #cccccc',
+      boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0,0,0,0.05)'
+    }}>
+      {paddedValue.split('').map((digit, index) => (
+        <div key={index} style={{
+          backgroundColor: '#ffffff',
+          color: '#111111',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          fontFamily: "'Courier New', Courier, monospace",
+          padding: '1px 5px',
+          borderRadius: '3px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.9)',
+          background: 'linear-gradient(180deg, #f8f8f8 0%, #ffffff 40%, #ffffff 60%, #ececec 100%)',
+          textAlign: 'center',
+          minWidth: '14px',
+          border: '1px solid #cfcfcf'
+        }}>
+          {digit}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 function ClientDetail() {
   const { storeId } = useParams();
   const navigate = useNavigate();
   
-  // 🌟 NUEVOS ESTADOS PARA MULTI-TENANT (TABS)
+  // ESTADOS PARA MULTI-TENANT (TABS)
   const [authorizedStores, setAuthorizedStores] = useState([]);
   const [activeStoreId, setActiveStoreId] = useState(null);
 
@@ -51,7 +87,7 @@ function ClientDetail() {
     }
   }
 
-// 1. EFECTO DE INICIALIZACIÓN: Buscar todas las tiendas autorizadas
+  // 1. EFECTO DE INICIALIZACIÓN: Buscar todas las tiendas autorizadas
   useEffect(() => {
     const initAuthorizedStores = async () => {
       setLoadingInit(true);
@@ -68,14 +104,12 @@ function ClientDetail() {
           }
 
           const storesRes = await crmApi.get('/stores');
-          // 🌟 FIX: Extraemos el arreglo de manera segura
           const listaTiendas = Array.isArray(storesRes.data.data) 
             ? storesRes.data.data 
             : (Array.isArray(storesRes.data) ? storesRes.data : []);
             
           const correoLimpio = String(userEmail).toLowerCase().trim();
 
-          // 🔍 FILTRO MASIVO MEJORADO: Usamos .includes() que es 100% infalible ante comas, saltos de línea o símbolos raros
           targetStores = listaTiendas.filter(store => {
             if (!store.emails) return false;
             const correosDB = String(store.emails).toLowerCase();
@@ -88,7 +122,6 @@ function ClientDetail() {
             return;
           }
         } else {
-          // Si es Admin, solo carga la tienda específica de la URL
           const clientRes = await crmApi.get(`/stores/${storeId}`);
           const clientData = clientRes.data.data || clientRes.data;
           if (clientData) {
@@ -96,12 +129,11 @@ function ClientDetail() {
           }
         }
 
-        // 🌟 ORDENAMOS ALFABÉTICAMENTE PARA LAS TABS
         targetStores.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         setAuthorizedStores(targetStores);
         if (targetStores.length > 0) {
-          setActiveStoreId(targetStores[0].id); // Selecciona la primera por defecto
+          setActiveStoreId(targetStores[0].id); 
         } else {
           setClientError(true);
         }
@@ -114,27 +146,24 @@ function ClientDetail() {
     initAuthorizedStores();
   }, [storeId, navigate, userRole, userEmail]);
 
-  // 2. EFECTO SECUNDARIO: Cargar los datos específicos de la tienda ACTIVA (Tab seleccionada)
+  // 2. EFECTO SECUNDARIO: Cargar los datos específicos de la tienda ACTIVA
   useEffect(() => {
     if (!activeStoreId) return;
 
     const fetchActiveStoreDetails = async () => {
       setLoadingDetails(true);
       try {
-        // Cargar datos de la tienda
         const clientRes = await crmApi.get(`/stores/${activeStoreId}`);
         const clientData = clientRes.data.data || clientRes.data;
         setClient(clientData);
         setNotesText(clientData.notes || '');
 
-        // Cargar tickets
         try {
           const ticketsRes = await crmApi.get('/tickets');
           const ticketsList = Array.isArray(ticketsRes.data) ? ticketsRes.data : (ticketsRes.data.data || []);
           setTickets(ticketsList.filter(t => String(t.store_id) === String(activeStoreId)));
         } catch (ticketError) {}
 
-        // Cargar métricas
         try {
           const metricsRes = await crmApi.get('/metrics');
           const metricsList = Array.isArray(metricsRes.data) ? metricsRes.data : (metricsRes.data.data || []);
@@ -144,7 +173,6 @@ function ClientDetail() {
           );
         } catch (metricError) {}
 
-        // Monitores externos
         setShopifyStatus(null);
         setVtexStatus(null);
         setWooStatus(null);
@@ -219,7 +247,6 @@ function ClientDetail() {
       if (response.data.success || response.status === 200) {
         setClient(prev => ({ ...prev, ...editFormData }));
         
-        // Actualizar el nombre en la barra de pestañas si se cambió
         setAuthorizedStores(prevStores => prevStores.map(s => 
           s.id === client.id ? { ...s, name: editFormData.name } : s
         ));
@@ -235,7 +262,7 @@ function ClientDetail() {
 
   return (
     <div>
-      {/* 🌟 NAVEGACIÓN DE PESTAÑAS (Solo visible si el cliente tiene más de 1 tienda) */}
+      {/* NAVEGACIÓN DE PESTAÑAS */}
       {authorizedStores.length > 1 && (
         <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #111', paddingBottom: '12px', marginBottom: '24px', overflowX: 'auto' }}>
           {authorizedStores.map(store => (
@@ -270,24 +297,23 @@ function ClientDetail() {
         <div className="crm-text-loading">Cargando datos de la tienda...</div>
       ) : (
         <>
-          {/* AQUÍ INSERTAS EL COMPONENTE DE ANÁLISIS RÁPIDO */}
           <QuickAnalysis storeId={client.id} storeUrl={client.web} />
 
           {/* HEADER DE LA TIENDA */}
           <div className="crm-card-paper" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <div style={{ width: '64px', height: '64px', backgroundColor: '#f2f1ec', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #111111', overflow: 'hidden', flexShrink: 0 }}>
-              {client.logo_url ? <img src={getLogoUrl(client.logo_url)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>LOGO</span>}
+            <div style={{ width: '64px', height: '64px', backgroundColor: '#f2f1ec', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #111111', overflow: 'hidden', flexShrink: 0, borderRadius: '8px' }}>
+              {client.logo_url ? <img src={getLogoUrl(client.logo_url)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontWeight: 'bold' }}>{client.name.substring(0, 2).toUpperCase()}</span>}
             </div>
             <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'normal' }}>{client.name}</h1>
+                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold' }}>{client.name}</h1>
                 <p className="crm-text-muted" style={{ margin: '4px 0 0 0' }}>ID de registro: {client.id}</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
                 <span className="crm-badge">Plan: {client.plan_type}</span>
-                {String(client.tecnologia).toLowerCase().includes('shopify') && <img src="/assets/shopify-icon.png" alt="Shopify" style={{ height: '40px', objectFit: 'contain', marginTop: '4px' }} />}
-                {String(client.tecnologia).toLowerCase().includes('woo') && <img src="/assets/woo-icon.png" alt="WooCommerce" style={{ height: '60px', objectFit: 'contain', marginTop: '4px' }} />}
-                {String(client.tecnologia).toLowerCase().includes('vtex') && <img src="/assets/vtex-icon.png" alt="VTEX" style={{ height: '70px', objectFit: 'contain', marginTop: '4px' }} />}
+                {String(client.tecnologia).toLowerCase().includes('shopify') && <img src="/assets/shopify-icon.png" alt="Shopify" style={{ height: '35px', objectFit: 'contain', marginTop: '4px' }} />}
+                {String(client.tecnologia).toLowerCase().includes('woo') && <img src="/assets/woo-icon.png" alt="WooCommerce" style={{ height: '40px', objectFit: 'contain', marginTop: '4px' }} />}
+                {String(client.tecnologia).toLowerCase().includes('vtex') && <img src="/assets/vtex-icon.png" alt="VTEX" style={{ height: '45px', objectFit: 'contain', marginTop: '4px' }} />}
                 {!String(client.tecnologia).toLowerCase().match(/shopify|woo|vtex/) && <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase', marginTop: '4px' }}>{client.tecnologia}</span>}
               </div>
             </div>
@@ -295,19 +321,49 @@ function ClientDetail() {
 
           {/* FILA 1: DATOS DE CONTACTO Y MONITOR EXTERNO */}
           <div className={(String(client.tecnologia).toLowerCase().match(/shopify|vtex|woo/) && (shopifyStatus || vtexStatus || wooStatus)) ? "crm-grid-two-columns" : ""} style={{ marginBottom: '24px' }}>
+            
+            {/* 🌟 NUEVA ESTRUCTURA DE DATOS DE CONTACTO */}
             <div className="crm-card-paper" style={{ margin: 0, height: '100%', boxSizing: 'border-box' }}>
-              <h3 className="crm-section-title" style={{ marginTop: 0 }}>Datos de Contacto</h3>
-              <p className="crm-text-muted"><strong>Sitio Web:</strong> {client.web ? <a href={client.web} target="_blank" rel="noreferrer" style={{ color: '#111' }}>{client.web}</a> : 'No registrado'}</p>
-              <p className="crm-text-muted"><strong>Tecnología:</strong> {client.tecnologia || 'No registrada'}</p>
-              <p className="crm-text-muted"><strong>Correos:</strong> {client.emails || 'No registrados'}</p>
-              <p className="crm-text-muted"><strong>Teléfono:</strong> {client.phone || 'No registrado'}</p>
-              <p className="crm-text-muted"><strong>Tickets:</strong> {client.ticket_count || 0} creados en total</p>
-              {client.has_cooppilot && (
-                <p className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                  <strong>CoopPilot (IA):</strong>
-                  <a href={`/cooppilot/${client.id}`} target="_blank" rel="noreferrer" style={{ backgroundColor: '#111', color: '#FFD700', padding: '4px 10px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', textDecoration: 'none' }}>✨ Activo ↗</a>
-                </p>
-              )}
+              <h3 className="crm-section-title" style={{ marginTop: 0, marginBottom: '16px', borderBottom: '1px dotted #ccc', paddingBottom: '8px' }}>Datos de Contacto</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>SITIO WEB:</span>
+                  {client.web ? <a href={client.web} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 'bold', fontSize: '13px' }}>{client.web}</a> : <span className="crm-text-muted" style={{ fontSize: '13px' }}>No registrado</span>}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>TECNOLOGÍA:</span>
+                  <span style={{ backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', color: '#374151' }}>
+                    {client.tecnologia || 'No registrada'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>CORREOS:</span>
+                  <span style={{ color: '#4b5563', fontSize: '13px', lineHeight: '1.4' }}>{client.emails ? client.emails.split(',').join(', ') : 'No registrados'}</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>TELÉFONO:</span>
+                  <span style={{ color: '#4b5563', fontSize: '13px' }}>{client.phone || 'No registrado'}</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>TICKETS:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <SmallAnalogOdometer value={tickets.length} digits={4} />
+                    <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 'bold' }}>CREADOS</span>
+                  </div>
+                </div>
+
+                {client.has_cooppilot && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                    <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>COOPPILOT:</span>
+                    <a href={`/cooppilot/${client.id}`} target="_blank" rel="noreferrer" style={{ backgroundColor: '#111', color: '#FFD700', padding: '4px 10px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', textDecoration: 'none' }}>✨ ACTIVO ↗</a>
+                  </div>
+                )}
+              </div>
             </div>
 
             <ClientExternalMonitor 

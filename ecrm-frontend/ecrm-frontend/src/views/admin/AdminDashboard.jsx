@@ -13,9 +13,12 @@ const AnalogOdometer = ({ value, digits = 5 }) => {
 
   return (
     <div style={{ 
-      display: 'inline-flex', 
+      display: 'flex', 
+      justifyContent: 'center',
+      width: '100%',
+      boxSizing: 'border-box',
       gap: '3px', 
-      backgroundColor: '#e5e5e5', 
+      backgroundColor: '#e5e5e5',
       padding: '5px 6px', 
       borderRadius: '6px', 
       border: '1px solid #cccccc',
@@ -295,6 +298,7 @@ const StatusWidget = ({ title, data, icon }) => {
 function AdminDashboard() {
   const [stats, setStats] = useState({ tickets: 0, clients: 0 });
   const [planStats, setPlanStats] = useState({ go: 0, growth: 0, escale: 0, warranty: 0, leads: 0 });
+  const [ticketStatusStats, setTicketStatusStats] = useState({}); 
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -378,13 +382,19 @@ function AdminDashboard() {
               const allTickets = ticketsRes.data.data || [];
               const allStores = clientsRes.data.data || [];
 
-              // Mapa para contar tickets reales por store_id
+              // Mapa para contar tickets reales por store_id y por estado
               const ticketCountsMap = {};
+              const tStatusCounts = {};
+              
               allTickets.forEach(t => {
                 if (t.store_id) {
                   ticketCountsMap[t.store_id] = (ticketCountsMap[t.store_id] || 0) + 1;
                 }
+                const st = String(t.status || 'OPEN').toUpperCase();
+                tStatusCounts[st] = (tStatusCounts[st] || 0) + 1;
               });
+              
+              setTicketStatusStats(tStatusCounts); // Guardamos los estados
 
               // Asignar el conteo real en vivo a cada tienda
               const storesWithRealCounts = allStores.map(store => ({
@@ -503,23 +513,37 @@ function AdminDashboard() {
           
           <div className="crm-grid-stats" style={{ marginBottom: 0 }}>
             {/* CARD: TICKETS TOTALES */}
-            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1 }}>
               <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
-              <AnalogOdometer value={stats.tickets} digits={5} />
+              
+              <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <AnalogOdometer value={stats.tickets} digits={5} />
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {Object.entries(ticketStatusStats).map(([status, count]) => (
+                    <span key={status} className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>
+                      {status}: <strong>{count}</strong>
+                    </span>
+                  ))}
+                  {Object.keys(ticketStatusStats).length === 0 && (
+                    <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>SIN TICKETS</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* CARD: CLIENTES ACTIVOS CON DESGROSE DE PLANES */}
-            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', flex: 1 }}>
               <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>CLIENTES ACTIVOS</span>
-              <AnalogOdometer value={stats.clients} digits={4} /> 
               
-              {/* 🌟 DESGLOSE DE PLANES SOLICITADO */}
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '4px' }}>
-                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>GO: <strong>{planStats.go}</strong></span>
-                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>GROWTH: <strong>{planStats.growth}</strong></span>
-                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>ESCALE: <strong>{planStats.escale}</strong></span>
-                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>WARRANTY: <strong>{planStats.warranty}</strong></span>
-                <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>LEADS: <strong>{planStats.leads}</strong></span>
+              <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <AnalogOdometer value={stats.clients} digits={4} /> 
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>GO: <strong>{planStats.go}</strong></span>
+                  <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>GROWTH: <strong>{planStats.growth}</strong></span>
+                  <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>ESCALE: <strong>{planStats.escale}</strong></span>
+                  <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>WARRANTY: <strong>{planStats.warranty}</strong></span>
+                  <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>LEADS: <strong>{planStats.leads}</strong></span>
+                </div>
               </div>
             </div>
           </div>
