@@ -347,6 +347,15 @@ const [aiBanner, setAiBanner] = useState({
   useEffect(() => {
     let intervalId; 
 
+    // 🌟 1. CONSULTA DE IA: Se ejecuta SÓLO UNA VEZ al montar la pantalla (Cero gasto innecesario de tokens)
+    crmApi.get('/ai/dashboard-summary')
+      .then(res => {
+        if (res.data?.success && res.data?.data) {
+          setAiBanner(res.data.data);
+        }
+      })
+      .catch(err => console.error("Error al cargar banner IA:", err));
+
     const dataInitialization = async () => {
       try {
         const token = localStorage.getItem('crm_token');
@@ -375,18 +384,9 @@ const [aiBanner, setAiBanner] = useState({
           }
         }
 
+        // 🌟 2. CONSULTAS A LA BD: Estas sí se actualizan en vivo sin gasto de IA
         const fetchData = async () => {
           try {
-            // 🌟 1. CONSULTAMOS EL RESUMEN DE IA DEL BACKEND
-            crmApi.get('/ai/dashboard-summary')
-              .then(res => {
-                if (res.data?.success && res.data?.data) {
-                  setAiBanner(res.data.data);
-                }
-              })
-              .catch(err => console.error("Error al cargar banner IA:", err));
-
-            // 2. TUS CONSULTAS HABITUALES DE TICKETS Y TIENDAS
             const [ticketsRes, clientsRes] = await Promise.all([
               crmApi.get('/tickets'),
               crmApi.get('/stores')
@@ -396,7 +396,6 @@ const [aiBanner, setAiBanner] = useState({
               const allTickets = ticketsRes.data.data || [];
               const allStores = clientsRes.data.data || [];
 
-              // Mapa para contar tickets reales por store_id y por estado
               const ticketCountsMap = {};
               const tStatusCounts = {};
               
@@ -408,17 +407,14 @@ const [aiBanner, setAiBanner] = useState({
                 tStatusCounts[st] = (tStatusCounts[st] || 0) + 1;
               });
               
-              setTicketStatusStats(tStatusCounts); // Guardamos los estados
+              setTicketStatusStats(tStatusCounts);
 
-              // Asignar el conteo real en vivo a cada tienda
               const storesWithRealCounts = allStores.map(store => ({
                 ...store,
                 real_ticket_count: ticketCountsMap[store.id] || 0
               }));
 
               const planesValidos = ['go', 'growth', 'escale', 'scale', 'scale_plus', 'warranty', 'leads', 'lead'];
-              
-              // Conteo individual por cada tipo de plan
               const counts = { go: 0, growth: 0, escale: 0, warranty: 0, leads: 0 };
 
               const clientesActivos = storesWithRealCounts.filter(client => {
@@ -449,6 +445,7 @@ const [aiBanner, setAiBanner] = useState({
         await fetchData();
         setLoading(false);
 
+        // Polling cada 10 segundos SOLO para datos livianos de PostgreSQL
         intervalId = setInterval(fetchData, 10000);
 
       } catch (error) {
@@ -511,18 +508,39 @@ const [aiBanner, setAiBanner] = useState({
 
   return (
     <div>
-      {/* 🌟 ENCABEZADO DINÁMICO DE IA CON WIDGETS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #111111', paddingBottom: '14px', marginBottom: '28px', flexWrap: 'wrap', gap: '20px' }}>
+      {/* 🌟 ENCABEZADO CON CARD OSCURA DE IA + WIDGETS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px', marginBottom: '28px', flexWrap: 'wrap', gap: '20px' }}>
         
-        {/* CONTENEDOR EXPANDIDO PARA LA INFORMACIÓN DINÁMICA DE IA */}
-        <div style={{ flex: '1 1 450px', minWidth: 0 }}>
-          <span style={{ fontSize: '11px', fontWeight: '900', letterSpacing: '0.8px', color: '#666666', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>
+        {/* TARJETA / CARD OSCURA PARA LA INFORMACIÓN DE IA */}
+        <div style={{ 
+          flex: '1 1 450px', 
+          minWidth: 0,
+          backgroundColor: '#111111',
+          color: '#ffffff',
+          padding: '16px 20px 16px 24px',
+          borderRadius: '10px',
+          border: '1px solid #222222',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Lógica de acento de línea vertical a la izquierda */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '4px',
+            height: '100%',
+            backgroundColor: '#2563eb'
+          }} />
+
+          <span style={{ fontSize: '10px', fontWeight: '900', letterSpacing: '1px', color: '#9ca3af', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
             {aiBanner.greeting}
           </span>
-          <h1 className="crm-main-title" style={{ border: 'none', margin: '0 0 4px 0', padding: 0, fontSize: '22px', lineHeight: '1.2' }}>
+          <h1 className="crm-main-title" style={{ border: 'none', margin: '0 0 6px 0', padding: 0, fontSize: '20px', lineHeight: '1.2', color: '#ffffff' }}>
             {aiBanner.headline}
           </h1>
-          <p style={{ margin: 0, fontSize: '12px', color: '#555555', lineHeight: '1.4', maxWidth: '750px' }}>
+          <p style={{ margin: 0, fontSize: '12px', color: '#d1d5db', lineHeight: '1.4', maxWidth: '750px' }}>
             {aiBanner.subtext}
           </p>
         </div>
