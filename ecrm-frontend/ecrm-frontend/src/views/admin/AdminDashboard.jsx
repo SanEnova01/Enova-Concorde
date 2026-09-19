@@ -6,7 +6,7 @@ import crmApi from '../../api/crmApi';
 import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
-
+import MatrixEffect from './MatrixEffect';
 // 🌟 SUBCOMPONENTE: Contador estilo Odómetro Analógico Claro (Blanco con texto Negro)
 const AnalogOdometer = ({ value, digits = 5 }) => {
   const paddedValue = String(value).padStart(digits, '0');
@@ -343,7 +343,7 @@ const [aiBanner, setAiBanner] = useState({
       ]
     }
   });
-
+const [isMatrixMode, setIsMatrixMode] = useState(false);
   useEffect(() => {
     let intervalId; 
 
@@ -508,6 +508,9 @@ const [aiBanner, setAiBanner] = useState({
 
   return (
     <div>
+      {/* Si se activa, este componente cubrirá la pantalla */}
+      {isMatrixMode && <MatrixEffect />}
+
       {/* 🌟 ENCABEZADO SIMÉTRICO CON CARD GRIS CLARO DE IA + WIDGETS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         
@@ -682,6 +685,35 @@ const [aiBanner, setAiBanner] = useState({
           <StatusWidget title="Ecosistema Shopify Inc." data={techStatus.shopify} icon={shopifyIcon} />
           <StatusWidget title="Plataforma VTEX Global" data={techStatus.vtex} icon={vtexIcon} />
           <StatusWidget title="WooCommerce Monitoreo" data={techStatus.woo} icon={wooIcon} />
+          
+          {/* BOTÓN EASTER EGG */}
+          <button 
+            onClick={() => setIsMatrixMode(true)}
+            style={{ 
+              marginTop: '10px',
+              padding: '8px', 
+              backgroundColor: '#000000', 
+              color: '#00FF41', 
+              border: '1px solid #00FF41', 
+              borderRadius: '6px', 
+              cursor: 'pointer',
+              fontFamily: "'Courier New', Courier, monospace",
+              fontWeight: 'bold',
+              opacity: 0.1, // Está casi oculto para que solo los curiosos lo vean
+              transition: 'all 0.3s ease',
+              boxShadow: '0 0 5px rgba(0, 255, 65, 0.2)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '1';
+              e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 255, 65, 0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '0.1';
+              e.currentTarget.style.boxShadow = '0 0 5px rgba(0, 255, 65, 0.2)';
+            }}
+          >
+            ¿Sistema Crítico?
+          </button>
         </div>
         
       </div>
