@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
-// 🌟 Importación de logos
+// Importación de logos
 import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 
-// 🌟 SUBCOMPONENTE: Widget de Monitoreo con soporte para Logo
+// SUBCOMPONENTE: Widget de Monitoreo
 const StatusWidget = ({ title, data, icon }) => {
   if (!data) return <div className="crm-card-paper" style={{ padding: '16px' }}><div className="crm-text-loading">Cargando {title}...</div></div>;
 
@@ -17,7 +17,6 @@ const StatusWidget = ({ title, data, icon }) => {
     <div className="crm-card-paper" style={{ padding: '16px', display: 'flex', flexDirection: 'column', height: 'fit-content' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px dotted #111111', paddingBottom: '12px', marginBottom: '14px' }}>
         
-        {/* Contenedor del Logo y los Títulos */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {icon && (
             <img 
@@ -34,7 +33,6 @@ const StatusWidget = ({ title, data, icon }) => {
           </div>
         </div>
 
-        {/* Indicador de Estado (Punto Verde/Rojo) */}
         <span style={{ 
           width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
           backgroundColor: isOperational ? '#16a34a' : '#dc2626',
@@ -90,11 +88,9 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Estados para Búsqueda y Ordenamiento
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // Estado para Status de Tecnologías
   const [techStatus, setTechStatus] = useState({
     shopify: {
       global: { status: 'Todos los sistemas operativos', indicator: 'none' },
@@ -227,73 +223,77 @@ function AdminDashboard() {
   return (
     <div>
       <h1 className="crm-main-title">Panel de Control Principal</h1>
-      
-      {/* INDICADORES TOP */}
-      <div className="crm-grid-stats">
-        <div className="crm-card-paper">
-          <span className="crm-stat-label">Tickets Totales</span>
-          <span className="crm-stat-number">{stats.tickets}</span>
-        </div>
-        <div className="crm-card-paper">
-          <span className="crm-stat-label">Clientes Registrados</span>
-          <span className="crm-stat-number">{stats.clients}</span>
-        </div>
-      </div>
 
       {/* LAYOUT EN DOS COLUMNAS */}
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
         
-        {/* COLUMNA IZQUIERDA: LISTA DE CLIENTES */}
-        <div className="crm-card-paper" style={{ flex: '2 1 600px', minWidth: 0, margin: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-            <h2 className="crm-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Lista General de Clientes</h2>
-            <input 
-              type="text" 
-              placeholder="Buscar por cliente o plan..." 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="crm-input-text"
-              style={{ width: '250px' }}
-            />
+        {/* COLUMNA IZQUIERDA: CONTADORES + LISTA DE CLIENTES */}
+        <div style={{ flex: '2 1 600px', display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
+          
+          {/* INDICADORES TOP (Alineados dentro de la columna izquierda) */}
+          <div className="crm-grid-stats" style={{ marginBottom: 0 }}>
+            <div className="crm-card-paper">
+              <span className="crm-stat-label">Tickets Totales</span>
+              <span className="crm-stat-number">{stats.tickets}</span>
+            </div>
+            <div className="crm-card-paper">
+              <span className="crm-stat-label">Clientes Registrados</span>
+              <span className="crm-stat-number">{stats.clients}</span>
+            </div>
           </div>
 
-          <div className="crm-table-container">
-            <table className="crm-table-data">
-              <thead>
-                <tr>
-                  <th onClick={() => handleSort('name')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Nombre">
-                    Nombre del Cliente {sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
-                  </th>
-                  <th>Sitio Web</th>
-                  <th onClick={() => handleSort('plan_type')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Plan">
-                    Plan Contratado {sortConfig.key === 'plan_type' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
-                  </th>
-                  <th>Tickets Creados</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processedClients.length === 0 ? (
+          {/* LISTA DE CLIENTES */}
+          <div className="crm-card-paper" style={{ margin: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <h2 className="crm-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Lista General de Clientes</h2>
+              <input 
+                type="text" 
+                placeholder="Buscar por cliente o plan..." 
+                value={searchQuery} 
+                onChange={(e) => setSearchQuery(e.target.value)} 
+                className="crm-input-text"
+                style={{ width: '250px' }}
+              />
+            </div>
+
+            <div className="crm-table-container">
+              <table className="crm-table-data">
+                <thead>
                   <tr>
-                    <td colSpan="4" className="crm-text-loading" style={{ textAlign: 'center', padding: '24px' }}>
-                      No se encontraron clientes que coincidan con la búsqueda.
-                    </td>
+                    <th onClick={() => handleSort('name')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Nombre">
+                      Nombre del Cliente {sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                    </th>
+                    <th>Sitio Web</th>
+                    <th onClick={() => handleSort('plan_type')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Plan">
+                      Plan Contratado {sortConfig.key === 'plan_type' ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+                    </th>
+                    <th>Tickets Creados</th>
                   </tr>
-                ) : (
-                  processedClients.map(client => (
-                    <tr key={client.id} className="crm-table-row-interactive" onClick={() => navigate(`/admin/clientes/${client.id}`)} style={{ cursor: 'pointer' }}>
-                      <td><strong>{client.name}</strong></td>
-                      <td>{client.web || 'No asignada'}</td>
-                      <td><span className="crm-badge">{client.plan_type}</span></td>
-                      <td>{client.ticket_count}</td>
+                </thead>
+                <tbody>
+                  {processedClients.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="crm-text-loading" style={{ textAlign: 'center', padding: '24px' }}>
+                        No se encontraron clientes que coincidan con la búsqueda.
+                      </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    processedClients.map(client => (
+                      <tr key={client.id} className="crm-table-row-interactive" onClick={() => navigate(`/admin/clientes/${client.id}`)} style={{ cursor: 'pointer' }}>
+                        <td><strong>{client.name}</strong></td>
+                        <td>{client.web || 'No asignada'}</td>
+                        <td><span className="crm-badge">{client.plan_type}</span></td>
+                        <td>{client.ticket_count}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS (AHORA CON ICONOS) */}
+        {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS */}
         <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <StatusWidget title="Ecosistema Shopify Inc." data={techStatus.shopify} icon={shopifyIcon} />
           <StatusWidget title="Plataforma VTEX Global" data={techStatus.vtex} icon={vtexIcon} />
