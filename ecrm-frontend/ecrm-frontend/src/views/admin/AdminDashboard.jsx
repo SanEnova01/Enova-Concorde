@@ -7,6 +7,56 @@ import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 
+// 🌟 NUEVO SUBCOMPONENTE: Widget de Clima, Hora y Estado
+const TopBarWidget = () => {
+  const [time, setTime] = useState(new Date());
+  const [weather, setWeather] = useState({ temp: '--', status: 'Cargando...' });
+
+  useEffect(() => {
+    // Reloj local
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    
+    // Conexión a API pública de clima (Coordenadas de Lima, Perú)
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=-12.0432&longitude=-77.0282&current_weather=true')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.current_weather) {
+          setWeather({
+            temp: data.current_weather.temperature,
+            status: 'Cielo Despejado' // Puedes mapear los weathercodes de OpenMeteo aquí si lo deseas
+          });
+        }
+      })
+      .catch(() => setWeather({ temp: '--', status: 'API Offline' }));
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const timeString = time.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+  const dateString = time.toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
+
+  return (
+    <div style={{ 
+      display: 'flex', gap: '16px', alignItems: 'center', 
+      backgroundColor: '#ffffff', padding: '8px 16px', 
+      borderRadius: '8px', border: '1px solid #c8c6c1', 
+      boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontFamily: "'Nunito', system-ui, sans-serif" 
+    }}>
+      <div style={{ textAlign: 'right', lineHeight: '1.2' }}>
+        <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>LIMA, PE (PET)</span><br/>
+        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#111111' }}>{timeString}</span>
+        <span style={{ fontSize: '10px', color: '#666666', marginLeft: '6px' }}>{dateString}</span>
+      </div>
+      <div style={{ width: '1px', height: '28px', backgroundColor: '#e5e5e5' }}></div>
+      <div style={{ lineHeight: '1.2' }}>
+        <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>CLIMA Y ESTADO</span><br/>
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#111111' }}>{weather.temp}°C</span>
+        <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', marginLeft: '6px' }}>● {weather.status}</span>
+      </div>
+    </div>
+  );
+};
+
 // SUBCOMPONENTE: Widget de Monitoreo
 const StatusWidget = ({ title, data, icon }) => {
   if (!data) return <div className="crm-card-paper" style={{ padding: '16px' }}><div className="crm-text-loading">Cargando {title}...</div></div>;
@@ -222,15 +272,17 @@ function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="crm-main-title">Panel de Control Principal</h1>
+      {/* 🌟 ENCABEZADO CON WIDGET DE CLIMA INTEGRADO */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid #111111', paddingBottom: '12px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+        <h1 className="crm-main-title" style={{ border: 'none', margin: 0, padding: 0 }}>Panel de Control Principal</h1>
+        <TopBarWidget />
+      </div>
 
-      {/* LAYOUT EN DOS COLUMNAS */}
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
         
         {/* COLUMNA IZQUIERDA: CONTADORES + LISTA DE CLIENTES */}
         <div style={{ flex: '2 1 600px', display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
           
-          {/* INDICADORES TOP (Alineados dentro de la columna izquierda) */}
           <div className="crm-grid-stats" style={{ marginBottom: 0 }}>
             <div className="crm-card-paper">
               <span className="crm-stat-label">Tickets Totales</span>
@@ -242,7 +294,6 @@ function AdminDashboard() {
             </div>
           </div>
 
-          {/* LISTA DE CLIENTES */}
           <div className="crm-card-paper" style={{ margin: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
               <h2 className="crm-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Lista General de Clientes</h2>
