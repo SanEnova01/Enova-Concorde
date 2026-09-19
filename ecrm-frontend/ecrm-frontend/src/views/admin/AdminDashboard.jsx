@@ -7,7 +7,54 @@ import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 
-// 🌟 SUBCOMPONENTE ACTUALIZADO: Zonas Horarias, Fecha y Clima Local
+// 🌟 SUBCOMPONENTE: Widget del Concorde Analyzer
+const AnalyzerStatusWidget = () => {
+  const [botStatus, setBotStatus] = useState({ status: 'LOADING', last_heartbeat: null, is_running: false });
+
+  useEffect(() => {
+    const checkBotStatus = async () => {
+      try {
+        const res = await crmApi.get('/metrics/bot-status');
+        if (res.data?.success) {
+          const statusInfo = res.data.data || res.data;
+          setBotStatus(statusInfo);
+        }
+      } catch (error) {
+        setBotStatus({ status: 'OFFLINE', last_heartbeat: null, is_running: false });
+      }
+    };
+
+    checkBotStatus();
+    const interval = setInterval(checkBotStatus, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isOnline = botStatus.status === 'ONLINE';
+
+  return (
+    <div style={{ 
+      display: 'flex', gap: '10px', alignItems: 'center', 
+      backgroundColor: '#ffffff', padding: '8px 16px', 
+      borderRadius: '8px', border: '1px solid #c8c6c1', 
+      borderLeft: isOnline ? '4px solid #16a34a' : '4px solid #dc2626',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontFamily: "'Nunito', system-ui, sans-serif" 
+    }}>
+      <div style={{
+        width: '12px', height: '12px', borderRadius: '50%', flexShrink: 0,
+        backgroundColor: isOnline ? '#16a34a' : '#dc2626',
+        boxShadow: isOnline ? '0 0 8px #16a34a' : '0 0 8px #dc2626'
+      }} />
+      <div style={{ lineHeight: '1.2' }}>
+        <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>CONCORDE ANALYZER</span><br/>
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#111111' }}>
+          {botStatus.status} {botStatus.is_running && <span style={{ color: '#d97706' }}>(ANALIZANDO...)</span>}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// 🌟 SUBCOMPONENTE: Zonas Horarias, Fecha y Clima Local
 const TopBarWidget = () => {
   const [time, setTime] = useState(new Date());
   const [weather, setWeather] = useState({ temp: '--', status: 'Cargando...' });
@@ -23,7 +70,7 @@ const TopBarWidget = () => {
         if (data && data.current_weather) {
           setWeather({
             temp: data.current_weather.temperature,
-            status: 'Despejado' // Placeholder base, puedes mapear los weathercodes luego
+            status: 'Despejado' // Placeholder base
           });
         }
       })
@@ -300,10 +347,13 @@ function AdminDashboard() {
 
   return (
     <div>
-      {/* ENCABEZADO CON EL NUEVO WIDGET */}
+      {/* 🌟 ENCABEZADO CON WIDGETS INTEGRADOS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid #111111', paddingBottom: '12px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         <h1 className="crm-main-title" style={{ border: 'none', margin: 0, padding: 0 }}>Panel de Control Principal</h1>
-        <TopBarWidget />
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <AnalyzerStatusWidget />
+          <TopBarWidget />
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
