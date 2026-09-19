@@ -572,8 +572,6 @@ setInterval(() => {
 // Ejecutar primera sincronización al iniciar el servidor
 HubspotService.syncTickets();
 
-// 🔥 AQUÍ ENCENDEMOS EL MOTOR DE GMAIL (Tiene su propio temporizador)
-require('./services/GmailSyncService');
 
 // ==========================================
 // ARRANQUE DEL SERVIDOR
