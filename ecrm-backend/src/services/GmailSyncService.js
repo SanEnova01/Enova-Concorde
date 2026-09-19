@@ -14,22 +14,48 @@ class GmailSyncService {
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
     
     this.procesadosEnMemoria = new Set();
-  this.isProcessing = false; 
-  this.processedLabelId = null;
+    this.isProcessing = false; 
+    this.processedLabelId = null;
 
-  // 1. Modifica el mensaje de la consola
-  console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
+    console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
 
-  // 2. Ejecución inicial (espera 2000 ms / 2 segundos al arrancar)
-  setTimeout(() => this.processTaggedEmails(), 2000);
-
-  // 3. Bucle recurrente (se ejecuta cada 2000 ms / 2 segundos)
-  setInterval(() => this.processTaggedEmails(), 2000);
-}
+    setTimeout(() => this.processTaggedEmails(), 2000);
+    setInterval(() => this.processTaggedEmails(), 2000);
+  }
 
   cleanEmailAddress(rawFrom) {
     const match = rawFrom.match(/<([^>]+)>/) || rawFrom.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/);
     return match ? match[1].toLowerCase().trim() : rawFrom.toLowerCase().trim();
+  }
+
+  decodeBase64(data) {
+    if (!data) return '';
+    const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+    return Buffer.from(base64, 'base64').toString('utf-8');
+  }
+
+  parseMessageBody(message) {
+    if (!message || !message.payload) return message.snippet || '';
+    
+    let bodyText = '';
+
+    const extractParts = (parts) => {
+      for (const part of parts) {
+        if (part.mimeType === 'text/plain' && part.body && part.body.data) {
+          bodyText += this.decodeBase64(part.body.data) + '\n';
+        } else if (part.parts) {
+          extractParts(part.parts);
+        }
+      }
+    };
+
+    if (message.payload.body && message.payload.body.data) {
+      bodyText = this.decodeBase64(message.payload.body.data);
+    } else if (message.payload.parts) {
+      extractParts(message.payload.parts);
+    }
+
+    return bodyText.trim() || message.snippet || 'Sin contenido de texto.';
   }
 
   async getProcessedLabelId() {
@@ -49,7 +75,6 @@ class GmailSyncService {
     }
   }
 
-  // 🌟 BUSCAMOS TODA LA DATA DEL CLIENTE ANTES DE LLAMAR A LA IA
   async resolveStoreData(senderEmail) {
     try {
       const domainMatch = senderEmail.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -68,45 +93,41 @@ class GmailSyncService {
       console.error('⚠️ [Error en Scanner de ID]:', error.message);
     }
     
-    // Fallback si no lo encuentra
     return { id: 'enova.agency', name: 'Cliente Desconocido', tecnologia: 'No especificada' };
   }
 
-  // 🤖 PROCESAMIENTO CON VERCEL AI SDK Y SU GATEWAY
-  async analyzeEmailWithAI(subject, body, from, storeInfo, intentos = 2) {
+  async analyzeEmailWithAI(subject, fullConversation, from, storeInfo, intentos = 2) {
     const dummyData = {
       priority: 'MEDIUM',
       task_type: 'CONSULTA',
       clean_name: subject || 'Ticket desde Gmail',
-      summary: body || 'Sin descripción',
-      quick_solution: 'Revisión manual requerida.'
+      summary: fullConversation || 'Sin descripción',
+      quick_solution: 'Revisión manual requerida por el equipo técnico.'
     };
 
     const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
-        console.warn('[Vercel AI] Llave no detectada en Variables de Entorno. Procesando con datos dummy.');
-        return dummyData;
+      console.warn('[Vercel AI] Llave no detectada en Variables de Entorno. Procesando con datos dummy.');
+      return dummyData;
     }
 
     try {
-      // 🌟 CARGA DINÁMICA DE DEPENDENCIAS ESM
       const { generateText } = await import('ai');
       const { createOpenAI } = await import('@ai-sdk/openai');
 
-      // 🌟 CONFIGURAMOS EL CLIENTE PARA USAR EL GATEWAY DE VERCEL
       const vercelGateway = createOpenAI({
-        baseURL: 'https://ai-gateway.vercel.sh/v1', // URL del Gateway de Vercel
+        baseURL: 'https://ai-gateway.vercel.sh/v1',
         apiKey: apiKey,
       });
 
-      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3). Tu única función es extraer datos técnicos de correos no estructurados y devolver un objeto JSON estricto.
+      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3). Tu función es analizar LA CADENA ENTERA DE CORREOS (de más antiguo a más reciente) para entender el problema real en su totalidad, extraer datos técnicos y devolver un objeto JSON estricto.
 
 REGLAS DE COMPORTAMIENTO:
 1. NINGÚN texto fuera del JSON. Ni saludos, ni "Aquí tienes", ni bloques de código (\`\`\`).
 2. Idioma: El JSON debe estar siempre en Español, sin importar el idioma del correo original.
-3. Objetividad: Ignora el tono emocional, insultos o urgencia percibida del cliente. Basate SOLO en el impacto técnico.
-4. Datos faltantes: Si un dato no se menciona en el correo, devuelve 'null' (sin comillas). NUNCA inventes IDs, URLs o errores.
+3. Analiza toda la secuencia de mensajes para identificar la evolución de la solicitud.
+4. Datos faltantes: Si un dato no se menciona en toda la conversación, devuelve 'null' (sin comillas). NUNCA inventes IDs, URLs o errores.
 
 CRITERIOS DE CLASIFICACIÓN EXACTOS:
 - priority (Basado en impacto de negocio):
@@ -125,35 +146,40 @@ ESTRUCTURA JSON EXACTA REQUERIDA:
   "clean_name": "Formato: '[Módulo/Área] - Descripción del fallo'. Ej: '[Checkout] - Fallo en token de Stripe'. Máximo 10 palabras.",
   "priority": "LOW|MEDIUM|HIGH|CRITICAL",
   "task_type": "BUG_FIX|TASK_INTERNA|CAMBIO|CONSULTA",
-  "summary": "Descripción objetiva. Debe incluir (si es posible): Comportamiento actual vs. Comportamiento esperado. Máximo 3 oraciones.",
+  "summary": "Resumen técnico completo del estado actual de la conversación. Máximo 4 oraciones.",
+  "quick_solution": "Diagnóstico inicial, confirmación requerida o paso a paso recomendado basado en la tecnología de la tienda.",
   "extracted_entities": {
     "order_ids": ["array de strings con números de orden/pedido si existen, sino []"],
     "urls_affected": ["array de enlaces o rutas mencionadas, sino []"],
     "error_codes": ["array de códigos de error literales mencionados, sino []"]
   },
   "action_plan": {
-    "hypothesis": "Causa raíz técnica más probable basada en tu conocimiento L3.",
+    "hypothesis": "Causa raíz técnica más probable analizando toda la historia del caso.",
     "investigation_steps": [
-      "Array de strings. Paso 1 a revisar (ej: 'Revisar logs de webhooks de Shopify').",
+      "Paso 1 a revisar basado en la última situación descrita.",
       "Paso 2 a revisar."
     ],
-    "missing_info": "Qué datos técnicos faltan en el correo para poder resolverlo (ej: 'Se necesita el ID de la transacción'), sino null."
+    "missing_info": "Qué datos técnicos aún faltan solicitar al cliente, sino null."
   }
 }`;
 
       const userPrompt = `
-Remitente: ${from}
-Asunto: ${subject}
-Mensaje original: ${body}
+ASUNTO DEL THREAD: ${subject}
+REMITENTE INICIAL: ${from}
 
 CONTEXTO DEL CLIENTE:
 - Tienda ID: ${storeInfo.id}
 - Nombre: ${storeInfo.name}
 - Tecnología del e-commerce: ${storeInfo.tecnologia || 'General'}
+
+==================================================
+HISTORIAL COMPLETO DE LA CONVERSACIÓN (CADENA):
+==================================================
+${fullConversation}
 `;
 
       const { text } = await generateText({
-        model: vercelGateway('openai/gpt-4o-mini'), // Llamada a través del Gateway
+        model: vercelGateway('openai/gpt-4o-mini'),
         system: systemInstruction,
         prompt: userPrompt,
       });
@@ -164,7 +190,7 @@ CONTEXTO DEL CLIENTE:
     } catch (e) {
       if (e.message.includes('429') && intentos > 0) {
         await new Promise(r => setTimeout(r, 2000));
-        return this.analyzeEmailWithAI(subject, body, from, storeInfo, intentos - 1);
+        return this.analyzeEmailWithAI(subject, fullConversation, from, storeInfo, intentos - 1);
       }
       console.error('[Vercel AI Error]:', e.message);
       return dummyData;
@@ -208,18 +234,36 @@ CONTEXTO DEL CLIENTE:
           continue;
         }
 
-        const headers = lastMessage.payload.headers;
-        const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || 'Sin Asunto';
-        const rawFrom = headers.find(h => h.name.toLowerCase() === 'from')?.value || 'Desconocido';
-        const snippet = lastMessage.snippet || 'Sin descripción';
+        const fullConversation = threadMessages.map((msg, index) => {
+          const msgHeaders = msg.payload?.headers || [];
+          const msgFrom = msgHeaders.find(h => h.name.toLowerCase() === 'from')?.value || 'Desconocido';
+          const msgDate = msgHeaders.find(h => h.name.toLowerCase() === 'date')?.value || '';
+          const msgBody = this.parseMessageBody(msg);
+
+          return `--- [Mensaje #${index + 1}] ---
+De: ${msgFrom}
+Fecha: ${msgDate}
+
+${msgBody}
+--------------------------------------------------`;
+        }).join('\n\n');
+
+        const firstHeaders = threadMessages[0].payload.headers;
+        const subject = firstHeaders.find(h => h.name.toLowerCase() === 'subject')?.value || 'Sin Asunto';
+        
+        const lastHeaders = lastMessage.payload.headers;
+        const rawFrom = lastHeaders.find(h => h.name.toLowerCase() === 'from')?.value || 'Desconocido';
         const cleanSenderEmail = this.cleanEmailAddress(rawFrom);
 
         this.procesadosEnMemoria.add(lastMessage.id);
 
         const storeInfo = await this.resolveStoreData(cleanSenderEmail);
-        const aiData = await this.analyzeEmailWithAI(subject, snippet, rawFrom, storeInfo);
+        const aiData = await this.analyzeEmailWithAI(subject, fullConversation, rawFrom, storeInfo);
 
-        const ticketDescription = `[GMAIL_ID: ${lastMessage.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\n📌 RESUMEN DE LA SOLICITUD:\n${aiData.summary}\n\n💡 SOLUCIÓN RÁPIDA SUGERIDA (IA):\n${aiData.quick_solution}\n\n------------------------\n✉️ MENSAJE ORIGINAL:\n${snippet}`;
+        // Garantiza que si no hay solución rápida, devuelva un texto por defecto en lugar de undefined
+        const quickSolutionText = aiData.quick_solution || (aiData.action_plan?.hypothesis ? aiData.action_plan.hypothesis : 'Revisión manual requerida.');
+
+        const ticketDescription = `[GMAIL_ID: ${lastMessage.id}]\nOrigen: Gmail\nRemitente: ${rawFrom}\n\n📌 RESUMEN DE LA SOLICITUD:\n${aiData.summary || 'Sin resumen disponible.'}\n\n💡 SOLUCIÓN RÁPIDA SUGERIDA:\n${quickSolutionText}\n\n------------------------\n✉️ CADENA COMPLETA DE LA CONVERSACIÓN:\n${fullConversation}`;
 
         await TicketRepository.create({
           name: aiData.clean_name,
@@ -230,7 +274,7 @@ CONTEXTO DEL CLIENTE:
         });
 
         await this.moverAProcesados(threadId, lastMessage.labelIds);
-        console.log(`⚡ [Sincronizado Vercel AI] Ticket: "${aiData.clean_name}" (Tienda: ${storeInfo.id})`);
+        console.log(`⚡ [Sincronizado] Ticket: "${aiData.clean_name}" (Tienda: ${storeInfo.id})`);
       }
     } catch (error) {
       console.error('❌ [Error en Sync]:', error.message);
