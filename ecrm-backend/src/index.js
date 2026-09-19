@@ -289,12 +289,8 @@ app.post('/api/ingest', async (req, res) => {
       ram_total_mb: parseFloat(metricData.ram_total_mb) || 0
     }).returning('*');
 
-   // 2. Creación del ticket (Únicamente en la primera ingesta del día por tienda)
+    // 2. Creación del ticket (Únicamente en la primera ingesta del día por tienda)
     try {
-      console.log(`\n========================================`);
-      console.log(`🤖 [INGEST] INICIANDO REVISIÓN DE TICKET AUTOMÁTICO`);
-      console.log(`Tienda ID: ${metricData.store_id}`);
-      
       const ticketExistenteHoy = await db('tickets')
         .where({
           store_id: metricData.store_id,
@@ -304,8 +300,6 @@ app.post('/api/ingest', async (req, res) => {
         .first();
 
       if (!ticketExistenteHoy) {
-        console.log(`[INGEST] 🟢 No existe ticket de hoy. Procediendo a crearlo...`);
-        
         const loadMs = parseInt(metricData.load_ms) || 0;
         const ttfbMs = parseInt(metricData.ttfb_ms) || 0;
         const weightMb = parseFloat(metricData.total_weight_mb) || 0;
@@ -336,15 +330,10 @@ Este ticket se genera automáticamente con el primer análisis del día para ver
           task_type: 'TASK_INTERNA'
         });
 
-        console.log(`[INGEST] ✅ ¡ÉXITO! Ticket creado en BD para la tienda ${metricData.store_id}.`);
-      } else {
-        console.log(`[INGEST] 🟡 OMITIDO: Ya existe el ticket del primer análisis de hoy para esta tienda.`);
+        console.log(`🎫 Ticket diario creado para store_id: ${metricData.store_id}`);
       }
-      console.log(`========================================\n`);
     } catch (ticketErr) {
-      console.error(`\n❌ [INGEST - ERROR FATAL EN TICKET]`);
-      console.error(ticketErr);
-      console.log(`========================================\n`);
+      console.error('⚠️ Error al generar ticket automático:', ticketErr.message);
     }
 
     res.status(201).json({ success: true, data: insertedRow });
