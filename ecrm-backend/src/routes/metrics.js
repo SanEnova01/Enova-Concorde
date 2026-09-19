@@ -270,6 +270,48 @@ router.post('/run-single-client', async (req, res) => {
         // Guardar en tabla metrics historica
         const result = await MetricsRepository.create(newMetric);
 
+        // --- INICIO: GENERACIÓN DE TICKET (ANÁLISIS MANUAL) ---
+        try {
+          const db = require('../config/db');
+          const TicketRepository = require('../repositories/TicketRepository');
+          
+          console.log(`\n========================================`);
+          console.log(`🤖 [SINGLE-RUN] REVISANDO TICKET PARA: ${store_id}`);
+          
+          const ticketExistenteHoy = await db('tickets')
+            .where({ store_id: store_id, name: 'Revisión técnica Status diario' })
+            .whereRaw("created_at::date = CURRENT_DATE")
+            .first();
+
+          if (!ticketExistenteHoy) {
+            const descripcion = `📌 ¿Qué hace esta revisión técnica?
+Este ticket se generó a partir de una ejecución forzada manual desde el panel.
+
+📊 Resultado de la prueba de hoy:
+- Tiempo de carga total: ${botData.data.load_ms || 0} ms
+- Tiempo al primer byte (TTFB): ${botData.data.ttfb_ms || 0} ms
+- Peso de la página: ${botData.data.total_weight_mb || 0} MB
+- Total peticiones: ${botData.data.total_requests || 0}
+- RAM Consumida: ${botData.data.ram_core_mb || 0} MB`;
+
+            await TicketRepository.create({
+              name: 'Revisión técnica Status diario',
+              description: descripcion,
+              store_id: store_id,
+              priority: 'MEDIUM',
+              task_type: 'TASK_INTERNA'
+            });
+            console.log(`[SINGLE-RUN] ✅ ¡ÉXITO! Ticket creado en BD para ${store_id}`);
+          } else {
+            console.log(`[SINGLE-RUN] 🟡 OMITIDO: Ya existe un ticket de revisión hoy para ${store_id}.`);
+          }
+          console.log(`========================================\n`);
+        } catch (err) {
+          console.error(`\n❌ [SINGLE-RUN - ERROR FATAL EN TICKET]`, err);
+          console.log(`========================================\n`);
+        }
+        // --- FIN: GENERACIÓN DE TICKET ---
+
         res.json({ success: true, data: result });
     } catch (error) {
         console.error('[ERROR] Single client run:', error);
