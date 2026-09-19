@@ -509,47 +509,51 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
   if (loading) return <div className="crm-text-loading">Cargando resumen...</div>;
 
   return (
-    <div>
-      {/* Si se activa, este componente cubrirá la pantalla */}
-      {isMatrixMode && <MatrixEffect />}
+    // 1. DIV CONTENEDOR PRINCIPAL: Se agrega el ref y posición relativa
+    <div ref={dashboardRef} style={{ position: 'relative', width: '100%', minHeight: '100%' }}>
+      
+      {/* 2. EFECTO MATRIX: Se le pasa la referencia del dashboard */}
+      {isMatrixMode && <MatrixEffect targetRef={dashboardRef} />}
 
-      {/* 🌟 ENCABEZADO SIMÉTRICO CON CARD GRIS CLARO DE IA + WIDGETS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+      {/* 3. ENVOLTURA DEL CONTENIDO: Esto oculta todo (opacity: 0) cuando se activa la Matrix */}
+      <div style={{ opacity: isMatrixMode ? 0 : 1, transition: 'opacity 0.2s', pointerEvents: isMatrixMode ? 'none' : 'auto' }}>
         
-        {/* TARJETA DE IA - ESTILO GRIS CLARO Y MISMA ALTURA/DISENO QUE LOS WIDGETS */}
-        <div style={{ 
-          flex: '1 1 400px', 
-          minWidth: 0,
-          backgroundColor: '#f8f9fa',
-          color: '#111111',
-          padding: '8px 16px',
-          borderRadius: '8px',
-          border: '1px solid #c8c6c1',
-          borderLeft: '4px solid #2563eb',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          fontFamily: "'Nunito', system-ui, sans-serif"
-        }}>
-          <span style={{ fontSize: '9px', fontWeight: '900', letterSpacing: '0.5px', color: '#666666', textTransform: 'uppercase', marginBottom: '1px' }}>
-            {aiBanner.greeting}
-          </span>
-          <h1 className="crm-main-title" style={{ border: 'none', margin: 0, padding: 0, fontSize: '14px', fontWeight: 'bold', color: '#111111', lineHeight: '1.2' }}>
-            {aiBanner.headline}
-          </h1>
-          <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#555555', lineHeight: '1.3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {aiBanner.subtext}
-          </p>
-        </div>
+        {/* 🌟 ENCABEZADO SIMÉTRICO CON CARD GRIS CLARO DE IA + WIDGETS */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+          
+          {/* TARJETA DE IA - ESTILO GRIS CLARO Y MISMA ALTURA/DISENO QUE LOS WIDGETS */}
+          <div style={{ 
+            flex: '1 1 400px', 
+            minWidth: 0,
+            backgroundColor: '#f8f9fa',
+            color: '#111111',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: '1px solid #c8c6c1',
+            borderLeft: '4px solid #2563eb',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            fontFamily: "'Nunito', system-ui, sans-serif"
+          }}>
+            <span style={{ fontSize: '9px', fontWeight: '900', letterSpacing: '0.5px', color: '#666666', textTransform: 'uppercase', marginBottom: '1px' }}>
+              {aiBanner.greeting}
+            </span>
+            <h1 className="crm-main-title" style={{ border: 'none', margin: 0, padding: 0, fontSize: '14px', fontWeight: 'bold', color: '#111111', lineHeight: '1.2' }}>
+              {aiBanner.headline}
+            </h1>
+            <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#555555', lineHeight: '1.3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {aiBanner.subtext}
+            </p>
+          </div>
 
-        {/* WIDGETS DERECHOS */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'stretch', flexWrap: 'wrap' }}>
-          <AnalyzerStatusWidget />
-          <TopBarWidget />
+          {/* WIDGETS DERECHOS */}
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+            <AnalyzerStatusWidget />
+            <TopBarWidget />
+          </div>
         </div>
-      </div>
-
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
         
         {/* COLUMNA IZQUIERDA: CONTADORES + LISTA DE CLIENTES */}
