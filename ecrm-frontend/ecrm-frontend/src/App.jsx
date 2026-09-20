@@ -42,7 +42,7 @@ function AdminLayout({ children }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 🌟 ESTADO PARA EL MENÚ MÓVIL
   
   // 🌟 NUEVO ESTADO PARA CONTROLAR SUBMENÚS DESPLEGABLES
-  const [expandedMenus, setExpandedMenus] = useState({ concorde_tools: false });
+  const [expandedMenus, setExpandedMenus] = useState({ concorde_tools: false, enova_tools: false });
 
   const toggleSubMenu = (menuId) => {
     setExpandedMenus(prev => ({
@@ -99,9 +99,9 @@ function AdminLayout({ children }) {
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
 
-    // 1. Métricas Generales ahora arriba de Concorde Tools
+    // 1. Métricas Generales
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
-    
+
     // 2. SUBMENÚ MODULAR DE HERRAMIENTAS (Concorde Radar e IA integrados)
     { 
       id: 'concorde_tools', 
@@ -116,10 +116,22 @@ function AdminLayout({ children }) {
       ]
     },
 
+    // 3. NUEVO SUBMENÚ: ENOVA TOOLS (Enlaces Externos)
+    {
+      id: 'enova_tools',
+      label: 'Enova Tools',
+      allowed: ['super admin', 'admin'],
+      subItems: [
+        { path: 'https://app.slack.com/client', label: 'Slack', external: true },
+        { path: 'https://hub.enova.agency/', label: 'Hub', external: true },
+        { path: 'https://app.getapolo.com/enova-panel/', label: 'App Apolo', external: true },
+        { path: 'https://saas.getapolo.com/apolo-panel/', label: 'Saas Apolo', external: true }
+      ]
+    },
+
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
     { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
   ];
-
   const visibleNavItems = allNavItems.filter(item => item.allowed.includes(userRole));
 
   const handleLogout = () => {
@@ -250,18 +262,33 @@ function AdminLayout({ children }) {
                     {isExpanded && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginLeft: '16px', borderLeft: '2px solid #2d2d2d', paddingLeft: '8px' }}>
                         {item.subItems.map(sub => {
-                          const isActive = location.pathname === sub.path;
-                          return (
-                            <Link
-                              key={sub.path}
-                              to={sub.path}
-                              className={isActive ? "crm-link-active" : "crm-link-inactive"}
-                              style={{ fontSize: '13px', padding: '8px 12px' }}
-                            >
-                              ↳ {sub.label}
-                            </Link>
-                          );
-                        })}
+                      if (sub.external) {
+                        return (
+                          <a
+                            key={sub.path}
+                            href={sub.path}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="crm-link-inactive"
+                            style={{ fontSize: '13px', padding: '8px 12px', textDecoration: 'none' }}
+                          >
+                            ↳ {sub.label} ↗
+                          </a>
+                        );
+                      }
+
+                      const isActive = location.pathname === sub.path;
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          className={isActive ? "crm-link-active" : "crm-link-inactive"}
+                          style={{ fontSize: '13px', padding: '8px 12px' }}
+                        >
+                          ↳ {sub.label}
+                        </Link>
+                      );
+                    })}
                       </div>
                     )}
                   </div>
