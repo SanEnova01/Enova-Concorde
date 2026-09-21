@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-
+import { ShieldCheck } from 'lucide-react';
 // Componentes Core y Vistas Administrativas
 import AdminDashboard from './views/admin/AdminDashboard';
 import ClientsList from './views/admin/ClientsList';
@@ -10,7 +10,7 @@ import TicketDetail from './views/admin/TicketDetail';
 import MetricsPage from './views/admin/MetricsPage';
 import UsersManagement from './views/admin/UsersManagement';
 import KnowledgeBase from "./views/admin/KnowledgeBase";
-
+import ManualReviewForm from './views/admin/ManualReviewForm';
 // Vista de Tickets para el Cliente
 import ClientTickets from './views/client/ClientTickets';
 
@@ -98,7 +98,7 @@ function AdminLayout({ children }) {
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
-
+    { path: '/admin/reviews', icon: <ShieldCheck size={20} />, label: 'Registro de Calidad', allowed: ['super admin', 'admin'] },
     // 1. Métricas Generales
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
 
@@ -426,6 +426,12 @@ function App() {
         <Route path="/admin/metricas" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><MetricsPage /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/reviews" element={
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <AdminLayout><ManualReviewForm /></AdminLayout>
           </ProtectedRoute>
         } />
 

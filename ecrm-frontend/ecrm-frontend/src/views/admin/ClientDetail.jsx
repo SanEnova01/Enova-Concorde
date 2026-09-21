@@ -9,7 +9,7 @@ import ClientTickets from './ClientDetail/ClientTickets';
 import ClientMetricsHistory from './ClientDetail/ClientMetricsHistory';
 import ClientExternalMonitor from './ClientDetail/ClientExternalMonitor';
 import QuickAnalysis from './ClientDetail/QuickAnalysis';
-
+import StoreReviewHistory from './ClientDetail/StoreReviewHistory';
 // 🌟 SUBCOMPONENTE: Contador Odómetro Analógico (Tamaño Reducido)
 const SmallAnalogOdometer = ({ value, digits = 4 }) => {
   const paddedValue = String(value).padStart(digits, '0');
@@ -383,6 +383,11 @@ function ClientDetail() {
           <div className="crm-grid-two-columns" style={{ marginTop: '24px' }}>
             <ClientTickets tickets={tickets} />
             <ClientMetricsHistory metrics={metrics} />
+          </div>
+
+          <div className="crm-card-paper" style={{ marginTop: '24px', width: '100%', boxSizing: 'border-box' }}>
+            <h3 className="crm-section-title" style={{ marginTop: 0, marginBottom: '16px' }}>Control de Calidad y Revisiones Manuales</h3>
+            <StoreReviewHistory storeId={client.id} />
           </div>
 
           {/* NOTAS INTERNAS */}
