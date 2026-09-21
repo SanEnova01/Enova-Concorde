@@ -54,9 +54,6 @@ const loginLimiter = rateLimit({
 });
 
 
-app.use('/api/manual-reviews', verificarToken, require('./routes/manualReviews'));
-
-
 app.use(express.json());
 
 // ==========================================
@@ -362,6 +359,8 @@ app.use('/api/stores', verificarToken, require('./routes/stores'));
 app.use('/api/manual-reviews', verificarToken, require('./routes/reviews'));
 app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 app.use('/api/ai', verificarToken, require('./routes/ai'));
+app.use('/api/manual-reviews', verificarToken, require('./routes/manualReviews'));
+
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE SHOPIFY
 // ==========================================
