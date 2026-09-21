@@ -98,7 +98,7 @@ function AdminLayout({ children }) {
     { path: '/admin/tickets', label: 'Tickets Totales', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
-    { path: '/admin/reviews', icon: <ShieldCheck size={20} />, label: 'Registro de Calidad', allowed: ['super admin', 'admin'] },
+    { path: '/admin/reviews', icon: <ShieldCheck size={20} />, label: 'Reportes diarios', allowed: ['super admin', 'admin'] },
     // 1. Métricas Generales
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
 
