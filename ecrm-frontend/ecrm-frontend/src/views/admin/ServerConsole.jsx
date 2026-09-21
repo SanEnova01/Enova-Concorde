@@ -17,9 +17,9 @@ const ServerConsole = () => {
       return;
     }
 
-    const backendUrl = window.location.hostname === 'localhost' 
-      ? 'http://localhost:3000' 
-      : window.location.origin;
+   const backendUrl = window.location.hostname === 'localhost' 
+  ? 'http://localhost:8080' // <-- Actualizado al puerto correcto
+  : window.location.origin;
 
     const socket = io(backendUrl, {
       auth: { token }
