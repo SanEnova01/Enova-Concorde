@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import crmApi from '../../api/crmApi'; // <-- Importación agregada para leer la URL del backend
 
 const ServerConsole = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,9 +18,8 @@ const ServerConsole = () => {
       return;
     }
 
-   const backendUrl = window.location.hostname === 'localhost' 
-  ? 'http://localhost:8080' // <-- Actualizado al puerto correcto
-  : window.location.origin;
+    // <-- Lógica de URL actualizada para apuntar al backend real dinámicamente
+    const backendUrl = (crmApi.defaults.baseURL || '').replace(/\/api$/, '') || window.location.origin;
 
     const socket = io(backendUrl, {
       auth: { token }
