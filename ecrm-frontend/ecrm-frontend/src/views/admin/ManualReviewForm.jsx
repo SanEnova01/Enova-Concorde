@@ -17,12 +17,15 @@ const ManualReviewForm = () => {
   const [storesToSubmit, setStoresToSubmit] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 🌟 NUEVOS ESTADOS PARA EL HISTORIAL POR CARPETAS Y COMPARADOR
+  // ESTADOS PARA EL HISTORIAL POR CARPETAS
   const [historyByStore, setHistoryByStore] = useState({});
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedStore, setExpandedStore] = useState(null);
-  const [storeViewMode, setStoreViewMode] = useState('LIST'); // 'LIST' o 'COMPARE'
-  const [compareSelection, setCompareSelection] = useState({ a: 0, b: 1 }); // Índices de las revisiones a comparar
+  const [storeViewMode, setStoreViewMode] = useState('LIST'); 
+  const [compareSelection, setCompareSelection] = useState({ a: 0, b: 1 }); 
+  
+  // 🌟 NUEVO ESTADO: Buscador de historial
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
 
   useEffect(() => {
     const fetchStores = async () => {
@@ -57,20 +60,14 @@ const ManualReviewForm = () => {
     try {
       const res = await crmApi.get('/manual-reviews/all');
       if (res.data.success) {
-        // AGRUPAR POR TIENDA EN LUGAR DE POR FECHA
         const grouped = res.data.data.reduce((acc, curr) => {
           if (!acc[curr.store_id]) {
-            acc[curr.store_id] = {
-              id: curr.store_id,
-              name: curr.store_name,
-              reviews: []
-            };
+            acc[curr.store_id] = { id: curr.store_id, name: curr.store_name, reviews: [] };
           }
           acc[curr.store_id].reviews.push(curr);
           return acc;
         }, {});
 
-        // ORDENAR LAS REVISIONES DE CADA TIENDA DE MÁS RECIENTE A MÁS ANTIGUA
         Object.values(grouped).forEach(store => {
           store.reviews.sort((a, b) => new Date(b.review_date) - new Date(a.review_date));
         });
@@ -87,6 +84,7 @@ const ManualReviewForm = () => {
     if (activeTab === 'HISTORY') {
       loadHistory();
       setExpandedStore(null);
+      setHistorySearchTerm('');
     }
   }, [activeTab]);
 
@@ -100,10 +98,7 @@ const ManualReviewForm = () => {
 
       return {
         ...prev,
-        [storeId]: {
-          ...prev[storeId],
-          [field]: nextState
-        }
+        [storeId]: { ...prev[storeId], [field]: nextState }
       };
     });
   };
@@ -111,10 +106,7 @@ const ManualReviewForm = () => {
   const handleObsChange = (storeId, text) => {
     setChecks(prev => ({
       ...prev,
-      [storeId]: {
-        ...prev[storeId],
-        observations: text
-      }
+      [storeId]: { ...prev[storeId], observations: text }
     }));
   };
 
@@ -187,12 +179,18 @@ const ManualReviewForm = () => {
     return new Date(dateStr).toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  // 🌟 Filtrado de carpetas
+  const filteredHistoryStores = Object.values(historyByStore).filter(store => 
+    store.name.toLowerCase().includes(historySearchTerm.toLowerCase()) || 
+    store.id.toLowerCase().includes(historySearchTerm.toLowerCase())
+  );
+
   if (loading) return <div className="crm-text-loading" style={{ padding: '40px' }}>Cargando infraestructura...</div>;
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
       
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #111', paddingBottom: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #111', paddingBottom: '12px', marginBottom: '16px' }}>
         <button 
           onClick={() => setActiveTab('FORM')}
           style={{ padding: '10px 20px', backgroundColor: activeTab === 'FORM' ? '#111' : 'transparent', color: activeTab === 'FORM' ? '#FFD700' : '#4b5563', border: activeTab === 'FORM' ? '2px solid #111' : '2px solid transparent', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}
@@ -208,23 +206,44 @@ const ManualReviewForm = () => {
       </div>
 
       {activeTab === 'FORM' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ position: 'relative' }}>
+          {/* 🌟 CABECERA STICKY CON BOTÓN A LA DERECHA */}
+          <div style={{ 
+            position: 'sticky', 
+            top: 0, 
+            zIndex: 10, 
+            backgroundColor: '#f9f9f9', 
+            padding: '16px', 
+            borderBottom: '2px solid #111', 
+            marginBottom: '24px',
+            borderRadius: '8px',
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            flexWrap: 'wrap', 
+            gap: '16px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          }}>
             <div>
-              <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', margin: '0 0 8px 0' }}>Hoja de Control (Q/A)</h1>
-              <p style={{ color: '#666', margin: 0, fontSize: '14px' }}>1 Clic: OK (Verde) | 2 Clics: Observado (Naranja) | 3 Clics: Limpiar</p>
+              <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', margin: '0 0 4px 0' }}>Hoja de Control (Q/A)</h1>
+              <p style={{ color: '#666', margin: 0, fontSize: '13px' }}>1 Clic: OK (Verde) | 2 Clics: Observado (Naranja) | 3 Clics: Limpiar</p>
             </div>
             
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #111' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Firma del Agente:</span>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Firma:</span>
                 <input type="text" value={reviewerName} onChange={(e) => setReviewerName(e.target.value)} placeholder="Ej. Juan Pérez" style={{ border: 'none', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit', color: '#111', width: '120px' }} />
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #111' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Fecha:</span>
                 <input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} style={{ border: 'none', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit', color: '#111', cursor: 'pointer' }} />
               </div>
+
+              {/* 🌟 BOTÓN DE GUARDADO MOVIDO ARRIBA */}
+              <button onClick={handlePreSave} className="crm-btn-black" style={{ padding: '10px 24px', fontSize: '15px' }}>
+                Revisar y Guardar
+              </button>
             </div>
           </div>
 
@@ -245,8 +264,36 @@ const ManualReviewForm = () => {
                 {stores.map(store => (
                   <tr key={store.id} style={{ borderBottom: '1px solid #eee' }}>
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ fontWeight: 'bold', color: '#111', fontSize: '14px' }}>{store.name}</div>
-                      <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', marginTop: '4px' }}>Plan: {store.plan_type}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', color: '#111', fontSize: '14px' }}>{store.name}</div>
+                          <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', marginTop: '4px' }}>Plan: {store.plan_type}</div>
+                        </div>
+                        {/* 🌟 BOTÓN PARA ABRIR PÁGINA INDIVIDUAL */}
+                        {store.web && (
+                          <button 
+                            onClick={() => window.open(store.web.startsWith('http') ? store.web : `https://${store.web}`, '_blank')}
+                            style={{ 
+                              marginLeft: 'auto', 
+                              padding: '6px', 
+                              fontSize: '12px', 
+                              backgroundColor: '#f3f4f6', 
+                              border: '1px solid #d1d5db', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                            title="Abrir web en nueva pestaña"
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#e5e7eb'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                          >
+                            🌐
+                          </button>
+                        )}
+                      </div>
                     </td>
                     {['home_page', 'blog', 'pdp', 'cart', 'checkout'].map(field => (
                       <td key={field} style={{ padding: '12px', textAlign: 'center' }}>
@@ -269,31 +316,50 @@ const ManualReviewForm = () => {
               </tbody>
             </table>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={handlePreSave} className="crm-btn-black" style={{ padding: '12px 24px', fontSize: '16px' }}>
-              Revisar y Guardar Registro Diario
-            </button>
-          </div>
-        </>
+        </div>
       )}
 
-      {/* 🌟 VISTA DE HISTORIAL POR CARPETAS */}
+      {/* VISTA DE HISTORIAL POR CARPETAS */}
       {activeTab === 'HISTORY' && (
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', marginBottom: '24px' }}>Directorios de Auditoría por Tienda</h1>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+            <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', margin: 0 }}>Directorios de Auditoría por Tienda</h1>
+            
+            {/* 🌟 BARRA DE BÚSQUEDA PARA CARPETAS */}
+            <input 
+              type="text" 
+              placeholder="🔍 Buscar carpeta por nombre o ID..." 
+              value={historySearchTerm}
+              onChange={e => setHistorySearchTerm(e.target.value)}
+              style={{ 
+                width: '100%', 
+                maxWidth: '350px', 
+                padding: '10px 16px', 
+                borderRadius: '8px', 
+                border: '2px solid #111', 
+                outline: 'none', 
+                fontSize: '14px',
+                backgroundColor: '#fff'
+              }}
+            />
+          </div>
+
           {loadingHistory ? (
             <div className="crm-text-loading">Cargando registros...</div>
           ) : Object.keys(historyByStore).length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px' }}>
               No hay auditorías registradas en el sistema.
             </div>
+          ) : filteredHistoryStores.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#fff', border: '2px dashed #ccc', borderRadius: '8px', color: '#666' }}>
+              No se encontraron carpetas con ese nombre.
+            </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: expandedStore ? '300px 1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px', alignItems: 'start' }}>
               
               {/* LISTADO DE CARPETAS */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {Object.values(historyByStore).map(store => (
+                {filteredHistoryStores.map(store => (
                   <div 
                     key={store.id} 
                     onClick={() => {
@@ -311,7 +377,8 @@ const ManualReviewForm = () => {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      boxShadow: expandedStore === store.id ? 'none' : '2px 2px 0px #111'
+                      boxShadow: expandedStore === store.id ? 'none' : '2px 2px 0px #111',
+                      transition: 'all 0.15s'
                     }}
                   >
                     <div style={{ fontWeight: 'bold', fontSize: '15px' }}>📁 {store.name}</div>
@@ -324,7 +391,7 @@ const ManualReviewForm = () => {
 
               {/* PANEL DE DETALLE EXPANDIDO */}
               {expandedStore && historyByStore[expandedStore] && (
-                <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflow: 'hidden', position: 'sticky', top: '20px' }}>
                   
                   {/* CABECERA DEL PANEL */}
                   <div style={{ backgroundColor: '#f9fafb', padding: '16px 24px', borderBottom: '2px solid #111', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
@@ -479,6 +546,7 @@ const ManualReviewForm = () => {
         </div>
       )}
 
+      {/* MODAL DE CONFIRMACIÓN DE GUARDADO */}
       {showModal && (
         <div className="crm-modal-mask">
           <div className="crm-modal-content" style={{ maxWidth: '900px', width: '90%' }}>
