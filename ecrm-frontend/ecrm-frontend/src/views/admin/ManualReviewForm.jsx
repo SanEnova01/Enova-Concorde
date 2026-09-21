@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
 const PLANES_ELEGIBLES = ['go', 'growth', 'scale', 'escale', 'scale_plus', 'warranty'];
 
 const ManualReviewForm = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('FORM');
   const [stores, setStores] = useState([]);
   const [checks, setChecks] = useState({});
@@ -15,8 +17,12 @@ const ManualReviewForm = () => {
   const [storesToSubmit, setStoresToSubmit] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [historyData, setHistoryData] = useState({});
+  // 🌟 NUEVOS ESTADOS PARA EL HISTORIAL POR CARPETAS Y COMPARADOR
+  const [historyByStore, setHistoryByStore] = useState({});
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [expandedStore, setExpandedStore] = useState(null);
+  const [storeViewMode, setStoreViewMode] = useState('LIST'); // 'LIST' o 'COMPARE'
+  const [compareSelection, setCompareSelection] = useState({ a: 0, b: 1 }); // Índices de las revisiones a comparar
 
   useEffect(() => {
     const fetchStores = async () => {
@@ -51,15 +57,25 @@ const ManualReviewForm = () => {
     try {
       const res = await crmApi.get('/manual-reviews/all');
       if (res.data.success) {
+        // AGRUPAR POR TIENDA EN LUGAR DE POR FECHA
         const grouped = res.data.data.reduce((acc, curr) => {
-          const dateStr = new Date(curr.review_date).toLocaleDateString('es-ES', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-          });
-          if (!acc[dateStr]) acc[dateStr] = [];
-          acc[dateStr].push(curr);
+          if (!acc[curr.store_id]) {
+            acc[curr.store_id] = {
+              id: curr.store_id,
+              name: curr.store_name,
+              reviews: []
+            };
+          }
+          acc[curr.store_id].reviews.push(curr);
           return acc;
         }, {});
-        setHistoryData(grouped);
+
+        // ORDENAR LAS REVISIONES DE CADA TIENDA DE MÁS RECIENTE A MÁS ANTIGUA
+        Object.values(grouped).forEach(store => {
+          store.reviews.sort((a, b) => new Date(b.review_date) - new Date(a.review_date));
+        });
+
+        setHistoryByStore(grouped);
       }
     } catch (error) {
       console.error(error);
@@ -70,6 +86,7 @@ const ManualReviewForm = () => {
   useEffect(() => {
     if (activeTab === 'HISTORY') {
       loadHistory();
+      setExpandedStore(null);
     }
   }, [activeTab]);
 
@@ -166,6 +183,10 @@ const ManualReviewForm = () => {
     return <div style={{ width: '22px', height: '22px', border: '2px solid #d1d5db', borderRadius: '4px', margin: '0 auto' }}></div>;
   };
 
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
   if (loading) return <div className="crm-text-loading" style={{ padding: '40px' }}>Cargando infraestructura...</div>;
 
   return (
@@ -182,7 +203,7 @@ const ManualReviewForm = () => {
           onClick={() => setActiveTab('HISTORY')}
           style={{ padding: '10px 20px', backgroundColor: activeTab === 'HISTORY' ? '#111' : 'transparent', color: activeTab === 'HISTORY' ? '#FFD700' : '#4b5563', border: activeTab === 'HISTORY' ? '2px solid #111' : '2px solid transparent', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}
         >
-          Historial Global
+          Historial Global (Por Carpetas)
         </button>
       </div>
 
@@ -257,52 +278,202 @@ const ManualReviewForm = () => {
         </>
       )}
 
+      {/* 🌟 VISTA DE HISTORIAL POR CARPETAS */}
       {activeTab === 'HISTORY' && (
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', marginBottom: '24px' }}>Historial de Auditorías</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', marginBottom: '24px' }}>Directorios de Auditoría por Tienda</h1>
           {loadingHistory ? (
             <div className="crm-text-loading">Cargando registros...</div>
-          ) : Object.keys(historyData).length === 0 ? (
+          ) : Object.keys(historyByStore).length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px' }}>
               No hay auditorías registradas en el sistema.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {Object.keys(historyData).map(dateKey => (
-                <div key={dateKey} style={{ border: '2px solid #111', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#fff' }}>
-                  <div style={{ backgroundColor: '#111', color: '#FFD700', padding: '12px 16px', fontWeight: '900', textTransform: 'capitalize' }}>
-                    {dateKey}
+            <div style={{ display: 'grid', gridTemplateColumns: expandedStore ? '300px 1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px', alignItems: 'start' }}>
+              
+              {/* LISTADO DE CARPETAS */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {Object.values(historyByStore).map(store => (
+                  <div 
+                    key={store.id} 
+                    onClick={() => {
+                      setExpandedStore(store.id);
+                      setStoreViewMode('LIST');
+                      setCompareSelection({ a: 0, b: store.reviews.length > 1 ? 1 : 0 });
+                    }}
+                    style={{ 
+                      padding: '16px', 
+                      backgroundColor: expandedStore === store.id ? '#111' : '#fff', 
+                      color: expandedStore === store.id ? '#FFD700' : '#111',
+                      border: '2px solid #111', 
+                      borderRadius: '8px', 
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      boxShadow: expandedStore === store.id ? 'none' : '2px 2px 0px #111'
+                    }}
+                  >
+                    <div style={{ fontWeight: 'bold', fontSize: '15px' }}>📁 {store.name}</div>
+                    <div style={{ fontSize: '12px', backgroundColor: expandedStore === store.id ? '#FFD700' : '#f3f4f6', color: '#111', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                      {store.reviews.length} regs
+                    </div>
                   </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid #ccc', backgroundColor: '#f5f4f0' }}>
-                        <th style={{ padding: '10px 16px', textAlign: 'left' }}>Tienda</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Home</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Blog</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>PDP</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Carrito</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Checkout</th>
-                        <th style={{ padding: '10px 16px', textAlign: 'left' }}>Observaciones</th>
-                        <th style={{ padding: '10px 16px', textAlign: 'right' }}>Auditor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {historyData[dateKey].map((rev, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                          <td style={{ padding: '10px 16px', fontWeight: 'bold' }}>{rev.store_name}</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{renderIcon(rev.home_page)}</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{renderIcon(rev.blog)}</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{renderIcon(rev.pdp)}</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{renderIcon(rev.cart)}</td>
-                          <td style={{ padding: '10px', textAlign: 'center' }}>{renderIcon(rev.checkout)}</td>
-                          <td style={{ padding: '10px 16px', color: '#dc2626', fontWeight: '500' }}>{rev.observations || '-'}</td>
-                          <td style={{ padding: '10px 16px', textAlign: 'right', color: '#666', fontStyle: 'italic' }}>{rev.reviewer_name}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                ))}
+              </div>
+
+              {/* PANEL DE DETALLE EXPANDIDO */}
+              {expandedStore && historyByStore[expandedStore] && (
+                <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflow: 'hidden' }}>
+                  
+                  {/* CABECERA DEL PANEL */}
+                  <div style={{ backgroundColor: '#f9fafb', padding: '16px 24px', borderBottom: '2px solid #111', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '900' }}>{historyByStore[expandedStore].name}</h2>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>ID: {historyByStore[expandedStore].id}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button 
+                        onClick={() => navigate(`/admin/clientes/${historyByStore[expandedStore].id}`)} 
+                        className="crm-btn-border" style={{ fontSize: '13px', padding: '6px 12px' }}
+                      >
+                        Ir al Perfil de la Tienda ↗
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* TABS INTERNOS: HISTORIAL VS COMPARADOR */}
+                  <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f3f4f6' }}>
+                    <button 
+                      onClick={() => setStoreViewMode('LIST')}
+                      style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: storeViewMode === 'LIST' ? '#fff' : 'transparent', fontWeight: 'bold', cursor: 'pointer', borderBottom: storeViewMode === 'LIST' ? '2px solid #111' : 'none' }}
+                    >
+                      📄 Historial Completo
+                    </button>
+                    <button 
+                      onClick={() => setStoreViewMode('COMPARE')}
+                      style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: storeViewMode === 'COMPARE' ? '#fff' : 'transparent', fontWeight: 'bold', cursor: 'pointer', borderBottom: storeViewMode === 'COMPARE' ? '2px solid #111' : 'none' }}
+                    >
+                      ⚖️ Comparador (Día vs Día)
+                    </button>
+                  </div>
+
+                  <div style={{ padding: '24px' }}>
+                    
+                    {/* VISTA 1: LISTA COMPLETA */}
+                    {storeViewMode === 'LIST' && (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid #111', color: '#666' }}>
+                              <th style={{ padding: '12px', textAlign: 'left' }}>Fecha</th>
+                              <th style={{ padding: '12px', textAlign: 'center' }}>Home</th>
+                              <th style={{ padding: '12px', textAlign: 'center' }}>Blog</th>
+                              <th style={{ padding: '12px', textAlign: 'center' }}>PDP</th>
+                              <th style={{ padding: '12px', textAlign: 'center' }}>Cart</th>
+                              <th style={{ padding: '12px', textAlign: 'center' }}>Check</th>
+                              <th style={{ padding: '12px', textAlign: 'left' }}>Observaciones</th>
+                              <th style={{ padding: '12px', textAlign: 'right' }}>Agente</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {historyByStore[expandedStore].reviews.map((rev, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: '12px', fontWeight: 'bold' }}>{formatDate(rev.review_date)}</td>
+                                <td style={{ padding: '12px', textAlign: 'center' }}>{renderIcon(rev.home_page)}</td>
+                                <td style={{ padding: '12px', textAlign: 'center' }}>{renderIcon(rev.blog)}</td>
+                                <td style={{ padding: '12px', textAlign: 'center' }}>{renderIcon(rev.pdp)}</td>
+                                <td style={{ padding: '12px', textAlign: 'center' }}>{renderIcon(rev.cart)}</td>
+                                <td style={{ padding: '12px', textAlign: 'center' }}>{renderIcon(rev.checkout)}</td>
+                                <td style={{ padding: '12px', color: '#dc2626', fontWeight: '500' }}>{rev.observations || '-'}</td>
+                                <td style={{ padding: '12px', textAlign: 'right', color: '#666' }}>{rev.reviewer_name}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* VISTA 2: COMPARADOR */}
+                    {storeViewMode === 'COMPARE' && (
+                      <div>
+                        {historyByStore[expandedStore].reviews.length < 2 ? (
+                          <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                            Se necesitan al menos 2 registros históricos para hacer una comparación.
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: '#4b5563' }}>FECHA A (Base):</label>
+                                <select 
+                                  value={compareSelection.a} 
+                                  onChange={(e) => setCompareSelection(p => ({ ...p, a: Number(e.target.value) }))}
+                                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 'bold', backgroundColor: '#fff' }}
+                                >
+                                  {historyByStore[expandedStore].reviews.map((rev, idx) => (
+                                    <option key={idx} value={idx}>{formatDate(rev.review_date)}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '20px', color: '#9ca3af' }}>VS</div>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: '#4b5563' }}>FECHA B (Comparar):</label>
+                                <select 
+                                  value={compareSelection.b} 
+                                  onChange={(e) => setCompareSelection(p => ({ ...p, b: Number(e.target.value) }))}
+                                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 'bold', backgroundColor: '#fff' }}
+                                >
+                                  {historyByStore[expandedStore].reviews.map((rev, idx) => (
+                                    <option key={idx} value={idx}>{formatDate(rev.review_date)}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                              <thead>
+                                <tr style={{ backgroundColor: '#111', color: '#fff' }}>
+                                  <th style={{ padding: '12px 16px', textAlign: 'left', borderRadius: '8px 0 0 0' }}>Módulo Examinado</th>
+                                  <th style={{ padding: '12px 16px', textAlign: 'center', color: '#FFD700' }}>{formatDate(historyByStore[expandedStore].reviews[compareSelection.a].review_date)}</th>
+                                  <th style={{ padding: '12px 16px', textAlign: 'center', color: '#FFD700', borderRadius: '0 8px 0 0' }}>{formatDate(historyByStore[expandedStore].reviews[compareSelection.b].review_date)}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {['home_page', 'blog', 'pdp', 'cart', 'checkout'].map(field => {
+                                  const valA = historyByStore[expandedStore].reviews[compareSelection.a][field];
+                                  const valB = historyByStore[expandedStore].reviews[compareSelection.b][field];
+                                  const changed = valA !== valB;
+                                  
+                                  return (
+                                    <tr key={field} style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: changed ? '#fefce8' : '#fff' }}>
+                                      <td style={{ padding: '16px', fontWeight: 'bold', textTransform: 'capitalize' }}>{field.replace('_', ' ')}</td>
+                                      <td style={{ padding: '16px', textAlign: 'center' }}>{renderIcon(valA)}</td>
+                                      <td style={{ padding: '16px', textAlign: 'center' }}>{renderIcon(valB)}</td>
+                                    </tr>
+                                  );
+                                })}
+                                <tr style={{ backgroundColor: '#fff' }}>
+                                  <td style={{ padding: '16px', fontWeight: 'bold', verticalAlign: 'top' }}>Observaciones Registradas</td>
+                                  <td style={{ padding: '16px', color: '#dc2626', fontSize: '13px', verticalAlign: 'top', borderLeft: '1px solid #e5e7eb' }}>
+                                    {historyByStore[expandedStore].reviews[compareSelection.a].observations || 'Sin observaciones.'}
+                                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#9ca3af', fontWeight: 'bold' }}>Firma: {historyByStore[expandedStore].reviews[compareSelection.a].reviewer_name}</div>
+                                  </td>
+                                  <td style={{ padding: '16px', color: '#dc2626', fontSize: '13px', verticalAlign: 'top', borderLeft: '1px solid #e5e7eb' }}>
+                                    {historyByStore[expandedStore].reviews[compareSelection.b].observations || 'Sin observaciones.'}
+                                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#9ca3af', fontWeight: 'bold' }}>Firma: {historyByStore[expandedStore].reviews[compareSelection.b].reviewer_name}</div>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
