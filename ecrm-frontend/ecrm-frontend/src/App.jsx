@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Terminal } from 'lucide-react'; // 🌟 Importé el ícono Terminal
 // Componentes Core y Vistas Administrativas
 import AdminDashboard from './views/admin/AdminDashboard';
 import ClientsList from './views/admin/ClientsList';
@@ -13,7 +13,7 @@ import KnowledgeBase from "./views/admin/KnowledgeBase";
 import ManualReviewForm from './views/admin/ManualReviewForm';
 // Vista de Tickets para el Cliente
 import ClientTickets from './views/client/ClientTickets';
-
+import ServerConsole from './components/ServerConsole';
 // Vistas Públicas (CoopPilot)
 import CoopPilotReturns from './views/public/CoopPilotReturns';
 import CoopPilotHub from './views/public/CoopPilotHub';
@@ -29,6 +29,7 @@ import ReportGenerator from './views/admin/ReportGenerator';
 import ProtectedRoute from './components/ProtectedRoute';
 import crmApi from './api/crmApi';
 import ImageExtractorView from './views/admin/ImageExtractorView';
+
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -39,9 +40,8 @@ function AdminLayout({ children }) {
   let userEmail = 'sin-correo@sistema.local';
   
   const [hasCoopPilot, setHasCoopPilot] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 🌟 ESTADO PARA EL MENÚ MÓVIL
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   
-  // 🌟 NUEVO ESTADO PARA CONTROLAR SUBMENÚS DESPLEGABLES
   const [expandedMenus, setExpandedMenus] = useState({ concorde_tools: false, enova_tools: false });
 
   const toggleSubMenu = (menuId) => {
@@ -73,7 +73,6 @@ function AdminLayout({ children }) {
     }
   }
 
-  // Verificar si el cliente tiene CoopPilot activo
   useEffect(() => {
     if (userRole === 'client') {
       crmApi.get('/stores/cuentacliente')
@@ -87,11 +86,10 @@ function AdminLayout({ children }) {
     }
   }, [userRole]);
 
-  // 🌟 Cerrar el menú móvil automáticamente al cambiar de ruta
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
-// Definición de menú lateral por roles
+
   const allNavItems = [
     { path: '/admin', label: 'Inicio', allowed: ['super admin', 'admin'] },
     { path: '/admin/clientes', label: 'Tiendas', allowed: ['super admin', 'admin'] },
@@ -99,10 +97,8 @@ function AdminLayout({ children }) {
     { path: '/admin/clientes/cuentacliente', label: 'Mi Cuenta', allowed: ['client'] },
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     { path: '/admin/reviews', icon: <ShieldCheck size={20} />, label: 'Reportes diarios', allowed: ['super admin', 'admin'] },
-    // 1. Métricas Generales
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
 
-    // 2. SUBMENÚ MODULAR DE HERRAMIENTAS (Concorde Radar e IA integrados)
     { 
       id: 'concorde_tools', 
       label: 'Concorde Tools', 
@@ -116,7 +112,6 @@ function AdminLayout({ children }) {
       ]
     },
 
-    // 3. NUEVO SUBMENÚ: ENOVA TOOLS (Enlaces Externos)
     {
       id: 'enova_tools',
       label: 'Enova Tools',
@@ -132,6 +127,7 @@ function AdminLayout({ children }) {
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
     { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
   ];
+  
   const visibleNavItems = allNavItems.filter(item => item.allowed.includes(userRole));
 
   const handleLogout = () => {
@@ -139,10 +135,14 @@ function AdminLayout({ children }) {
     navigate('/login');
   };
 
+  // 🌟 FUNCIÓN PARA DISPARAR EL EVENTO DE LA CONSOLA DESDE EL BOTÓN
+  const openTerminal = () => {
+    window.dispatchEvent(new CustomEvent('toggle-terminal'));
+  };
+
   return (
     <div className="crm-layout">
       
-      {/* 🌟 BARRA SUPERIOR EXCLUSIVA PARA MÓVILES */}
       <div className="crm-mobile-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img src="/favicon.svg" alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
@@ -153,12 +153,10 @@ function AdminLayout({ children }) {
         </button>
       </div>
 
-      {/* 🌟 MÁSCARA OSCURA DE FONDO (Se muestra al abrir el menú en móvil) */}
       {isMobileMenuOpen && (
         <div className="crm-sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>
       )}
 
-      {/* 🌟 SIDEBAR (Funciona como panel fijo en PC y como cajón deslizable en móvil) */}
       <div className={`crm-sidebar ${isMobileMenuOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>
           <div className="crm-logo-box" style={{ borderBottom: 'none', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -171,7 +169,6 @@ function AdminLayout({ children }) {
               />
               <h2 className="crm-logo-text desktop-only-logo" style={{ margin: 0 }}>Concorde</h2>
             </div>
-            {/* 🌟 BOTÓN PARA CERRAR EL MENÚ EN MÓVIL */}
             <button className="crm-close-sidebar-btn" onClick={() => setIsMobileMenuOpen(false)}>✕</button>
           </div>
 
@@ -235,7 +232,6 @@ function AdminLayout({ children }) {
 
           <nav className="crm-nav-container" style={{ paddingTop: 0 }}>
             {visibleNavItems.map(item => {
-              // 🌟 LÓGICA PARA RENDERIZAR MENÚS DESPLEGABLES (CON SUB-ITEMS)
               if (item.subItems) {
                 const isExpanded = expandedMenus[item.id];
                 const isAnyChildActive = item.subItems.some(sub => location.pathname === sub.path);
@@ -258,7 +254,6 @@ function AdminLayout({ children }) {
                       {item.label} <span style={{ fontSize: '12px' }}>{isExpanded ? '▴' : '▾'}</span>
                     </button>
                     
-                    {/* Renderizamos los hijos si está desplegado */}
                     {isExpanded && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginLeft: '16px', borderLeft: '2px solid #2d2d2d', paddingLeft: '8px' }}>
                         {item.subItems.map(sub => {
@@ -295,7 +290,6 @@ function AdminLayout({ children }) {
                 );
               }
 
-              // 🌟 LÓGICA PARA ENLACES NORMALES
               const isActive = location.pathname === item.path || 
                 (item.path === '/admin/clientes' && location.pathname.startsWith('/admin/clientes/') && !location.pathname.includes('cuentacliente')) ||
                 (item.path === '/admin/tickets' && location.pathname.startsWith('/admin/tickets/'));
@@ -313,7 +307,15 @@ function AdminLayout({ children }) {
           </nav>
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px dashed #111111' }}>
+        <div style={{ padding: '16px', borderTop: '1px dashed #111111', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          
+          {/* 🌟 BOTÓN DE TERMINAL (Solo para super admins) */}
+          {userRole === 'super admin' && (
+            <button onClick={openTerminal} className="crm-btn-black" style={{ width: '100%', padding: '8px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Terminal size={14} /> System Console <span style={{opacity: 0.7, fontSize: '10px'}}>(Ctrl + \)</span>
+            </button>
+          )}
+
           <button onClick={handleLogout} className="crm-btn-border" style={{ width: '100%', padding: '8px', fontSize: '12px', cursor: 'pointer' }}>
             Cerrar Sesión
           </button>
@@ -364,16 +366,13 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* PUBLIC / AUTH */}
         <Route path="/login" element={<Login />} />
         
-        {/* RUTAS PÚBLICAS DE COOPPILOT (B2B2C) */}
         <Route path="/cooppilot" element={<Navigate to="/login" replace />} />
         <Route path="/cooppilot/:storeId" element={<CoopPilotHub />} />
         <Route path="/cooppilot/:storeId/devoluciones" element={<CoopPilotReturns />} />
         <Route path="/cooppilot/:storeId/rastreo" element={<CoopPilotTracking />} />
 
-        {/* RUTAS PROTEGIDAS DEL DASHBOARD */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><AdminDashboard /></AdminLayout>
@@ -392,7 +391,6 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* RUTA DE TABLERO DE TICKETS PARA CLIENTES */}
         <Route path="/client/tickets" element={
           <ProtectedRoute allowedRoles={['client']}>
             <AdminLayout><ClientTickets /></AdminLayout>
@@ -445,11 +443,9 @@ function App() {
           isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
         } />
 
-  {/* Nuevas rutas publicas */}
         <Route path="/performance-radar" element={<PublicAuditForm />} />
         <Route path="/reporte/:id" element={<PublicAuditReport />} />
 
-        {/* Nueva ruta protegida dentro de las rutas de Admin */}
         <Route path="/admin/auditorias" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><AdminAuditRequests /></AdminLayout>
@@ -457,19 +453,17 @@ function App() {
         } />
         
         <Route path="/admin/analyzer" element={
-  <ProtectedRoute allowedRoles={['super admin', 'admin']}>
-    <AdminLayout><ConcordeAnalyzerView /></AdminLayout>
-  </ProtectedRoute>
-} />
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <AdminLayout><ConcordeAnalyzerView /></AdminLayout>
+          </ProtectedRoute>
+        } />
 
-{/* 👇 AGREGAR ESTE BLOQUE DE RUTA 👇 */}
         <Route path="/admin/extractor" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><ImageExtractorView /></AdminLayout>
           </ProtectedRoute>
         } />
 
-        {/* HERRAMIENTA: GENERADOR DE REPORTES PDF */}
         <Route path="/admin/reportes" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><ReportGenerator /></AdminLayout>
@@ -477,6 +471,9 @@ function App() {
         } />
 
       </Routes>
+      
+      {/* 🌟 AQUÍ INYECTAMOS LA CONSOLA GLOBAL 🌟 */}
+      <ServerConsole />
     </BrowserRouter>
   );
 }

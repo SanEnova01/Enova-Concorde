@@ -559,18 +559,71 @@ setInterval(() => {
   HubspotService.syncTickets();
 }, 2 * 60 * 1000);
 
-// Ejecutar primera sincronización al iniciar el servidor
 HubspotService.syncTickets();
-
-// 🔥 AQUÍ ENCENDEMOS EL MOTOR DE GMAIL (Tiene su propio temporizador)
 require('./services/GmailSyncService');
 
 // ==========================================
-// ARRANQUE DEL SERVIDOR
+// 🔴 NUEVO: SISTEMA DE WEBSOCKETS Y CONSOLA
+// ==========================================
+const http = require('http');
+const { Server } = require('socket.io');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*', methods: ['GET', 'POST'] }
+});
+
+// Middleware de seguridad para WebSockets (Solo Super Admins)
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) return next(new Error('Sin token de autorización'));
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026');
+    if (decoded.role !== 'super admin') {
+      return next(new Error('Permiso denegado. Se requiere rol de super admin.'));
+    }
+    // Si es super admin, lo unimos a la sala especial
+    socket.join('super_admin_room');
+    next();
+  } catch (error) {
+    next(new Error('Token inválido o expirado'));
+  }
+});
+
+// Interceptor de Consola Global (Atrapa logs de Server, Gmail Bot, etc.)
+['log', 'warn', 'error', 'info'].forEach((method) => {
+  const originalMethod = console[method];
+  console[method] = function (...args) {
+    // 1. Imprime en la consola real de Railway/Terminal
+    originalMethod.apply(console, args);
+    
+    // 2. Procesa y envía por Socket a la sala de super admins
+    try {
+      const message = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+      
+      // Evitamos un bucle infinito filtrando los logs internos de socket.io
+      if (!message.includes('socket.io')) {
+        io.to('super_admin_room').emit('server-log', {
+          source: 'BACKEND',
+          type: method,
+          message: message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (e) {
+      // Ignorar errores de serialización silenciosamente
+    }
+  };
+});
+
+// ==========================================
+// ARRANQUE DEL SERVIDOR (ACTUALIZADO A HTTP)
 // ==========================================
 const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0'; 
 
-app.listen(PORT, HOST, () => {
-  console.log(`Servidor central del CRM corriendo exitosamente en ${HOST}:${PORT}`);
+// 🚨 IMPORTANTE: Ahora usamos server.listen en lugar de app.listen
+server.listen(PORT, HOST, () => {
+  console.log(`[SYSTEM] Servidor central y WebSockets corriendo en ${HOST}:${PORT}`);
 });
