@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import crmApi from '../../api/crmApi';
 
-// Variaciones de los planes que se consideran de alto nivel (incluyendo errores de tipeo comunes)
 const PLANES_ELEGIBLES = ['go', 'growth', 'scale', 'escale', 'scale_plus', 'warranty'];
 
 const ManualReviewForm = () => {
@@ -9,31 +8,25 @@ const ManualReviewForm = () => {
   const [checks, setChecks] = useState({});
   const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
-  const [saveStatus, setSaveStatus] = useState({}); // Para mostrar "✅ Guardado" temporalmente
+  const [saveStatus, setSaveStatus] = useState({});
 
   useEffect(() => {
     const fetchStores = async () => {
       try {
-        const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
-        const res = await axios.get('/api/stores', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        // Usamos crmApi que ya tiene el baseURL y el token configurado
+        const res = await crmApi.get('/stores');
         
         const rawStores = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
         
-        // Filtro a prueba de fallos
         const validStores = rawStores.filter(store => {
           if (!store.plan_type) return false;
           const plan = String(store.plan_type).toLowerCase().trim();
           return PLANES_ELEGIBLES.includes(plan);
         });
 
-        // Ordenar alfabéticamente
         validStores.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        
         setStores(validStores);
 
-        // Inicializar el estado de los checkboxes para cada tienda
         const initialChecks = {};
         validStores.forEach(s => {
           initialChecks[s.id] = { home_page: false, blog: false, pdp: false, cart: false, checkout: false };
@@ -61,7 +54,6 @@ const ManualReviewForm = () => {
 
   const handleSaveRow = async (store) => {
     try {
-      const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
       const payload = {
         store_id: store.id,
         review_date: reviewDate,
@@ -69,15 +61,12 @@ const ManualReviewForm = () => {
         reviewer_name: 'Control de Calidad'
       };
 
-      await axios.post('/api/manual-reviews', payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Usamos crmApi para enviar la data
+      await crmApi.post('/manual-reviews', payload);
 
-      // Efecto visual de guardado exitoso
       setSaveStatus(prev => ({ ...prev, [store.id]: 'success' }));
       setTimeout(() => {
         setSaveStatus(prev => ({ ...prev, [store.id]: null }));
-        // Opcional: limpiar los checks de esa fila tras guardar
         setChecks(prev => ({
           ...prev,
           [store.id]: { home_page: false, blog: false, pdp: false, cart: false, checkout: false }
