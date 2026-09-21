@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-
+// Cámbialo a la ruta donde realmente lo guardaste:
+import ServerConsole from './views/admin/ServerConsole';
 const ServerConsole = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState([]);

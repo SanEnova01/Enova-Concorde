@@ -13,7 +13,8 @@ import KnowledgeBase from "./views/admin/KnowledgeBase";
 import ManualReviewForm from './views/admin/ManualReviewForm';
 // Vista de Tickets para el Cliente
 import ClientTickets from './views/client/ClientTickets';
-import ServerConsole from './components/ServerConsole';
+// Cámbialo a la ruta donde realmente lo guardaste:
+import ServerConsole from './views/admin/ServerConsole';
 // Vistas Públicas (CoopPilot)
 import CoopPilotReturns from './views/public/CoopPilotReturns';
 import CoopPilotHub from './views/public/CoopPilotHub';
