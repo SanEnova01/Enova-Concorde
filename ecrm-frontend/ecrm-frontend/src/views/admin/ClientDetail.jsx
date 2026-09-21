@@ -11,6 +11,8 @@ import ClientExternalMonitor from './ClientDetail/ClientExternalMonitor';
 import QuickAnalysis from './ClientDetail/QuickAnalysis';
 import StoreReviewHistory from './ClientDetail/StoreReviewHistory';
 // 🌟 SUBCOMPONENTE: Contador Odómetro Analógico (Tamaño Reducido)
+import DailyReviewModal from '../../components/DailyReviewModal';
+
 const SmallAnalogOdometer = ({ value, digits = 4 }) => {
   const paddedValue = String(value).padStart(digits, '0');
 
@@ -50,6 +52,8 @@ function ClientDetail() {
   const { storeId } = useParams();
   const navigate = useNavigate();
   
+  const [showReviewModal, setShowReviewModal] = useState(false);
+
   // ESTADOS PARA MULTI-TENANT (TABS)
   const [authorizedStores, setAuthorizedStores] = useState([]);
   const [activeStoreId, setActiveStoreId] = useState(null);
@@ -288,9 +292,28 @@ function ClientDetail() {
       )}
 
       {/* CONTROLES ADMINISTRATIVOS */}
-      <div className="crm-actions-bar" style={{ marginBottom: '16px' }}>
-        {userRole !== 'client' && <button onClick={() => navigate('/admin/clientes')} className="crm-btn-border">Volver a Clientes</button>}
-        {(userRole === 'super admin' || userRole === 'admin') && client && !loadingDetails && <button onClick={openEditModal} className="crm-btn-black">Editar Datos del Cliente</button>}
+      <div className="crm-actions-bar" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {userRole !== 'client' ? (
+          <button onClick={() => navigate('/admin/clientes')} className="crm-btn-border">Volver a Clientes</button>
+        ) : <div />}
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {(userRole === 'super admin' || userRole === 'admin') && client && !loadingDetails && (
+            <button 
+              onClick={() => setShowReviewModal(true)} 
+              className="crm-btn-border" 
+              style={{ backgroundColor: '#f0fdf4', color: '#16a34a', borderColor: '#16a34a', fontWeight: 'bold' }}
+            >
+              📅 Registro Diario
+            </button>
+          )}
+
+          {(userRole === 'super admin' || userRole === 'admin') && client && !loadingDetails && (
+            <button onClick={openEditModal} className="crm-btn-black">
+              Editar Datos del Cliente
+            </button>
+          )}
+        </div>
       </div>
 
       {loadingDetails || !client ? (
@@ -487,6 +510,17 @@ function ClientDetail() {
               </div>
             </div>
           )}
+
+          {/* MODAL DE REVISIÓN DIARIA INDEPENDIENTE */}
+          {showReviewModal && client && (
+            <DailyReviewModal 
+              isOpen={showReviewModal} 
+              storeId={client.id} 
+              storeName={client.name}
+              onClose={() => setShowReviewModal(false)} 
+            />
+          )}
+
         </>
       )}
     </div>

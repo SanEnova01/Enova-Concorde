@@ -10,6 +10,12 @@ const bcrypt = require('bcryptjs');
 const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
 const TicketRepository = require('./repositories/TicketRepository');
 const app = express();
+
+
+
+
+
+
 app.set('trust proxy', 1);
 
 // ==========================================
@@ -46,6 +52,10 @@ const loginLimiter = rateLimit({
   max: 5,
   message: { success: false, error: 'Demasiados intentos de sesión fallidos. Bloqueado por 5 minutos.' }
 });
+
+
+app.use('/api/manual-reviews', verificarToken, require('./routes/manualReviews'));
+
 
 app.use(express.json());
 
