@@ -1,98 +1,172 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const PLANES_ELEGIBLES = ['go', 'growth', 'scale', 'warranty'];
+// Variaciones de los planes que se consideran de alto nivel (incluyendo errores de tipeo comunes)
+const PLANES_ELEGIBLES = ['go', 'growth', 'scale', 'escale', 'scale_plus', 'warranty'];
 
 const ManualReviewForm = () => {
   const [stores, setStores] = useState([]);
-  const [formData, setFormData] = useState({
-    store_id: '',
-    review_date: new Date().toISOString().split('T')[0],
-    home_page: false,
-    blog: false,
-    pdp: false,
-    cart: false,
-    checkout: false,
-    reviewer_name: 'Agente'
-  });
+  const [checks, setChecks] = useState({});
+  const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState({}); // Para mostrar "✅ Guardado" temporalmente
 
   useEffect(() => {
     const fetchStores = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const { data } = await axios.get('/api/stores', {
+        const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
+        const res = await axios.get('/api/stores', {
           headers: { Authorization: `Bearer ${token}` }
         });
-        const validStores = data.data.filter(store => 
-          PLANES_ELEGIBLES.includes(String(store.plan_type).toLowerCase())
-        );
+        
+        const rawStores = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+        
+        // Filtro a prueba de fallos
+        const validStores = rawStores.filter(store => {
+          if (!store.plan_type) return false;
+          const plan = String(store.plan_type).toLowerCase().trim();
+          return PLANES_ELEGIBLES.includes(plan);
+        });
+
+        // Ordenar alfabéticamente
+        validStores.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        
         setStores(validStores);
+
+        // Inicializar el estado de los checkboxes para cada tienda
+        const initialChecks = {};
+        validStores.forEach(s => {
+          initialChecks[s.id] = { home_page: false, blog: false, pdp: false, cart: false, checkout: false };
+        });
+        setChecks(initialChecks);
+        setLoading(false);
+
       } catch (error) {
         console.error('Error cargando tiendas:', error);
+        setLoading(false);
       }
     };
     fetchStores();
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value
-    });
+  const handleCheck = (storeId, field) => {
+    setChecks(prev => ({
+      ...prev,
+      [storeId]: {
+        ...prev[storeId],
+        [field]: !prev[storeId][field]
+      }
+    }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.store_id) return alert('Selecciona una tienda');
-    
+  const handleSaveRow = async (store) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post('/api/manual-reviews', formData, {
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
+      const payload = {
+        store_id: store.id,
+        review_date: reviewDate,
+        ...checks[store.id],
+        reviewer_name: 'Control de Calidad'
+      };
+
+      await axios.post('/api/manual-reviews', payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('✅ Revisión guardada exitosamente');
-      setFormData(prev => ({ ...prev, home_page: false, blog: false, pdp: false, cart: false, checkout: false }));
+
+      // Efecto visual de guardado exitoso
+      setSaveStatus(prev => ({ ...prev, [store.id]: 'success' }));
+      setTimeout(() => {
+        setSaveStatus(prev => ({ ...prev, [store.id]: null }));
+        // Opcional: limpiar los checks de esa fila tras guardar
+        setChecks(prev => ({
+          ...prev,
+          [store.id]: { home_page: false, blog: false, pdp: false, cart: false, checkout: false }
+        }));
+      }, 2000);
+
     } catch (error) {
-      alert('Error al guardar la revisión');
+      alert(`Error al guardar la revisión de ${store.name}`);
     }
   };
 
+  if (loading) return <div className="crm-text-loading" style={{ padding: '40px' }}>Cargando lista de tiendas...</div>;
+
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', backgroundColor: 'white', borderRadius: '8px', margin: '20px auto', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-      <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '20px' }}>Registro de Revisión Manual</h2>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', margin: '0 0 8px 0' }}>Registro de Calidad (Q/A)</h1>
+          <p style={{ color: '#666', margin: 0, fontSize: '14px' }}>Verifica las vistas principales de los clientes con planes activos.</p>
+        </div>
         
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Tienda (Planes: Go, Growth, Scale, Warranty)</label>
-          <select name="store_id" value={formData.store_id} onChange={handleChange} required style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
-            <option value="">-- Selecciona una tienda --</option>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #111', boxShadow: '2px 2px 0px #111' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Fecha de Auditoría:</span>
+          <input 
+            type="date" 
+            value={reviewDate} 
+            onChange={(e) => setReviewDate(e.target.value)} 
+            style={{ border: 'none', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit', color: '#111', cursor: 'pointer' }}
+          />
+        </div>
+      </div>
+
+      <div className="crm-card-paper" style={{ padding: 0, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #111', backgroundColor: '#f9f9f9' }}>
+              <th style={{ padding: '16px', textAlign: 'left', fontWeight: '900' }}>CLIENTE / TIENDA</th>
+              <th style={{ padding: '16px', textAlign: 'center', fontWeight: '900' }}>HOME</th>
+              <th style={{ padding: '16px', textAlign: 'center', fontWeight: '900' }}>BLOG</th>
+              <th style={{ padding: '16px', textAlign: 'center', fontWeight: '900' }}>PDP</th>
+              <th style={{ padding: '16px', textAlign: 'center', fontWeight: '900' }}>CARRITO</th>
+              <th style={{ padding: '16px', textAlign: 'center', fontWeight: '900' }}>CHECKOUT</th>
+              <th style={{ padding: '16px', textAlign: 'center', fontWeight: '900' }}>ACCIÓN</th>
+            </tr>
+          </thead>
+          <tbody>
             {stores.map(store => (
-              <option key={store.id} value={store.id}>{store.name} ({store.plan_type})</option>
+              <tr key={store.id} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ fontWeight: 'bold', color: '#111', fontSize: '14px' }}>{store.name}</div>
+                  <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', marginTop: '4px' }}>Plan: {store.plan_type}</div>
+                </td>
+                
+                {['home_page', 'blog', 'pdp', 'cart', 'checkout'].map(field => (
+                  <td key={field} style={{ padding: '12px', textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={checks[store.id]?.[field] || false}
+                      onChange={() => handleCheck(store.id, field)}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#111' }}
+                    />
+                  </td>
+                ))}
+
+                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                  {saveStatus[store.id] === 'success' ? (
+                    <span style={{ display: 'inline-block', padding: '6px 12px', backgroundColor: '#16a34a', color: 'white', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>
+                      ✅ OK
+                    </span>
+                  ) : (
+                    <button onClick={() => handleSaveRow(store)} className="crm-btn-black" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                      Guardar
+                    </button>
+                  )}
+                </td>
+              </tr>
             ))}
-          </select>
-        </div>
+            {stores.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: '#666' }}>
+                  No hay tiendas elegibles registradas en la base de datos.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Fecha de Revisión</label>
-          <input type="date" name="review_date" value={formData.review_date} onChange={handleChange} required style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }} />
-        </div>
-
-        <div style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '5px' }}>
-          <strong style={{ display: 'block', marginBottom: '10px' }}>Puntos de Control Verificados (Marca si está OK):</strong>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}><input type="checkbox" name="home_page" checked={formData.home_page} onChange={handleChange} /> 1. Página Principal (Home)</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}><input type="checkbox" name="blog" checked={formData.blog} onChange={handleChange} /> 2. Blog</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}><input type="checkbox" name="pdp" checked={formData.pdp} onChange={handleChange} /> 3. PDP (Página de Producto)</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}><input type="checkbox" name="cart" checked={formData.cart} onChange={handleChange} /> 4. Carrito / Pre-checkout</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}><input type="checkbox" name="checkout" checked={formData.checkout} onChange={handleChange} /> 5. Checkout</label>
-          </div>
-        </div>
-
-        <button type="submit" style={{ padding: '10px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' }}>
-          Subir Registro
-        </button>
-      </form>
     </div>
   );
 };

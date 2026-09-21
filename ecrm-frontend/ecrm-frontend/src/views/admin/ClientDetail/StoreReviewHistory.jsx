@@ -2,79 +2,149 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const StoreReviewHistory = ({ storeId }) => {
-  const [reviews, setReviews] = useState([]);
-  const [filter, setFilter] = useState('all');
+  const [groupedReviews, setGroupedReviews] = useState({});
+  const [openDays, setOpenDays] = useState({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
         const { data } = await axios.get(`/api/manual-reviews/${storeId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (data.success) setReviews(data.data);
+        
+        if (data.success) {
+          // Agrupar las revisiones por fecha exacta
+          const groups = data.data.reduce((acc, rev) => {
+            const dateStr = new Date(rev.review_date).toLocaleDateString('es-ES', { 
+              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+            });
+            if (!acc[dateStr]) acc[dateStr] = [];
+            acc[dateStr].push(rev);
+            return acc;
+          }, {});
+          
+          setGroupedReviews(groups);
+
+          // Abrir automáticamente el primer acordeón (el más reciente)
+          const firstDate = Object.keys(groups)[0];
+          if (firstDate) {
+            setOpenDays({ [firstDate]: true });
+          }
+        }
       } catch (error) {
-        console.error('Error obteniendo historial', error);
+        console.error('Error obteniendo historial de revisiones', error);
+      } finally {
+        setLoading(false);
       }
     };
+
     if (storeId) fetchReviews();
   }, [storeId]);
 
-  const getFilteredReviews = () => {
-    const now = new Date();
-    return reviews.filter(rev => {
-      const revDate = new Date(rev.review_date);
-      if (filter === 'diario') return revDate.toDateString() === now.toDateString();
-      if (filter === 'semanal') {
-        const diff = (now - revDate) / (1000 * 60 * 60 * 24);
-        return diff <= 7;
-      }
-      if (filter === 'mensual') return revDate.getMonth() === now.getMonth() && revDate.getFullYear() === now.getFullYear();
-      return true;
-    });
+  const toggleDay = (date) => {
+    setOpenDays(prev => ({ ...prev, [date]: !prev[date] }));
   };
 
-  const renderCheck = (val) => val ? '✅' : '❌';
+  const renderStatus = (val) => val ? (
+    <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓ OK</span>
+  ) : (
+    <span style={{ color: '#dc2626', fontWeight: 'bold' }}>✗ Falla</span>
+  );
+
+  if (loading) return <div style={{ fontSize: '13px', color: '#666' }}>Cargando historial de revisiones...</div>;
+
+  const dates = Object.keys(groupedReviews);
+
+  if (dates.length === 0) {
+    return (
+      <div style={{ backgroundColor: '#f9f9f9', padding: '20px', textAlign: 'center', borderRadius: '8px', border: '1px dashed #ccc', fontSize: '13px', color: '#666' }}>
+        El equipo aún no ha registrado revisiones manuales para esta tienda.
+      </div>
+    );
+  }
 
   return (
-    <div style={{ marginTop: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 'bold' }}>Historial de Revisiones Manuales</h3>
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc' }}>
-          <option value="all">Historial Completo (Anual)</option>
-          <option value="mensual">Este Mes</option>
-          <option value="semanal">Últimos 7 Días</option>
-          <option value="diario">Hoy</option>
-        </select>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {dates.map((date) => (
+        <div key={date} style={{ border: '2px solid #111', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#fff' }}>
+          
+          {/* Cabecera del Acordeón */}
+          <div 
+            onClick={() => toggleDay(date)} 
+            style={{ 
+              backgroundColor: openDays[date] ? '#111' : '#f5f4f0', 
+              color: openDays[date] ? '#fff' : '#111',
+              padding: '12px 16px', 
+              cursor: 'pointer', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <span style={{ fontSize: '14px', fontWeight: '900', textTransform: 'capitalize' }}>
+              📅 Revisión del {date}
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold' }}>
+              {openDays[date] ? 'CERRAR ▲' : 'VER DETALLE ▼'}
+            </span>
+          </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', fontSize: '14px' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f3f4f6', textAlign: 'left' }}>
-            <th style={{ padding: '8px', border: '1px solid #ddd' }}>Fecha</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>Home</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>Blog</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>PDP</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>Carrito</th>
-            <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>Checkout</th>
-          </tr>
-        </thead>
-        <tbody>
-          {getFilteredReviews().map(rev => (
-            <tr key={rev.id}>
-              <td style={{ padding: '8px', border: '1px solid #ddd' }}>{new Date(rev.review_date).toLocaleDateString()}</td>
-              <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{renderCheck(rev.home_page)}</td>
-              <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{renderCheck(rev.blog)}</td>
-              <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{renderCheck(rev.pdp)}</td>
-              <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{renderCheck(rev.cart)}</td>
-              <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{renderCheck(rev.checkout)}</td>
-            </tr>
-          ))}
-          {getFilteredReviews().length === 0 && (
-            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '15px' }}>No hay revisiones en este periodo.</td></tr>
+          {/* Contenido Desplegable */}
+          {openDays[date] && (
+            <div style={{ padding: '16px', borderTop: '2px solid #111' }}>
+              {groupedReviews[date].map((rev, idx) => (
+                <div key={rev.id} style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(5, 1fr)', 
+                  gap: '12px', 
+                  textAlign: 'center',
+                  paddingTop: idx > 0 ? '16px' : '0',
+                  marginTop: idx > 0 ? '16px' : '0',
+                  borderTop: idx > 0 ? '1px dashed #ccc' : 'none'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Home Page</span>
+                    <div style={{ backgroundColor: rev.home_page ? '#dcfce7' : '#fee2e2', padding: '6px', borderRadius: '4px', fontSize: '13px' }}>
+                      {renderStatus(rev.home_page)}
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Blog</span>
+                    <div style={{ backgroundColor: rev.blog ? '#dcfce7' : '#fee2e2', padding: '6px', borderRadius: '4px', fontSize: '13px' }}>
+                      {renderStatus(rev.blog)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Producto (PDP)</span>
+                    <div style={{ backgroundColor: rev.pdp ? '#dcfce7' : '#fee2e2', padding: '6px', borderRadius: '4px', fontSize: '13px' }}>
+                      {renderStatus(rev.pdp)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Carrito</span>
+                    <div style={{ backgroundColor: rev.cart ? '#dcfce7' : '#fee2e2', padding: '6px', borderRadius: '4px', fontSize: '13px' }}>
+                      {renderStatus(rev.cart)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase' }}>Checkout</span>
+                    <div style={{ backgroundColor: rev.checkout ? '#dcfce7' : '#fee2e2', padding: '6px', borderRadius: '4px', fontSize: '13px' }}>
+                      {renderStatus(rev.checkout)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
-        </tbody>
-      </table>
+        </div>
+      ))}
     </div>
   );
 };
