@@ -464,14 +464,11 @@ function App() {
             <AdminLayout><ImageExtractorView /></AdminLayout>
           </ProtectedRoute>
         } />
-        <Route 
-  path="/admin/cotizaciones/nueva" 
-  element={
-    <ProtectedRoute allowedRoles={['super admin']}>
-      <QuoteGenerator />
-    </ProtectedRoute>
-  } 
-/>
+        <Route path="/admin/cotizaciones/nueva" element={
+          <ProtectedRoute allowedRoles={['super admin']}>
+            <AdminLayout><QuoteGenerator /></AdminLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/reportes" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><ReportGenerator /></AdminLayout>

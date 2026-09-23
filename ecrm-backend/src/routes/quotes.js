@@ -1,11 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const puppeteer = require('puppeteer');
 
 // 🔒 Middleware de seguridad interno para asegurar que sea Super Admin
 const checkSuperAdmin = (req, res, next) => {
-  // Ajusta 'req.user' o 'req.adminUser' dependiendo de cómo lo llame tu middleware verificarToken
   const user = req.adminUser || req.user; 
   if (!user || user.role !== 'super admin') {
     return res.status(403).json({ success: false, error: 'Acceso denegado. Exclusivo para Super Admins.' });
@@ -31,7 +29,6 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
 
     let finalStoreId = store_id;
 
-    // A. Lógica de creación de LEAD si no hay store_id
     if (!finalStoreId && nombre_tienda_nueva) {
       finalStoreId = `lead_${Date.now()}`;
       await db('stores').insert({
@@ -43,7 +40,6 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
       console.log(`[QUOTES] Nuevo Lead creado: ${nombre_tienda_nueva}`);
     }
 
-    // B. Guardar el pre-ticket en la BD
     const [nuevaCotizacion] = await db('quotes').insert({
       store_id: finalStoreId,
       razon_social,
@@ -55,7 +51,6 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
       json_data: JSON.stringify(pdfData)
     }).returning('*');
 
-    // C. Generación del HTML para el PDF
     const breakdownItemsHTML = pdfData.items.map(item => `
       <div class="breakdown-item">
         <span>${item.name || ''}</span>
@@ -68,7 +63,6 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
     <html lang="es">
     <head>
         <meta charset="UTF-8">
-        <title>Cotización - Enova</title>
         <style>
             * { box-sizing: border-box; }
             @page { size: A4; margin: 10mm 15mm; }
@@ -175,7 +169,9 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
     </html>
     `;
 
-    // D. Renderizado del PDF con Puppeteer
+    // 🌟 IMPORTACIÓN DINÁMICA DE PUPPETEER PARA EVITAR ERR_REQUIRE_ESM
+    const { default: puppeteer } = await import('puppeteer');
+    
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
@@ -183,7 +179,6 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();
 
-    // E. Devolver el archivo directamente al navegador
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="cotizacion_${nombre_comercial || 'enova'}.pdf"`,
@@ -197,12 +192,8 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
   }
 });
 
-// ==========================================
-// 2. GET: OBTENER TODAS LAS COTIZACIONES (DASHBOARD)
-// ==========================================
 router.get('/', checkSuperAdmin, async (req, res) => {
   try {
-    // Traemos todo ordenado por fecha de creación (más reciente primero)
     const quotes = await db('quotes').orderBy('created_at', 'desc');
     res.json({ success: true, data: quotes });
   } catch (error) {
@@ -211,9 +202,6 @@ router.get('/', checkSuperAdmin, async (req, res) => {
   }
 });
 
-// ==========================================
-// 3. PUT: ACTUALIZAR STATUS, FACTURA Y COMISIÓN (DASHBOARD)
-// ==========================================
 router.put('/:id', checkSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;

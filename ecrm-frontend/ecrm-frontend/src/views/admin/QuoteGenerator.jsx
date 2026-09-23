@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import crmApi from '../../api/crmApi'; // 🌟 USAMOS LA INSTANCIA CONFIGURADA EN LUGAR DE AXIOS PURO
 
 const QuoteGenerator = () => {
   const [loading, setLoading] = useState(false);
   const [stores, setStores] = useState([]);
   const [isNewLead, setIsNewLead] = useState(false);
 
-  // 1. DATOS INTERNOS (Para la BD y el Dashboard)
   const [crmData, setCrmData] = useState({
     store_id: '',
     nombre_tienda_nueva: '',
     razon_social: '',
     nombre_comercial: '',
-    mes: new Date().toISOString().slice(0, 7) // Formato YYYY-MM por defecto
+    mes: new Date().toISOString().slice(0, 7) 
   });
 
-  // 2. DATOS DEL PDF (Estéticos)
   const [pdfData, setPdfData] = useState({
     tag: 'Cliente Preferencial / Fee Activo',
     title: 'Expansión E-Commerce:<br>Desarrollo de 6 Landing Pages',
@@ -32,23 +30,16 @@ const QuoteGenerator = () => {
     newPriceBanner: '$500.00'
   });
 
-  // Desglose dinámico de ítems para el PDF
   const [items, setItems] = useState([
-    { name: '1. Solera', price: '$83.33 USD' },
-    { name: '2. Nosotros', price: '$83.33 USD' },
-    { name: '3. Fabricación Tableros', price: '$83.33 USD' },
-    { name: '4. Soluciones Empresas', price: '$83.33 USD' },
-    { name: '5. Distribuidores', price: '$83.33 USD' },
-    { name: '6. Contacto', price: '$83.33 USD' }
+    { name: '1. Solera', price: '$83.33 USD +IGV' },
+    { name: '2. Nosotros', price: '$83.33 USD +IGV' }
   ]);
 
-  // Cargar las tiendas existentes al montar el componente
+  // Cargar las tiendas usando crmApi
   useEffect(() => {
     const fetchStores = async () => {
       try {
-        const res = await axios.get('/api/stores', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
+        const res = await crmApi.get('/stores');
         setStores(res.data.data || []);
       } catch (error) {
         console.error('Error cargando tiendas:', error);
@@ -66,12 +57,15 @@ const QuoteGenerator = () => {
     setItems(newItems);
   };
 
+  // 🌟 AGREGAR Y ELIMINAR ÍTEMS DINÁMICOS
+  const addItem = () => setItems([...items, { name: '', price: '' }]);
+  const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Extraemos el monto numérico del campo totalPref para guardarlo limpio en BD
       const montoLimpio = parseFloat(pdfData.totalPref.replace(/[^0-9.-]+/g,"")) || 0;
 
       const payload = {
@@ -79,18 +73,16 @@ const QuoteGenerator = () => {
         nombre_tienda_nueva: isNewLead ? crmData.nombre_tienda_nueva : '',
         razon_social: crmData.razon_social,
         nombre_comercial: crmData.nombre_comercial,
-        descripcion: pdfData.title.replace(/<br>/g, ' '), // Título limpio como descripción
+        descripcion: pdfData.title.replace(/<br>/g, ' '),
         mes: crmData.mes,
         monto: montoLimpio,
-        pdfData: { ...pdfData, items } // Empaquetamos todo lo del PDF en un objeto
+        pdfData: { ...pdfData, items } 
       };
 
-      const res = await axios.post('/api/quotes/generate', payload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        responseType: 'blob' // Fundamental para que el navegador entienda que viene un archivo PDF
+      const res = await crmApi.post('/quotes/generate', payload, {
+        responseType: 'blob'
       });
 
-      // Descargar el PDF generado
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -116,7 +108,6 @@ const QuoteGenerator = () => {
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
-        {/* BLOQUE 1: DATOS INTERNOS (CRM) */}
         <div style={{ backgroundColor: '#f9fafb', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
           <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '900', color: '#111' }}>1. Datos para el Dashboard y Finanzas</h3>
           
@@ -158,7 +149,6 @@ const QuoteGenerator = () => {
           </div>
         </div>
 
-        {/* BLOQUE 2: CONTENIDO VISUAL DEL PDF */}
         <div style={{ borderTop: '2px dashed #ccc', paddingTop: '24px' }}>
           <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '900', color: '#111' }}>2. Diseño del PDF (Editable)</h3>
           
@@ -183,12 +173,16 @@ const QuoteGenerator = () => {
             <input type="text" name="discountText" placeholder="Texto Descuento" value={pdfData.discountText} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
           </div>
 
-          <h4 style={{ fontSize: '14px', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '12px' }}>Desglose de Ítems (Opcional)</h4>
+          <h4 style={{ fontSize: '14px', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Desglose de Ítems (Opcional)
+            <button type="button" onClick={addItem} style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>+ Agregar Ítem</button>
+          </h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
             {items.map((item, index) => (
-              <div key={index} style={{ display: 'flex', gap: '8px' }}>
+              <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input type="text" value={item.name} onChange={(e) => handleItemChange(index, 'name', e.target.value)} placeholder={`Ítem ${index + 1}`} style={{ flex: 1, padding: '8px', border: '1px solid #ccc' }} />
-                <input type="text" value={item.price} onChange={(e) => handleItemChange(index, 'price', e.target.value)} placeholder="$0.00" style={{ width: '100px', padding: '8px', border: '1px solid #ccc' }} />
+                <input type="text" value={item.price} onChange={(e) => handleItemChange(index, 'price', e.target.value)} placeholder="$0.00" style={{ width: '120px', padding: '8px', border: '1px solid #ccc' }} />
+                <button type="button" onClick={() => removeItem(index)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
               </div>
             ))}
           </div>
