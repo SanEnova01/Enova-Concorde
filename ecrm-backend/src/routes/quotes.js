@@ -34,8 +34,8 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
       await db('stores').insert({
         id: finalStoreId,
         name: nombre_tienda_nueva,
-        status: 'LEAD',
-        created_at: db.fn.now()
+        plan_type: 'LEAD',
+        ticket_count: 0
       });
       console.log(`[QUOTES] Nuevo Lead creado: ${nombre_tienda_nueva}`);
     }

@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import crmApi from '../../api/crmApi'; // 🌟 USAMOS LA INSTANCIA CONFIGURADA EN LUGAR DE AXIOS PURO
+import React, { useState, useEffect, useRef } from 'react';
+import crmApi from '../../api/crmApi'; 
 
 const QuoteGenerator = () => {
   const [loading, setLoading] = useState(false);
   const [stores, setStores] = useState([]);
   const [isNewLead, setIsNewLead] = useState(false);
+
+  // Estados para el buscador predictivo
+  const [storeSearchTerm, setStoreSearchTerm] = useState('');
+  const [showStoreDropdown, setShowStoreDropdown] = useState(false);
+  const dropdownRef = useRef(null);
 
   const [crmData, setCrmData] = useState({
     store_id: '',
@@ -35,7 +40,6 @@ const QuoteGenerator = () => {
     { name: '2. Nosotros', price: '$83.33 USD +IGV' }
   ]);
 
-  // Cargar las tiendas usando crmApi
   useEffect(() => {
     const fetchStores = async () => {
       try {
@@ -48,6 +52,17 @@ const QuoteGenerator = () => {
     fetchStores();
   }, []);
 
+  // Cerrar el dropdown si se hace clic fuera de él
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowStoreDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleCrmChange = (e) => setCrmData({ ...crmData, [e.target.name]: e.target.value });
   const handlePdfChange = (e) => setPdfData({ ...pdfData, [e.target.name]: e.target.value });
   
@@ -57,14 +72,19 @@ const QuoteGenerator = () => {
     setItems(newItems);
   };
 
-  // 🌟 AGREGAR Y ELIMINAR ÍTEMS DINÁMICOS
   const addItem = () => setItems([...items, { name: '', price: '' }]);
   const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
 
+  const filteredStores = stores.filter(s => s.name.toLowerCase().includes(storeSearchTerm.toLowerCase()));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    
+    if (!isNewLead && !crmData.store_id) {
+      return alert("Por favor selecciona un cliente de la lista.");
+    }
 
+    setLoading(true);
     try {
       const montoLimpio = parseFloat(pdfData.totalPref.replace(/[^0-9.-]+/g,"")) || 0;
 
@@ -116,18 +136,52 @@ const QuoteGenerator = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Cliente Destino</label>
                 <label style={{ fontSize: '12px', cursor: 'pointer', color: '#16a34a', fontWeight: 'bold' }}>
-                  <input type="checkbox" checked={isNewLead} onChange={(e) => setIsNewLead(e.target.checked)} style={{ marginRight: '4px' }}/>
+                  <input type="checkbox" checked={isNewLead} onChange={(e) => {
+                    setIsNewLead(e.target.checked);
+                    setStoreSearchTerm('');
+                    setCrmData({...crmData, store_id: '', nombre_tienda_nueva: ''});
+                  }} style={{ marginRight: '4px' }}/>
                   Es un nuevo Lead
                 </label>
               </div>
               
               {!isNewLead ? (
-                <select name="store_id" value={crmData.store_id} onChange={handleCrmChange} required style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }}>
-                  <option value="">Seleccione un cliente existente...</option>
-                  {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <div style={{ position: 'relative' }} ref={dropdownRef}>
+                  <input 
+                    type="text" 
+                    value={storeSearchTerm}
+                    onChange={(e) => {
+                      setStoreSearchTerm(e.target.value);
+                      setShowStoreDropdown(true);
+                      setCrmData({ ...crmData, store_id: '' }); // Limpia el id si edita el texto
+                    }}
+                    onFocus={() => setShowStoreDropdown(true)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} 
+                  />
+                  {showStoreDropdown && (
+                    <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#fff', border: '1px solid #ccc', borderTop: 'none', borderRadius: '0 0 4px 4px', maxHeight: '200px', overflowY: 'auto', margin: 0, padding: 0, listStyle: 'none', zIndex: 50, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                      {filteredStores.length > 0 ? filteredStores.map(s => (
+                        <li 
+                          key={s.id} 
+                          onClick={() => {
+                            setCrmData({ ...crmData, store_id: s.id });
+                            setStoreSearchTerm(s.name);
+                            setShowStoreDropdown(false);
+                          }}
+                          style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          {s.name}
+                        </li>
+                      )) : (
+                        <li style={{ padding: '10px', fontSize: '13px', color: '#666', fontStyle: 'italic' }}>No se encontraron resultados</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               ) : (
-                <input type="text" name="nombre_tienda_nueva" value={crmData.nombre_tienda_nueva} onChange={handleCrmChange} placeholder="Ej. Ferreterías XYZ" required style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                <input type="text" name="nombre_tienda_nueva" value={crmData.nombre_tienda_nueva} onChange={handleCrmChange} required style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
               )}
             </div>
 
@@ -140,11 +194,11 @@ const QuoteGenerator = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>Razón Social (Facturación)</label>
-              <input type="text" name="razon_social" value={crmData.razon_social} onChange={handleCrmChange} placeholder="Ej. Inversiones XYZ S.A.C." required style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
+              <input type="text" name="razon_social" value={crmData.razon_social} onChange={handleCrmChange} required style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
             </div>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>Nombre Comercial</label>
-              <input type="text" name="nombre_comercial" value={crmData.nombre_comercial} onChange={handleCrmChange} placeholder="Ej. XYZ Retail" required style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
+              <input type="text" name="nombre_comercial" value={crmData.nombre_comercial} onChange={handleCrmChange} required style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
             </div>
           </div>
         </div>
@@ -153,24 +207,54 @@ const QuoteGenerator = () => {
           <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '900', color: '#111' }}>2. Diseño del PDF (Editable)</h3>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px', marginBottom: '16px' }}>
-            <input type="text" name="tag" placeholder="Tag (Ej. Cliente Preferencial)" value={pdfData.tag} onChange={handlePdfChange} style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
-            <input type="text" name="title" placeholder="Título (Usa <br> para saltos)" value={pdfData.title} onChange={handlePdfChange} style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Etiqueta (Tag)</label>
+              <input type="text" name="tag" value={pdfData.tag} onChange={handlePdfChange} style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Título Principal (Usa &lt;br&gt; para saltos)</label>
+              <input type="text" name="title" value={pdfData.title} onChange={handlePdfChange} style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
+            </div>
           </div>
 
-          <textarea name="pitch" placeholder="Argumento de Venta..." value={pdfData.pitch} onChange={handlePdfChange} rows="3" style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', marginBottom: '16px' }} />
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Argumento de Venta (Pitch)</label>
+            <textarea name="pitch" value={pdfData.pitch} onChange={handlePdfChange} rows="3" style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
+          </div>
 
           <h4 style={{ fontSize: '14px', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '12px' }}>Costos Base</h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-            <input type="text" name="conceptName" placeholder="Concepto" value={pdfData.conceptName} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
-            <input type="text" name="quantity" placeholder="Cantidad" value={pdfData.quantity} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
-            <input type="text" name="unitPriceStandard" placeholder="Unit. Estándar" value={pdfData.unitPriceStandard} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
-            <input type="text" name="unitPricePref" placeholder="Unit. Preferencial" value={pdfData.unitPricePref} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Concepto</label>
+              <input type="text" name="conceptName" value={pdfData.conceptName} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Cantidad</label>
+              <input type="text" name="quantity" value={pdfData.quantity} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Unit. Estándar</label>
+              <input type="text" name="unitPriceStandard" value={pdfData.unitPriceStandard} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Unit. Preferencial</label>
+              <input type="text" name="unitPricePref" value={pdfData.unitPricePref} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-            <input type="text" name="subtotalStandard" placeholder="Subtotal Estándar" value={pdfData.subtotalStandard} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
-            <input type="text" name="totalPref" placeholder="Total Preferencial (Monto BD)" value={pdfData.totalPref} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #14B8A6', backgroundColor: '#f0fdfa' }} title="Este valor se registrará en el Dashboard" />
-            <input type="text" name="discountText" placeholder="Texto Descuento" value={pdfData.discountText} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Subtotal Estándar</label>
+              <input type="text" name="subtotalStandard" value={pdfData.subtotalStandard} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Total Preferencial (Monto BD)</label>
+              <input type="text" name="totalPref" value={pdfData.totalPref} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #14B8A6', backgroundColor: '#f0fdfa' }} title="Este valor se registrará en el Dashboard" />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Texto de Descuento</label>
+              <input type="text" name="discountText" value={pdfData.discountText} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
           </div>
 
           <h4 style={{ fontSize: '14px', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -179,19 +263,34 @@ const QuoteGenerator = () => {
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
             {items.map((item, index) => (
-              <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input type="text" value={item.name} onChange={(e) => handleItemChange(index, 'name', e.target.value)} placeholder={`Ítem ${index + 1}`} style={{ flex: 1, padding: '8px', border: '1px solid #ccc' }} />
-                <input type="text" value={item.price} onChange={(e) => handleItemChange(index, 'price', e.target.value)} placeholder="$0.00" style={{ width: '120px', padding: '8px', border: '1px solid #ccc' }} />
-                <button type="button" onClick={() => removeItem(index)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
+              <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Nombre del Ítem</label>
+                  <input type="text" value={item.name} onChange={(e) => handleItemChange(index, 'name', e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio</label>
+                  <input type="text" value={item.price} onChange={(e) => handleItemChange(index, 'price', e.target.value)} style={{ width: '120px', padding: '8px', border: '1px solid #ccc' }} />
+                </div>
+                <button type="button" onClick={() => removeItem(index)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', height: '35px', display: 'flex', alignItems: 'center' }}>X</button>
               </div>
             ))}
           </div>
 
           <h4 style={{ fontSize: '14px', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '12px' }}>Banner Final</h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <input type="text" name="oldPriceBanner" placeholder="Precio Tachado" value={pdfData.oldPriceBanner} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
-            <input type="text" name="newPriceBanner" placeholder="Precio Destacado" value={pdfData.newPriceBanner} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc', fontWeight: 'bold' }} />
-            <input type="text" name="footerNote" placeholder="Nota al pie (Fee, etc.)" value={pdfData.footerNote} onChange={handlePdfChange} style={{ padding: '8px', border: '1px solid #ccc' }} />
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Tachado</label>
+              <input type="text" name="oldPriceBanner" value={pdfData.oldPriceBanner} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Destacado</label>
+              <input type="text" name="newPriceBanner" value={pdfData.newPriceBanner} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc', fontWeight: 'bold' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Nota al pie</label>
+              <input type="text" name="footerNote" value={pdfData.footerNote} onChange={handlePdfChange} style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+            </div>
           </div>
         </div>
 
