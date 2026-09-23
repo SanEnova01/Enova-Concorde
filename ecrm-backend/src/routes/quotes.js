@@ -72,6 +72,13 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
             .logo-title { font-size: 24px; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: -1px; }
             .logo-subtitle { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin: 2px 0 0 0; font-weight: bold; }
             .header-badge { background: #000; color: #fff; padding: 5px 10px; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+            
+            /* Caja de información del cliente */
+            .client-box { margin-bottom: 20px; font-size: 12px; border-left: 4px solid #14B8A6; background: #fff; padding: 12px; border-top: 2px solid #000; border-right: 2px solid #000; border-bottom: 2px solid #000; box-shadow: 3px 3px 0px #000; }
+            .client-box strong { font-size: 10px; color: #666; text-transform: uppercase; }
+            .client-box .client-name { font-size: 16px; font-weight: 900; text-transform: uppercase; display: block; margin-top: 4px; }
+            .client-box .client-details { font-size: 12px; font-weight: bold; display: block; margin-top: 2px; }
+
             .main-title { font-size: 28px; font-weight: 900; text-transform: uppercase; line-height: 1.1; margin: 0 0 15px 0; letter-spacing: -1px; }
             .tag { display: inline-block; border: 2px solid #000; background: #14B8A6; color: #000; font-weight: 900; font-size: 10px; padding: 3px 8px; text-transform: uppercase; margin-bottom: 10px; }
             .pitch-box { border: 3px solid #000; font-size: 13.5px; font-weight: bold; color: #111; margin-bottom: 20px; background: #fff; padding: 15px; box-shadow: 4px 4px 0px #000; }
@@ -108,6 +115,14 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
                     <h3 class="logo-subtitle">Concorde Radar // Cotizaciones</h3>
                 </div>
                 <div class="header-badge">Propuesta Comercial</div>
+            </div>
+
+            <!-- Caja de Información del Cliente -->
+            <div class="client-box">
+                <strong>Cliente Destino:</strong>
+                <span class="client-name">${nombre_comercial}</span>
+                <span class="client-details">Razón Social: ${razon_social}</span>
+                <span class="client-details">Mes de Proyección: ${mes}</span>
             </div>
 
             <div class="tag">${pdfData.tag}</div>
