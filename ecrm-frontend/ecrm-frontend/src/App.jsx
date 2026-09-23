@@ -30,7 +30,7 @@ import ReportGenerator from './views/admin/ReportGenerator';
 import ProtectedRoute from './components/ProtectedRoute';
 import crmApi from './api/crmApi';
 import ImageExtractorView from './views/admin/ImageExtractorView';
-
+import QuoteGenerator from './views/admin/QuoteGenerator';
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -99,7 +99,7 @@ function AdminLayout({ children }) {
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     { path: '/admin/reviews', icon: <ShieldCheck size={20} />, label: 'Reportes diarios', allowed: ['super admin', 'admin'] },
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
-
+    { path: '/admin/cotizaciones/nueva', label: 'Generar Cotización', allowed: ['super admin'] },
     { 
       id: 'concorde_tools', 
       label: 'Concorde Tools', 
@@ -464,7 +464,14 @@ function App() {
             <AdminLayout><ImageExtractorView /></AdminLayout>
           </ProtectedRoute>
         } />
-
+        <Route 
+  path="/admin/cotizaciones/nueva" 
+  element={
+    <ProtectedRoute allowedRoles={['super admin']}>
+      <QuoteGenerator />
+    </ProtectedRoute>
+  } 
+/>
         <Route path="/admin/reportes" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><ReportGenerator /></AdminLayout>

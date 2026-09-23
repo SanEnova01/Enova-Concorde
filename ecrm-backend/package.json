@@ -28,6 +28,7 @@
     "nodemailer": "^9.0.3",
     "openai": "^6.48.0",
     "pg": "^8.21.0",
+    "puppeteer": "^25.12.0",
     "socket.io": "^4.8.3",
     "streamifier": "^0.1.1"
   },

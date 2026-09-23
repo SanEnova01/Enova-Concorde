@@ -360,7 +360,7 @@ app.use('/api/manual-reviews', verificarToken, require('./routes/reviews'));
 app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 app.use('/api/ai', verificarToken, require('./routes/ai'));
 app.use('/api/manual-reviews', verificarToken, require('./routes/manualReviews'));
-
+app.use('/api/quotes', verificarToken, require('./routes/quotes'));
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE SHOPIFY
 // ==========================================
