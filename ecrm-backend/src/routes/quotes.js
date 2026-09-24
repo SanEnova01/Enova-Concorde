@@ -58,6 +58,33 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
       </div>
     `).join('');
 
+    // 🌟 LÓGICA DINÁMICA DE BLOQUES HTML 🌟
+    const hasPreferential = pdfData.hasPreferential === true;
+
+    const preferentialHeader = hasPreferential 
+      ? `<th width="25%" class="right">PRECIO PREFERENCIAL (+ IGV)</th>` 
+      : ``;
+
+    const preferentialCell = hasPreferential 
+      ? `<td class="right highlight-bg">
+            <span style="font-size: 13px; display:block; margin-bottom: 4px;">${pdfData.unitPricePref}</span>
+            <span class="price-final">Total: ${pdfData.totalPref}</span>
+         </td>` 
+      : ``;
+
+    const strikePriceHtml = hasPreferential
+      ? `<span class="price-strike">${pdfData.unitPriceStandard}</span>`
+      : ``;
+
+    const oldPriceBannerHtml = hasPreferential 
+      ? `<span class="old-price">${pdfData.oldPriceBanner}</span>` 
+      : ``;
+
+    const discountTextHtml = hasPreferential 
+      ? `<p class="discount-text">${pdfData.discountText}</p>` 
+      : ``;
+
+    // INYECCIÓN AL TEMPLATE HTML
     const htmlContent = `
     <!DOCTYPE html>
     <html lang="es">
@@ -139,7 +166,7 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
                                 <th width="35%">Concepto</th>
                                 <th width="15%" class="center">Cantidad</th>
                                 <th width="25%" class="right">Precio Estándar (+ IGV)</th>
-                                <th width="25%" class="right">Precio Preferencial (+ IGV)</th>
+                                ${preferentialHeader} <!-- COLUMNA DINÁMICA -->
                             </tr>
                         </thead>
                         <tbody>
@@ -147,18 +174,15 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
                                 <td>${pdfData.conceptName}</td>
                                 <td class="center" style="font-size: 14px;">${pdfData.quantity}</td>
                                 <td class="right">
-                                    <span class="price-strike">${pdfData.unitPriceStandard}</span>
+                                    ${strikePriceHtml} <!-- TACHADO DINÁMICO -->
                                     <span class="price-standard">Subtotal: ${pdfData.subtotalStandard}</span>
                                 </td>
-                                <td class="right highlight-bg">
-                                    <span style="font-size: 13px; display:block; margin-bottom: 4px;">${pdfData.unitPricePref}</span>
-                                    <span class="price-final">Total: ${pdfData.totalPref}</span>
-                                </td>
+                                ${preferentialCell} <!-- CELDA DINÁMICA -->
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <p class="discount-text">${pdfData.discountText}</p>
+                ${discountTextHtml} <!-- TEXTO DESCUENTO DINÁMICO -->
             </div>
 
             <div class="card" style="margin-bottom: 0;">
@@ -174,7 +198,7 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
                     <p>${pdfData.footerNote}</p>
                 </div>
                 <div class="total-price-box">
-                    <span class="old-price">${pdfData.oldPriceBanner}</span>
+                    ${oldPriceBannerHtml} <!-- TACHADO DEL BANNER DINÁMICO -->
                     <span class="new-price">${pdfData.newPriceBanner}</span>
                     <span class="igv-tag">USD + I.G.V.</span>
                 </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import crmApi from '../../api/crmApi';
 
-const QuotesDashboard = () => {
+const QuoteGenerator = () => {
   // ==========================================
   // ESTADOS GLOBALES Y DE PESTAÑAS
   // ==========================================
@@ -30,6 +30,7 @@ const QuotesDashboard = () => {
   });
 
   const [pdfData, setPdfData] = useState({
+    hasPreferential: false, // 🌟 NUEVO ESTADO PARA EL CHECKBOX
     tag: '',
     title: '',
     pitch: '',
@@ -50,7 +51,6 @@ const QuotesDashboard = () => {
   // ==========================================
   // EFECTOS
   // ==========================================
-  // 1. Cargar las tiendas para el buscador del formulario (1 sola vez)
   useEffect(() => {
     const fetchStores = async () => {
       try {
@@ -63,7 +63,6 @@ const QuotesDashboard = () => {
     fetchStores();
   }, []);
 
-  // 2. Cargar cotizaciones cuando la pestaña sea 'list'
   const fetchQuotes = async () => {
     setLoadingList(true);
     try {
@@ -84,7 +83,6 @@ const QuotesDashboard = () => {
     }
   }, [activeTab]);
 
-  // 3. Cerrar dropdown del buscador predictivo al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -144,7 +142,12 @@ const QuotesDashboard = () => {
 
     setIsGenerating(true);
     try {
-      const montoLimpio = parseFloat(pdfData.totalPref.replace(/[^0-9.-]+/g,"")) || 0;
+      // 🌟 LÓGICA DINÁMICA: Toma el monto correcto según el checkbox
+      const montoLimpio = parseFloat(
+        pdfData.hasPreferential 
+          ? pdfData.totalPref.replace(/[^0-9.-]+/g,"") 
+          : pdfData.newPriceBanner.replace(/[^0-9.-]+/g,"")
+      ) || 0;
 
       const payload = {
         store_id: isNewLead ? '' : crmData.store_id,
@@ -168,8 +171,6 @@ const QuotesDashboard = () => {
       link.remove();
       
       alert('¡Cotización generada y registrada exitosamente!');
-      
-      // Regresar a la lista y recargar
       setActiveTab('list');
     } catch (error) {
       console.error('Error procesando cotización:', error);
@@ -179,9 +180,6 @@ const QuotesDashboard = () => {
     }
   };
 
-  // ==========================================
-  // RENDER PRINCIPAL
-  // ==========================================
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
       
@@ -200,15 +198,9 @@ const QuotesDashboard = () => {
           <button 
             onClick={() => setActiveTab('list')}
             style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
+              padding: '8px 16px', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer',
               backgroundColor: activeTab === 'list' ? '#111' : 'transparent',
-              color: activeTab === 'list' ? '#fff' : '#555',
-              transition: 'all 0.2s'
+              color: activeTab === 'list' ? '#fff' : '#555', transition: 'all 0.2s'
             }}
           >
             📋 Tabla de Cotizaciones
@@ -216,15 +208,9 @@ const QuotesDashboard = () => {
           <button 
             onClick={() => setActiveTab('generator')}
             style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
+              padding: '8px 16px', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer',
               backgroundColor: activeTab === 'generator' ? '#14B8A6' : 'transparent',
-              color: activeTab === 'generator' ? '#000' : '#555',
-              transition: 'all 0.2s'
+              color: activeTab === 'generator' ? '#000' : '#555', transition: 'all 0.2s'
             }}
           >
             📄 Generar Nuevo PDF
@@ -232,7 +218,6 @@ const QuotesDashboard = () => {
         </div>
       </div>
 
-      {/* 🌟 CONDICIONAL DE PESTAÑAS */}
       {activeTab === 'list' ? (
         /* =========================================
            TABLA DE COTIZACIONES
@@ -247,13 +232,13 @@ const QuotesDashboard = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: '#fff' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#111', color: '#fff' }}>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cliente (Razón Social / Comercial)</th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>N° Factura</th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', width: '25%' }}>Descripción del Servicio</th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mes</th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Monto</th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
-                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Comisión</th>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase' }}>Cliente</th>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase' }}>N° Factura</th>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase', width: '25%' }}>Descripción</th>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase' }}>Mes</th>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase' }}>Monto</th>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase' }}>Status</th>
+                    <th style={{ padding: '12px 16px', fontSize: '11px', textTransform: 'uppercase' }}>Comisión</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -419,6 +404,20 @@ const QuotesDashboard = () => {
                 <textarea name="pitch" value={pdfData.pitch} onChange={handlePdfChange} rows="3" placeholder="Ej: El desarrollo de estas 6 landing pages en Shopify tiene un valor estándar de $120 USD..." style={{ width: '100%', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }} />
               </div>
 
+              {/* 🌟 CHECKBOX AÑADIDO AQUÍ */}
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center' }}>
+                <input 
+                  type="checkbox" 
+                  id="hasPreferential"
+                  checked={pdfData.hasPreferential} 
+                  onChange={(e) => handlePdfChange({ target: { name: 'hasPreferential', value: e.target.checked } })} 
+                  style={{ marginRight: '8px', cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+                <label htmlFor="hasPreferential" style={{ fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', color: '#14B8A6' }}>
+                  Aplicar Precio Preferencial (Habilita la columna y precios tachados en el PDF)
+                </label>
+              </div>
+
               <h4 style={{ fontSize: '14px', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '12px' }}>Costos Base</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                 <div>
@@ -435,7 +434,7 @@ const QuotesDashboard = () => {
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Unit. Preferencial</label>
-                  <input type="text" name="unitPricePref" value={pdfData.unitPricePref} onChange={handlePdfChange} placeholder="Ej: $83.33 USD c/u" style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+                  <input type="text" name="unitPricePref" value={pdfData.unitPricePref} onChange={handlePdfChange} placeholder="Ej: $83.33 USD c/u" style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} disabled={!pdfData.hasPreferential} />
                 </div>
               </div>
 
@@ -445,12 +444,12 @@ const QuotesDashboard = () => {
                   <input type="text" name="subtotalStandard" value={pdfData.subtotalStandard} onChange={handlePdfChange} placeholder="Ej: $720.00 USD" style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Total Preferencial (Monto BD)</label>
-                  <input type="text" name="totalPref" value={pdfData.totalPref} onChange={handlePdfChange} placeholder="Ej: $500.00 USD" style={{ width: '100%', padding: '8px', border: '1px solid #14B8A6', backgroundColor: '#f0fdfa' }} title="Este valor se registrará en el Dashboard" />
+                  <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Total Preferencial</label>
+                  <input type="text" name="totalPref" value={pdfData.totalPref} onChange={handlePdfChange} placeholder="Ej: $500.00 USD" style={{ width: '100%', padding: '8px', border: '1px solid #14B8A6', backgroundColor: '#f0fdfa' }} disabled={!pdfData.hasPreferential} />
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Texto de Descuento</label>
-                  <input type="text" name="discountText" value={pdfData.discountText} onChange={handlePdfChange} placeholder="Ej: Ahorro total aplicado: $220 USD" style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+                  <input type="text" name="discountText" value={pdfData.discountText} onChange={handlePdfChange} placeholder="Ej: Ahorro total aplicado: $220 USD" style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} disabled={!pdfData.hasPreferential} />
                 </div>
               </div>
 
@@ -478,11 +477,11 @@ const QuotesDashboard = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Tachado</label>
-                  <input type="text" name="oldPriceBanner" value={pdfData.oldPriceBanner} onChange={handlePdfChange} placeholder="Ej: $720.00 USD" style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} />
+                  <input type="text" name="oldPriceBanner" value={pdfData.oldPriceBanner} onChange={handlePdfChange} placeholder="Ej: $720.00 USD" style={{ width: '100%', padding: '8px', border: '1px solid #ccc' }} disabled={!pdfData.hasPreferential} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Destacado</label>
-                  <input type="text" name="newPriceBanner" value={pdfData.newPriceBanner} onChange={handlePdfChange} placeholder="Ej: $500.00" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', fontWeight: 'bold' }} />
+                  <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Precio Final Destacado (Monto BD)</label>
+                  <input type="text" name="newPriceBanner" value={pdfData.newPriceBanner} onChange={handlePdfChange} placeholder="Ej: $500.00" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', fontWeight: 'bold' }} title="Este valor se registrará en el Dashboard si no hay precio preferencial" />
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#666', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Nota al pie</label>
@@ -501,4 +500,4 @@ const QuotesDashboard = () => {
   );
 };
 
-export default QuotesDashboard;
+export default QuoteGenerator;
