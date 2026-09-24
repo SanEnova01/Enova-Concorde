@@ -99,7 +99,7 @@ function AdminLayout({ children }) {
     { path: '/client/tickets', label: 'Tablero de Tickets', allowed: ['client'] },
     { path: '/admin/reviews', icon: <ShieldCheck size={20} />, label: 'Reportes diarios', allowed: ['super admin', 'admin'] },
     { path: '/admin/metricas', label: 'Métricas Generales', allowed: ['super admin', 'admin'] },
-    { path: '/admin/cotizaciones/nueva', label: 'Generar Cotización', allowed: ['super admin'] },
+    { path: '/admin/cotizaciones/nueva', label: 'Cotizaciones', allowed: ['super admin'] },
     { 
       id: 'concorde_tools', 
       label: 'Concorde Tools', 
