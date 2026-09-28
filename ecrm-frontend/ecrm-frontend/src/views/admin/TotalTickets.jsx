@@ -515,7 +515,7 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                             if (match && match[1]) {
                               return (
                                 <a
-                                  href={`https://mail.google.com/mail/u/0/#all/${match[1]}`}
+                                  href={`https://mail.google.com/mail/u/1/#all/${match[1]}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
@@ -696,7 +696,7 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                               if (match && match[1]) {
                                 return (
                                   <a
-                                    href={`https://mail.google.com/mail/u/0/#all/${match[1]}`}
+                                    href={`https://mail.google.com/mail/u/1/#all/${match[1]}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
