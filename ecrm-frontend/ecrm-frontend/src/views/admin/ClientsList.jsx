@@ -360,7 +360,9 @@ function ClientsList() {
                   {client.logo_url ? (
                     <img src={getLogoUrl(client.logo_url)} alt={`Logo de ${client.name}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
-                    <span style={{ fontSize: '9px', fontWeight: 'bold' }}>LOGO</span>
+                    <span style={{ fontSize: '15px', fontWeight: 'bold', letterSpacing: '1px' }}>
+                      {client.name ? client.name.substring(0, 2).toUpperCase() : 'NA'}
+                    </span>
                   )}
                 </div>
                 <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -413,7 +415,9 @@ function ClientsList() {
                       {client.logo_url ? (
                         <img src={getLogoUrl(client.logo_url)} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                       ) : (
-                        <span style={{ fontSize: '9px', fontWeight: 'bold' }}>LOGO</span>
+                        <span style={{ fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px' }}>
+                          {client.name ? client.name.substring(0, 2).toUpperCase() : 'NA'}
+                        </span>
                       )}
                     </div>
                   </td>
