@@ -28,7 +28,10 @@ class StoreRepository {
 
   static async getAll() {
     try {
-      return await db('stores').orderBy('name', 'asc');
+      return await db('stores')
+        .select('stores.*')
+        .select(db.raw('(SELECT COUNT(*)::int FROM tickets WHERE tickets.store_id = stores.id) as ticket_count'))
+        .orderBy('stores.name', 'asc');
     } catch (error) {
       throw new Error('Error al obtener las tiendas: ' + error.message);
     }
@@ -36,7 +39,11 @@ class StoreRepository {
 
   static async getById(id) {
     try {
-      return await db('stores').where({ id }).first();
+      return await db('stores')
+        .select('stores.*')
+        .select(db.raw('(SELECT COUNT(*)::int FROM tickets WHERE tickets.store_id = stores.id) as ticket_count'))
+        .where({ 'stores.id': id })
+        .first();
     } catch (error) {
       throw new Error('Error al obtener la tienda: ' + error.message);
     }
