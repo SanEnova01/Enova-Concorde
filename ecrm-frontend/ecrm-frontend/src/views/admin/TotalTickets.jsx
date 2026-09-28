@@ -2,6 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
 
+const SmallAnalogOdometer = ({ value, digits = 4 }) => {
+  const paddedValue = String(value).padStart(digits, '0');
+  return (
+    <div style={{
+      display: 'inline-flex', gap: '2px', backgroundColor: '#e5e5e5', padding: '3px 4px',
+      borderRadius: '4px', border: '1px solid #cccccc',
+      boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0,0,0,0.05)'
+    }}>
+      {paddedValue.split('').map((digit, index) => (
+        <div key={index} style={{
+          backgroundColor: '#ffffff', color: '#111111', fontSize: '14px', fontWeight: 'bold',
+          fontFamily: "'Courier New', Courier, monospace", padding: '1px 5px', borderRadius: '3px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.9)',
+          background: 'linear-gradient(180deg, #f8f8f8 0%, #ffffff 40%, #ffffff 60%, #ececec 100%)',
+          textAlign: 'center', minWidth: '12px', border: '1px solid #cfcfcf'
+        }}>
+          {digit}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 function TotalTickets() {
   const navigate = useNavigate();
   
@@ -316,7 +339,10 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
             <button
               onClick={() => setStatusTab('ACTIVE')}
               style={{
-                padding: '7px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '5px 12px',
                 border: 'none',
                 borderRadius: '4px',
                 fontWeight: 'bold',
@@ -326,12 +352,16 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                 color: statusTab === 'ACTIVE' ? '#FFD700' : '#4b5563'
               }}
             >
-              🟢 Activos ({typeFiltered.filter(t => t.status !== 'CLOSED').length})
+              🟢 Activos 
+              <SmallAnalogOdometer value={tickets.filter(t => t.status !== 'CLOSED').length} digits={4} />
             </button>
             <button
               onClick={() => setStatusTab('CLOSED')}
               style={{
-                padding: '7px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '5px 12px',
                 border: 'none',
                 borderRadius: '4px',
                 fontWeight: 'bold',
@@ -341,7 +371,8 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                 color: statusTab === 'CLOSED' ? '#FFD700' : '#4b5563'
               }}
             >
-              🔴 Cerrados ({typeFiltered.filter(t => t.status === 'CLOSED').length})
+              🔴 Cerrados 
+              <SmallAnalogOdometer value={tickets.filter(t => t.status === 'CLOSED').length} digits={4} />
             </button>
           </div>
         </div>
