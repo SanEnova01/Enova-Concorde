@@ -53,7 +53,7 @@ function ClientsList() {
   }, []);
 
   useEffect(() => {
-    let result = clients;
+    let result = [...clients];
     
     // Filtrar por Plan
     if (planFilter !== 'ALL') {
@@ -76,6 +76,27 @@ function ClientsList() {
         c.id.toLowerCase().includes(query)
       );
     }
+
+    // ORDENAMIENTO PERSONALIZADO POR JERARQUÍA DE PLAN
+    const planPriority = {
+      'ESCALE': 1,
+      'GROWTH': 2,
+      'GO': 3,
+      'WARRANTY': 4,
+      'LEAD': 5,
+      'OUT_OF_WARRANTY': 6
+    };
+
+    result.sort((a, b) => {
+      const priorityA = planPriority[a.plan_type] || 99;
+      const priorityB = planPriority[b.plan_type] || 99;
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      // Si tienen el mismo plan, se ordenan alfabéticamente
+      return (a.name || '').localeCompare(b.name || '');
+    });
     
     setFilteredClients(result);
     setCurrentPage(1);
