@@ -7,24 +7,20 @@ router.get('/monthly', async (req, res) => {
   try {
     const { store_id, year, month } = req.query;
     
-    // Rango seguro de búsqueda
+    // 🔥 FIX: Calcular el último día real del mes (28, 29, 30 o 31)
+    // En JS, el día '0' del mes siguiente nos da el último día del mes actual
+    const lastDay = new Date(year, month, 0).getDate();
+    
     const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endStr = `${year}-${String(month).padStart(2, '0')}-31`;
+    const endStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     const reviews = await db('store_daily_reviews')
       .where({ store_id })
       .where('review_date', '>=', startStr)
       .where('review_date', '<=', endStr)
-      .select('review_date');
+      .select(db.raw("to_char(review_date, 'YYYY-MM-DD') as formatted_date"));
 
-    // 🛑 MAGIA AQUÍ: Convertimos a String para evitar que 
-    // la zona horaria de Perú le reste un día a la fecha original de la BD.
-    const dates = reviews.map(r => {
-      // PostgreSQL devuelve un objeto Date, extraemos la fecha local forzando el formato
-      const d = new Date(r.review_date);
-      // Al usar getUTCFullYear, getUTCMonth, etc., ignoramos la corrección de zona horaria local
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-    });
+    const dates = reviews.map(r => r.formatted_date);
 
     res.json({ success: true, data: dates });
   } catch (error) {
