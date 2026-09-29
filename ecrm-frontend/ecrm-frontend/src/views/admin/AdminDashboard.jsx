@@ -648,6 +648,7 @@ const [aiBanner, setAiBanner] = useState({
 
   // 🌟 NUEVOS ESTADOS PARA LOS TICKETS ASIGNADOS
   const [currentUser, setCurrentUser] = useState('');
+  const [userRole, setUserRole] = useState(''); // <-- NUEVO ESTADO PARA EL ROL
   const [myTickets, setMyTickets] = useState([]);
 
   const [techStatus] = useState({
@@ -701,7 +702,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
               const payload = JSON.parse(window.atob(token.split('.')[1]));
               currentUserName = payload.name || payload.email;
               setCurrentUser(currentUserName);
-              
+              setUserRole(payload.role);
               if (payload.role === 'client') {
                 const clientsRes = await crmApi.get('/stores');
                 const listaTiendas = clientsRes.data.data || clientsRes.data || [];
@@ -919,24 +920,26 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
         <div style={{ flex: '2 1 600px', display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
           
           <div className="crm-grid-stats" style={{ marginBottom: 0 }}>
-            {/* CARD: TICKETS TOTALES */}
-            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1 }}>
-              <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
-              
-              <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <AnalogOdometer value={stats.tickets} digits={5} />
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {Object.entries(ticketStatusStats).map(([status, count]) => (
-                    <span key={status} className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>
-                      {status}: <strong>{count}</strong>
-                    </span>
-                  ))}
-                  {Object.keys(ticketStatusStats).length === 0 && (
-                    <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>SIN TICKETS</span>
-                  )}
+            {/* CARD: TICKETS TOTALES (SOLO SUPER ADMIN) */}
+            {userRole === 'super admin' && (
+              <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1 }}>
+                <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
+                
+                <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <AnalogOdometer value={stats.tickets} digits={5} />
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    {Object.entries(ticketStatusStats).map(([status, count]) => (
+                      <span key={status} className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>
+                        {status}: <strong>{count}</strong>
+                      </span>
+                    ))}
+                    {Object.keys(ticketStatusStats).length === 0 && (
+                      <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>SIN TICKETS</span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* CARD: CLIENTES ACTIVOS CON DESGROSE DE PLANES */}
             <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', flex: 1 }}>
@@ -1051,11 +1054,13 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
           {/* 🌟 NUEVO WIDGET W95 */}
           <MyTicketsWidget myTickets={myTickets} navigate={navigate} />
 
-          {/* 🌟 NUEVO MONITOR DE MÓDULOS W95 */}
-          <StoreMonitorWidget 
-            clients={clients} 
-            ticketStatusStats={ticketStatusStats} 
-          />
+          {/* 🌟 NUEVO MONITOR DE MÓDULOS W95 (SOLO SUPER ADMIN) */}
+          {userRole === 'super admin' && (
+            <StoreMonitorWidget 
+              clients={clients} 
+              ticketStatusStats={ticketStatusStats} 
+            />
+          )}
                     
           {/* BOTÓN EASTER EGG */}
           <button 
