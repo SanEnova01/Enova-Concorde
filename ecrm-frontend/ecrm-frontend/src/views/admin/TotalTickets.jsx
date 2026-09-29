@@ -506,6 +506,8 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                             style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                           />
                         </td>
+                        
+                        {/* CELDA ID COMO ENLACE REAL */}
                         <td style={{ padding: 0 }}>
                           <a 
                             href={`/admin/tickets/${t.id}`}
@@ -515,32 +517,35 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                             {t.serial_number || t.id}
                           </a>
                         </td>
+
+                        {/* CELDA ASUNTO COMO ENLACE REAL + BOTÓN GMAIL */}
                         <td style={{ padding: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px' }}>
                             <a 
                               href={`/admin/tickets/${t.id}`}
                               onClick={e => { if(!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); navigate(`/admin/tickets/${t.id}`); } }}
-                              style={{ display: 'block', padding: '12px 16px', fontSize: '13px', color: '#111', fontWeight: '500', textDecoration: 'none' }}
+                              style={{ display: 'block', fontSize: '13px', color: '#111', fontWeight: '500', textDecoration: 'none' }}
                             >
                               {t.name}
                             </a>
-                          {(() => {
-                            const match = t.description?.match(/\[GMAIL_ID:\s*([a-zA-Z0-9]+)\]/);
-                            if (match && match[1]) {
-                              return (
-                                <a
-                                  href={`https://mail.google.com/mail/u/1/#all/${match[1]}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{ display: 'inline-block', marginLeft: '8px', fontSize: '10px', backgroundColor: '#ea4335', color: '#fff', padding: '2px 6px', borderRadius: '4px', textDecoration: 'none', fontWeight: 'bold' }}
-                                >
-                                  ✉️ Ir a Gmail
-                                </a>
-                              );
-                            }
-                            return null;
-                          })()}
+                            {(() => {
+                              const match = t.description?.match(/\[GMAIL_ID:\s*([a-zA-Z0-9]+)\]/);
+                              if (match && match[1]) {
+                                return (
+                                  <a
+                                    href={`https://mail.google.com/mail/u/1/#all/${match[1]}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ display: 'inline-block', marginLeft: '8px', fontSize: '10px', backgroundColor: '#ea4335', color: '#fff', padding: '2px 6px', borderRadius: '4px', textDecoration: 'none', fontWeight: 'bold' }}
+                                  >
+                                    ✉️ Ir a Gmail
+                                  </a>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
                         </td>
 
                         {/* EDITAR STORE ID EN LÍNEA */}
@@ -626,7 +631,7 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                           </select>
                         </td>
 
-                        {/* 🌟 CELDAS ESTÁTICAS DE SÓLO LECTURA */}
+                        {/* CELDAS ESTÁTICAS DE SÓLO LECTURA */}
                         <td style={{ padding: '12px 16px', fontSize: '12px', color: '#4b5563', fontWeight: 'bold' }}>
                           {t.assigned_to ? `👤 ${t.assigned_to}` : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin asignar</span>}
                         </td>
