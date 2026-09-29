@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import crmApi from '../../../api/crmApi'; // 🌟 LA CORRECCIÓN CLAVE: Usar la API configurada
 
 const StoreReviewHistory = ({ storeId }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -13,7 +13,8 @@ const StoreReviewHistory = ({ storeId }) => {
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
   const monthsNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-useEffect(() => {
+
+  useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       const monthFilter = String(currentMonth + 1).padStart(2, '0');
@@ -21,22 +22,22 @@ useEffect(() => {
       let dailyDates = [];
       let qaMap = {};
 
-      // 1. Traer revisiones diarias (Monitor Concorde) usando crmApi
+      // 1. Traer revisiones diarias (Monitor Concorde)
       try {
         const resDaily = await crmApi.get(`/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`);
         if (resDaily.data && resDaily.data.success) {
-          dailyDates = resDaily.data.data;
+          // Extraemos de forma segura el formato YYYY-MM-DD
+          dailyDates = resDaily.data.data.map(d => String(d).split('T')[0]);
         }
       } catch (error) {
         console.error('Error obteniendo monitor diario:', error);
       }
 
-      // 2. Traer revisiones QA (manual_reviews) usando crmApi
+      // 2. Traer revisiones QA (manual_reviews)
       try {
         const resQA = await crmApi.get(`/manual-reviews/${storeId}`);
         if (resQA.data && resQA.data.success) {
           resQA.data.data.forEach(rev => {
-            // Corte de string perfecto para alinear con el calendario
             const dateStr = String(rev.review_date).split('T')[0];
             if (!qaMap[dateStr]) qaMap[dateStr] = [];
             qaMap[dateStr].push(rev);
