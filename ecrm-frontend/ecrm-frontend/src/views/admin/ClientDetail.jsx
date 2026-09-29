@@ -298,6 +298,37 @@ function ClientDetail() {
         ) : <div />}
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          
+          {/* 🌟 NUEVAS FLECHAS DE NAVEGACIÓN ENTRE TIENDAS 🌟 */}
+          {authorizedStores.length > 1 && (
+            <div style={{ display: 'flex', gap: '4px', marginRight: '8px' }}>
+              <button 
+                onClick={() => {
+                  const idx = authorizedStores.findIndex(s => s.id === activeStoreId);
+                  if (idx > 0) setActiveStoreId(authorizedStores[idx - 1].id);
+                }} 
+                disabled={authorizedStores.findIndex(s => s.id === activeStoreId) === 0}
+                className="crm-btn-border" 
+                style={{ padding: '6px 12px', fontSize: '14px', opacity: authorizedStores.findIndex(s => s.id === activeStoreId) === 0 ? 0.4 : 1, cursor: authorizedStores.findIndex(s => s.id === activeStoreId) === 0 ? 'not-allowed' : 'pointer' }}
+                title="Tienda Anterior"
+              >
+                ◀
+              </button>
+              <button 
+                onClick={() => {
+                  const idx = authorizedStores.findIndex(s => s.id === activeStoreId);
+                  if (idx < authorizedStores.length - 1) setActiveStoreId(authorizedStores[idx + 1].id);
+                }} 
+                disabled={authorizedStores.findIndex(s => s.id === activeStoreId) === authorizedStores.length - 1}
+                className="crm-btn-border" 
+                style={{ padding: '6px 12px', fontSize: '14px', opacity: authorizedStores.findIndex(s => s.id === activeStoreId) === authorizedStores.length - 1 ? 0.4 : 1, cursor: authorizedStores.findIndex(s => s.id === activeStoreId) === authorizedStores.length - 1 ? 'not-allowed' : 'pointer' }}
+                title="Siguiente Tienda"
+              >
+                ▶
+              </button>
+            </div>
+          )}
+
           {(userRole === 'super admin' || userRole === 'admin') && client && !loadingDetails && (
             <button 
               onClick={() => setShowReviewModal(true)} 
@@ -315,7 +346,6 @@ function ClientDetail() {
           )}
         </div>
       </div>
-
       {loadingDetails || !client ? (
         <div className="crm-text-loading">Cargando datos de la tienda...</div>
       ) : (

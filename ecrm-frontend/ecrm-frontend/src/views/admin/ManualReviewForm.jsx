@@ -9,7 +9,8 @@ const ManualReviewForm = () => {
   const [activeTab, setActiveTab] = useState('FORM');
   const [stores, setStores] = useState([]);
   const [checks, setChecks] = useState({});
-  // 🌟 FIX ZONA HORARIA: Forzar la extracción de la fecha basada en la hora local (Lima/Latam)
+  
+  // FIX ZONA HORARIA: Forzar la extracción de la fecha basada en la hora local (Lima/Latam)
   const getLocalDateString = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -32,9 +33,10 @@ const ManualReviewForm = () => {
   const [expandedStore, setExpandedStore] = useState(null);
   const [storeViewMode, setStoreViewMode] = useState('LIST'); 
   const [compareSelection, setCompareSelection] = useState({ a: 0, b: 1 }); 
-  
-  // 🌟 NUEVO ESTADO: Buscador de historial
   const [historySearchTerm, setHistorySearchTerm] = useState('');
+
+  // 🌟 NUEVO ESTADO PARA EL PDF
+  const [pdfMonth, setPdfMonth] = useState('');
 
   useEffect(() => {
     const fetchStores = async () => {
@@ -96,6 +98,91 @@ const ManualReviewForm = () => {
       setHistorySearchTerm('');
     }
   }, [activeTab]);
+
+  // 🌟 LÓGICA PARA EXTRACCIÓN DE MESES Y PDF
+  const getAvailableMonths = (reviews) => {
+    const months = new Set();
+    reviews.forEach(rev => {
+       const date = new Date(rev.review_date);
+       const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+       months.add(monthStr);
+    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a)); 
+  };
+
+  const handleDownloadPDF = (store) => {
+    if (!pdfMonth) return alert('Selecciona un mes para descargar.');
+
+    const filteredReviews = store.reviews.filter(rev => {
+      const d = new Date(rev.review_date);
+      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return m === pdfMonth;
+    });
+
+    if (filteredReviews.length === 0) return alert('No hay registros para este mes.');
+
+    // Construcción del documento HTML en memoria para el PDF
+    const container = document.createElement('div');
+    container.style.padding = '40px';
+    container.style.fontFamily = 'Arial, sans-serif';
+
+    const rows = filteredReviews.map(rev => {
+      const getStatus = (val) => val === 'OK' ? '✅ OK' : (val === 'OBSERVED' ? '⚠️ OBS' : '-');
+      return `
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ccc; font-weight: bold;">${formatDate(rev.review_date)}</td>
+          <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">${getStatus(rev.home_page)}</td>
+          <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">${getStatus(rev.blog)}</td>
+          <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">${getStatus(rev.pdp)}</td>
+          <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">${getStatus(rev.cart)}</td>
+          <td style="padding: 10px; border: 1px solid #ccc; text-align: center;">${getStatus(rev.checkout)}</td>
+          <td style="padding: 10px; border: 1px solid #ccc; color: #dc2626;">${rev.observations || 'Ninguna'}</td>
+          <td style="padding: 10px; border: 1px solid #ccc; font-size: 12px; color: #555;">${rev.reviewer_name}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const [y, m] = pdfMonth.split('-');
+    const humanMonth = new Date(y, m - 1).toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+
+    container.innerHTML = `
+      <div style="margin-bottom: 30px; border-bottom: 2px solid #111; padding-bottom: 10px;">
+        <h1 style="margin: 0; color: #111; font-size: 24px;">Reporte de Auditoría QA - Concorde</h1>
+        <p style="margin: 8px 0 4px 0; color: #333; font-size: 16px;"><strong>Cliente / Tienda:</strong> ${store.name} (ID: ${store.id})</p>
+        <p style="margin: 4px 0; color: #333; font-size: 16px;"><strong>Mes Auditado:</strong> <span style="text-transform: capitalize;">${humanMonth}</span></p>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+        <thead style="background-color: #f5f4f0; color: #111;">
+          <tr>
+            <th style="padding: 12px 10px; border: 1px solid #ccc;">Fecha</th>
+            <th style="padding: 12px 10px; border: 1px solid #ccc; text-align: center;">Home</th>
+            <th style="padding: 12px 10px; border: 1px solid #ccc; text-align: center;">Blog</th>
+            <th style="padding: 12px 10px; border: 1px solid #ccc; text-align: center;">PDP</th>
+            <th style="padding: 12px 10px; border: 1px solid #ccc; text-align: center;">Carrito</th>
+            <th style="padding: 12px 10px; border: 1px solid #ccc; text-align: center;">Checkout</th>
+            <th style="padding: 12px 10px; border: 1px solid #ccc; width: 30%;">Observaciones</th>
+            <th style="padding: 12px 10px; border: 1px solid #ccc;">Auditor</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+      <div style="margin-top: 30px; font-size: 11px; color: #999; text-align: right; border-top: 1px solid #eee; padding-top: 10px;">
+        Documento generado automáticamente por Enova Concorde CRM
+      </div>
+    `;
+
+    const opt = {
+      margin:       0.4,
+      filename:     `QA_${store.name.replace(/\s+/g, '_')}_${pdfMonth}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+    };
+
+    window.html2pdf().from(container).set(opt).save();
+  };
 
   const handleCycleCheck = (storeId, field) => {
     setChecks(prev => {
@@ -172,6 +259,7 @@ const ManualReviewForm = () => {
       
       setShowModal(false);
       alert('Auditoría masiva guardada exitosamente.');
+      if (activeTab === 'HISTORY') loadHistory();
     } catch (error) {
       alert('Ocurrió un error guardando el registro.');
     }
@@ -188,7 +276,6 @@ const ManualReviewForm = () => {
     return new Date(dateStr).toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // 🌟 Filtrado de carpetas
   const filteredHistoryStores = Object.values(historyByStore).filter(store => 
     store.name.toLowerCase().includes(historySearchTerm.toLowerCase()) || 
     store.id.toLowerCase().includes(historySearchTerm.toLowerCase())
@@ -216,40 +303,22 @@ const ManualReviewForm = () => {
 
       {activeTab === 'FORM' && (
         <div style={{ position: 'relative' }}>
-          {/* 🌟 CABECERA STICKY CON BOTÓN A LA DERECHA */}
           <div style={{ 
-            position: 'sticky', 
-            top: 0, 
-            zIndex: 10, 
-            backgroundColor: '#f9f9f9', 
-            padding: '16px', 
-            borderBottom: '2px solid #111', 
-            marginBottom: '24px',
-            borderRadius: '8px',
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            flexWrap: 'wrap', 
-            gap: '16px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#f9f9f9', padding: '16px', borderBottom: '2px solid #111', marginBottom: '24px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
           }}>
             <div>
               <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', margin: '0 0 4px 0' }}>Hoja de Control (Q/A)</h1>
               <p style={{ color: '#666', margin: 0, fontSize: '13px' }}>1 Clic: OK (Verde) | 2 Clics: Observado (Naranja) | 3 Clics: Limpiar</p>
             </div>
-            
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Firma:</span>
                 <input type="text" value={reviewerName} onChange={(e) => setReviewerName(e.target.value)} placeholder="Ej. Juan Pérez" style={{ border: 'none', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit', color: '#111', width: '120px' }} />
               </div>
-
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Fecha:</span>
                 <input type="date" value={reviewDate} onChange={(e) => setReviewDate(e.target.value)} style={{ border: 'none', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit', color: '#111', cursor: 'pointer' }} />
               </div>
-
-              {/* 🌟 BOTÓN DE GUARDADO MOVIDO ARRIBA */}
               <button onClick={handlePreSave} className="crm-btn-black" style={{ padding: '10px 24px', fontSize: '15px' }}>
                 Revisar y Guardar
               </button>
@@ -278,29 +347,14 @@ const ManualReviewForm = () => {
                           <div style={{ fontWeight: 'bold', color: '#111', fontSize: '14px' }}>{store.name}</div>
                           <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', marginTop: '4px' }}>Plan: {store.plan_type}</div>
                         </div>
-                        {/* 🌟 BOTÓN PARA ABRIR PÁGINA INDIVIDUAL */}
                         {store.web && (
                           <button 
                             onClick={() => window.open(store.web.startsWith('http') ? store.web : `https://${store.web}`, '_blank')}
-                            style={{ 
-                              marginLeft: 'auto', 
-                              padding: '6px', 
-                              fontSize: '12px', 
-                              backgroundColor: '#f3f4f6', 
-                              border: '1px solid #d1d5db', 
-                              borderRadius: '6px', 
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: 'all 0.2s'
-                            }}
+                            style={{ marginLeft: 'auto', padding: '6px', fontSize: '12px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                             title="Abrir web en nueva pestaña"
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = '#e5e7eb'}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                          >
-                            🌐
-                          </button>
+                          >🌐</button>
                         )}
                       </div>
                     </td>
@@ -312,13 +366,7 @@ const ManualReviewForm = () => {
                       </td>
                     ))}
                     <td style={{ padding: '12px 16px' }}>
-                      <input 
-                        type="text" 
-                        placeholder="Si hay ⚠️, detalla aquí..." 
-                        value={checks[store.id]?.observations || ''}
-                        onChange={(e) => handleObsChange(store.id, e.target.value)}
-                        style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', fontFamily: 'inherit' }}
-                      />
+                      <input type="text" placeholder="Si hay ⚠️, detalla aquí..." value={checks[store.id]?.observations || ''} onChange={(e) => handleObsChange(store.id, e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', outline: 'none', fontFamily: 'inherit' }} />
                     </td>
                   </tr>
                 ))}
@@ -328,29 +376,11 @@ const ManualReviewForm = () => {
         </div>
       )}
 
-      {/* VISTA DE HISTORIAL POR CARPETAS */}
       {activeTab === 'HISTORY' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
             <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111', margin: 0 }}>Directorios de Auditoría por Tienda</h1>
-            
-            {/* 🌟 BARRA DE BÚSQUEDA PARA CARPETAS */}
-            <input 
-              type="text" 
-              placeholder="🔍 Buscar carpeta por nombre o ID..." 
-              value={historySearchTerm}
-              onChange={e => setHistorySearchTerm(e.target.value)}
-              style={{ 
-                width: '100%', 
-                maxWidth: '350px', 
-                padding: '10px 16px', 
-                borderRadius: '8px', 
-                border: '2px solid #111', 
-                outline: 'none', 
-                fontSize: '14px',
-                backgroundColor: '#fff'
-              }}
-            />
+            <input type="text" placeholder="🔍 Buscar carpeta por nombre o ID..." value={historySearchTerm} onChange={e => setHistorySearchTerm(e.target.value)} style={{ width: '100%', maxWidth: '350px', padding: '10px 16px', borderRadius: '8px', border: '2px solid #111', outline: 'none', fontSize: '14px', backgroundColor: '#fff' }} />
           </div>
 
           {loadingHistory ? (
@@ -366,7 +396,6 @@ const ManualReviewForm = () => {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: expandedStore ? '300px 1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px', alignItems: 'start' }}>
               
-              {/* LISTADO DE CARPETAS */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {filteredHistoryStores.map(store => (
                   <div 
@@ -375,20 +404,12 @@ const ManualReviewForm = () => {
                       setExpandedStore(store.id);
                       setStoreViewMode('LIST');
                       setCompareSelection({ a: 0, b: store.reviews.length > 1 ? 1 : 0 });
+                      
+                      // 🌟 Auto-seleccionar el mes más reciente al abrir la carpeta
+                      const availableMonths = getAvailableMonths(store.reviews);
+                      if (availableMonths.length > 0) setPdfMonth(availableMonths[0]);
                     }}
-                    style={{ 
-                      padding: '16px', 
-                      backgroundColor: expandedStore === store.id ? '#111' : '#fff', 
-                      color: expandedStore === store.id ? '#FFD700' : '#111',
-                      border: '2px solid #111', 
-                      borderRadius: '8px', 
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      boxShadow: expandedStore === store.id ? 'none' : '2px 2px 0px #111',
-                      transition: 'all 0.15s'
-                    }}
+                    style={{ padding: '16px', backgroundColor: expandedStore === store.id ? '#111' : '#fff', color: expandedStore === store.id ? '#FFD700' : '#111', border: '2px solid #111', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: expandedStore === store.id ? 'none' : '2px 2px 0px #111', transition: 'all 0.15s' }}
                   >
                     <div style={{ fontWeight: 'bold', fontSize: '15px' }}>📁 {store.name}</div>
                     <div style={{ fontSize: '12px', backgroundColor: expandedStore === store.id ? '#FFD700' : '#f3f4f6', color: '#111', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
@@ -398,49 +419,59 @@ const ManualReviewForm = () => {
                 ))}
               </div>
 
-              {/* PANEL DE DETALLE EXPANDIDO */}
               {expandedStore && historyByStore[expandedStore] && (
                 <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflow: 'hidden', position: 'sticky', top: '20px' }}>
                   
-                  {/* CABECERA DEL PANEL */}
                   <div style={{ backgroundColor: '#f9fafb', padding: '16px 24px', borderBottom: '2px solid #111', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '900' }}>{historyByStore[expandedStore].name}</h2>
                       <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>ID: {historyByStore[expandedStore].id}</p>
                     </div>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                      <button 
-                        onClick={() => navigate(`/admin/clientes/${historyByStore[expandedStore].id}`)} 
-                        className="crm-btn-border" style={{ fontSize: '13px', padding: '6px 12px' }}
-                      >
-                        Ir al Perfil de la Tienda ↗
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      
+                      {/* 🌟 SELECTOR DE MES Y BOTÓN DE DESCARGA PDF */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#fff', border: '1px solid #d1d5db', padding: '4px 8px', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>Mes:</span>
+                        <select 
+                          value={pdfMonth} 
+                          onChange={(e) => setPdfMonth(e.target.value)}
+                          style={{ border: 'none', outline: 'none', fontSize: '13px', fontWeight: 'bold', backgroundColor: 'transparent', cursor: 'pointer' }}
+                        >
+                          {getAvailableMonths(historyByStore[expandedStore].reviews).map(m => {
+                            const [year, month] = m.split('-');
+                            const monthName = new Date(year, month - 1).toLocaleString('es-ES', { month: 'long' });
+                            return <option key={m} value={m}>{monthName.toUpperCase()} {year}</option>;
+                          })}
+                        </select>
+                        <button 
+                          onClick={() => handleDownloadPDF(historyByStore[expandedStore])}
+                          style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                          title="Descargar PDF de este mes"
+                        >
+                          📄 PDF
+                        </button>
+                      </div>
+
+                      <button onClick={() => navigate(`/admin/clientes/${historyByStore[expandedStore].id}`)} className="crm-btn-border" style={{ fontSize: '13px', padding: '6px 12px' }}>
+                        Ir al Perfil ↗
                       </button>
                     </div>
                   </div>
 
-                  {/* TABS INTERNOS: HISTORIAL VS COMPARADOR */}
                   <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f3f4f6' }}>
-                    <button 
-                      onClick={() => setStoreViewMode('LIST')}
-                      style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: storeViewMode === 'LIST' ? '#fff' : 'transparent', fontWeight: 'bold', cursor: 'pointer', borderBottom: storeViewMode === 'LIST' ? '2px solid #111' : 'none' }}
-                    >
+                    <button onClick={() => setStoreViewMode('LIST')} style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: storeViewMode === 'LIST' ? '#fff' : 'transparent', fontWeight: 'bold', cursor: 'pointer', borderBottom: storeViewMode === 'LIST' ? '2px solid #111' : 'none' }}>
                       📄 Historial Completo
                     </button>
-                    <button 
-                      onClick={() => setStoreViewMode('COMPARE')}
-                      style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: storeViewMode === 'COMPARE' ? '#fff' : 'transparent', fontWeight: 'bold', cursor: 'pointer', borderBottom: storeViewMode === 'COMPARE' ? '2px solid #111' : 'none' }}
-                    >
+                    <button onClick={() => setStoreViewMode('COMPARE')} style={{ flex: 1, padding: '12px', border: 'none', backgroundColor: storeViewMode === 'COMPARE' ? '#fff' : 'transparent', fontWeight: 'bold', cursor: 'pointer', borderBottom: storeViewMode === 'COMPARE' ? '2px solid #111' : 'none' }}>
                       ⚖️ Comparador (Día vs Día)
                     </button>
                   </div>
 
                   <div style={{ padding: '24px' }}>
-                    
-                    {/* VISTA 1: LISTA COMPLETA */}
                     {storeViewMode === 'LIST' && (
-                      <div style={{ overflowX: 'auto' }}>
+                      <div style={{ overflowX: 'auto', maxHeight: '500px' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                          <thead>
+                          <thead style={{ position: 'sticky', top: 0, backgroundColor: '#fff', zIndex: 2 }}>
                             <tr style={{ borderBottom: '2px solid #111', color: '#666' }}>
                               <th style={{ padding: '12px', textAlign: 'left' }}>Fecha</th>
                               <th style={{ padding: '12px', textAlign: 'center' }}>Home</th>
@@ -470,7 +501,6 @@ const ManualReviewForm = () => {
                       </div>
                     )}
 
-                    {/* VISTA 2: COMPARADOR */}
                     {storeViewMode === 'COMPARE' && (
                       <div>
                         {historyByStore[expandedStore].reviews.length < 2 ? (
@@ -482,11 +512,7 @@ const ManualReviewForm = () => {
                             <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                               <div style={{ flex: 1 }}>
                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: '#4b5563' }}>FECHA A (Base):</label>
-                                <select 
-                                  value={compareSelection.a} 
-                                  onChange={(e) => setCompareSelection(p => ({ ...p, a: Number(e.target.value) }))}
-                                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 'bold', backgroundColor: '#fff' }}
-                                >
+                                <select value={compareSelection.a} onChange={(e) => setCompareSelection(p => ({ ...p, a: Number(e.target.value) }))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 'bold', backgroundColor: '#fff' }}>
                                   {historyByStore[expandedStore].reviews.map((rev, idx) => (
                                     <option key={idx} value={idx}>{formatDate(rev.review_date)}</option>
                                   ))}
@@ -495,11 +521,7 @@ const ManualReviewForm = () => {
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '20px', color: '#9ca3af' }}>VS</div>
                               <div style={{ flex: 1 }}>
                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: '#4b5563' }}>FECHA B (Comparar):</label>
-                                <select 
-                                  value={compareSelection.b} 
-                                  onChange={(e) => setCompareSelection(p => ({ ...p, b: Number(e.target.value) }))}
-                                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 'bold', backgroundColor: '#fff' }}
-                                >
+                                <select value={compareSelection.b} onChange={(e) => setCompareSelection(p => ({ ...p, b: Number(e.target.value) }))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 'bold', backgroundColor: '#fff' }}>
                                   {historyByStore[expandedStore].reviews.map((rev, idx) => (
                                     <option key={idx} value={idx}>{formatDate(rev.review_date)}</option>
                                   ))}
@@ -555,7 +577,6 @@ const ManualReviewForm = () => {
         </div>
       )}
 
-      {/* MODAL DE CONFIRMACIÓN DE GUARDADO */}
       {showModal && (
         <div className="crm-modal-mask">
           <div className="crm-modal-content" style={{ maxWidth: '900px', width: '90%' }}>
