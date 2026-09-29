@@ -631,9 +631,19 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                           </select>
                         </td>
 
-                        {/* CELDAS ESTÁTICAS DE SÓLO LECTURA */}
-                        <td style={{ padding: '12px 16px', fontSize: '12px', color: '#4b5563', fontWeight: 'bold' }}>
-                          {t.assigned_to ? `👤 ${t.assigned_to}` : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin asignar</span>}
+                        {/* 🌟 CELDAS ESTÁTICAS DE SÓLO LECTURA */}
+                        <td style={{ padding: '12px 16px', fontSize: '12px', color: '#4b5563', fontWeight: '600' }}>
+                          {t.assigned_to ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {t.assigned_to.split(',').filter(Boolean).map((name, idx) => (
+                                <span key={idx} style={{ whiteSpace: 'nowrap' }}>
+                                  - {name.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin asignar</span>
+                          )}
                         </td>
 
                         <td style={{ padding: '12px 16px', fontSize: '12px', textAlign: 'center' }}>
