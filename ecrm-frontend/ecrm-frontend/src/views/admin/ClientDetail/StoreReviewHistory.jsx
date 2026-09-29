@@ -28,6 +28,7 @@ useEffect(() => {
       try {
         const resDaily = await axios.get(`/api/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`, { headers });
         if (resDaily.data && resDaily.data.success) {
+          // El backend ya lo manda como ["2026-09-28"], así que lo guardamos directo
           dailyDates = resDaily.data.data;
         }
       } catch (error) {
@@ -39,7 +40,10 @@ useEffect(() => {
         const resQA = await axios.get(`/api/manual-reviews/${storeId}`, { headers });
         if (resQA.data && resQA.data.success) {
           resQA.data.data.forEach(rev => {
-            const dateStr = new Date(rev.review_date).toISOString().split('T')[0];
+            // Extraer solo la parte YYYY-MM-DD del string puro que viene de PostgreSQL
+            // rev.review_date llega como "2026-09-28T00:00:00.000Z" o similar
+            const dateStr = String(rev.review_date).split('T')[0];
+            
             if (!qaMap[dateStr]) qaMap[dateStr] = [];
             qaMap[dateStr].push(rev);
           });
@@ -48,7 +52,6 @@ useEffect(() => {
         console.error('Error obteniendo revisiones QA:', error);
       }
 
-      // Asignar los datos obtenidos (incluso si uno falló, el otro cargará)
       setDailyReviews(dailyDates);
       setQaReviews(qaMap);
       setLoading(false);
