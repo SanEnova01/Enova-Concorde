@@ -295,6 +295,87 @@ const StatusWidget = ({ title, data, icon }) => {
   );
 };
 
+// 🌟 SUBCOMPONENTE: Mis Tickets Asignados (Estilo Windows 95/99 adaptado al theme)
+const MyTicketsWidget = ({ myTickets, navigate }) => {
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 4;
+  const totalPages = Math.ceil(myTickets.length / itemsPerPage) || 1;
+  
+  const indexOfLastItem = page * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentTickets = myTickets.slice(indexOfFirstItem, indexOfLastItem);
+
+  return (
+    <div style={{
+      backgroundColor: '#f3f4f6',
+      border: '2px solid',
+      borderColor: '#ffffff #9ca3af #9ca3af #ffffff',
+      padding: '2px',
+      display: 'flex',
+      flexDirection: 'column',
+      fontFamily: "'Courier New', Courier, monospace",
+      color: '#111',
+      boxShadow: 'inset 1px 1px 0px #e5e7eb, inset -1px -1px 0px #4b5563, 0 4px 6px rgba(0,0,0,0.1)'
+    }}>
+      {/* Barra de Título */}
+      <div style={{
+        backgroundColor: '#111111',
+        color: '#FFD700',
+        padding: '4px 8px',
+        fontWeight: 'bold',
+        fontSize: '12px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <span>MIS TICKETS ASIGNADOS.EXE</span>
+        <div style={{ display: 'flex', gap: '2px' }}>
+          <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>_</button>
+          <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>X</button>
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div style={{ padding: '8px', backgroundColor: '#ffffff', border: '1px solid', borderColor: '#888 #fff #fff #888', minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        
+        {myTickets.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', fontSize: '12px', color: '#666' }}>
+            No hay tickets pendientes asignados a ti.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {currentTickets.map(t => (
+              <div key={t.id} style={{ borderBottom: '1px dashed #ccc', paddingBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#111', textDecoration: 'underline' }}>{t.serial_number || t.id}</div>
+                  <div style={{ fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={t.name}>{t.name}</div>
+                  <div style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>Estado: {t.status} | {t.priority}</div>
+                </div>
+                <button 
+                  onClick={() => navigate(`/admin/tickets/${t.id}`)}
+                  style={{ backgroundColor: '#e5e5e5', border: '1px solid', borderColor: '#fff #666 #666 #fff', padding: '2px 6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0 }}
+                  onMouseDown={(e) => { e.currentTarget.style.borderColor = '#666 #fff #fff #666'; }}
+                  onMouseUp={(e) => { e.currentTarget.style.borderColor = '#fff #666 #666 #fff'; }}
+                >
+                  Abrir
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Paginación W95 */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '6px', borderTop: '1px solid #ccc', fontSize: '11px' }}>
+            <button disabled={page === 1} onClick={() => setPage(p => Math.max(p - 1, 1))} style={{ backgroundColor: '#e5e5e5', border: '1px solid', borderColor: '#fff #666 #666 #fff', padding: '2px 8px', cursor: page === 1 ? 'not-allowed' : 'pointer' }}>&lt; Ant</button>
+            <span>Pg {page}/{totalPages}</span>
+            <button disabled={page === totalPages} onClick={() => setPage(p => Math.min(p + 1, totalPages))} style={{ backgroundColor: '#e5e5e5', border: '1px solid', borderColor: '#fff #666 #666 #fff', padding: '2px 8px', cursor: page === totalPages ? 'not-allowed' : 'pointer' }}>Sig &gt;</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 function AdminDashboard() {
   const [stats, setStats] = useState({ tickets: 0, clients: 0 });
@@ -314,6 +395,10 @@ const [aiBanner, setAiBanner] = useState({
   // Paginación a 11 elementos
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 11;
+
+  // 🌟 NUEVOS ESTADOS PARA LOS TICKETS ASIGNADOS
+  const [currentUser, setCurrentUser] = useState('');
+  const [myTickets, setMyTickets] = useState([]);
 
   const [techStatus] = useState({
     shopify: {
@@ -359,57 +444,70 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
       .catch(err => console.error("Error al cargar banner IA:", err));
 
     const dataInitialization = async () => {
-      try {
-        const token = localStorage.getItem('crm_token');
-        if (token) {
-          const payload = JSON.parse(window.atob(token.split('.')[1]));
-          
-          if (payload.role === 'client') {
-            const clientsRes = await crmApi.get('/stores');
-            const listaTiendas = clientsRes.data.data || clientsRes.data || [];
-            const correoUsuario = String(payload.email).toLowerCase().trim();
-            
-            const miTienda = listaTiendas.find(store => {
-              const listaCorreos = String(store.emails).toLowerCase().split(/[\s,;]+/).map(e => e.trim());
-              return listaCorreos.includes(correoUsuario);
-            });
-
-            if (miTienda) {
-              navigate(`/admin/clientes/cuentacliente`, { replace: true });
-              return;
-            } else {
-              alert('Error: Su cuenta de correo no coincide con ninguna de las credenciales autorizadas en las tiendas.');
-              localStorage.removeItem('crm_token');
-              navigate('/login', { replace: true });
-              return;
-            }
-          }
-        }
-
-        // 🌟 2. CONSULTAS A LA BD: Estas sí se actualizan en vivo sin gasto de IA
-        const fetchData = async () => {
           try {
-            const [ticketsRes, clientsRes] = await Promise.all([
-              crmApi.get('/tickets'),
-              crmApi.get('/stores')
-            ]);
-            
-            if (ticketsRes.data.success && clientsRes.data.success) {
-              const allTickets = ticketsRes.data.data || [];
-              const allStores = clientsRes.data.data || [];
+            const token = localStorage.getItem('crm_token');
+            let currentUserName = '';
+            if (token) {
+              const payload = JSON.parse(window.atob(token.split('.')[1]));
+              currentUserName = payload.name || payload.email;
+              setCurrentUser(currentUserName);
+              
+              if (payload.role === 'client') {
+                const clientsRes = await crmApi.get('/stores');
+                const listaTiendas = clientsRes.data.data || clientsRes.data || [];
+                const correoUsuario = String(payload.email).toLowerCase().trim();
+                
+                const miTienda = listaTiendas.find(store => {
+                  const listaCorreos = String(store.emails).toLowerCase().split(/[\s,;]+/).map(e => e.trim());
+                  return listaCorreos.includes(correoUsuario);
+                });
 
-              const ticketCountsMap = {};
-              const tStatusCounts = {};
-              
-              allTickets.forEach(t => {
-                if (t.store_id) {
-                  ticketCountsMap[t.store_id] = (ticketCountsMap[t.store_id] || 0) + 1;
+                if (miTienda) {
+                  navigate(`/admin/clientes/cuentacliente`, { replace: true });
+                  return;
+                } else {
+                  alert('Error: Su cuenta de correo no coincide con ninguna de las credenciales autorizadas en las tiendas.');
+                  localStorage.removeItem('crm_token');
+                  navigate('/login', { replace: true });
+                  return;
                 }
-                const st = String(t.status || 'OPEN').toUpperCase();
-                tStatusCounts[st] = (tStatusCounts[st] || 0) + 1;
-              });
-              
-              setTicketStatusStats(tStatusCounts);
+              }
+            }
+
+            // 🌟 2. CONSULTAS A LA BD: Estas sí se actualizan en vivo sin gasto de IA
+            const fetchData = async () => {
+              try {
+                const [ticketsRes, clientsRes] = await Promise.all([
+                  crmApi.get('/tickets'),
+                  crmApi.get('/stores')
+                ]);
+                
+                if (ticketsRes.data.success && clientsRes.data.success) {
+                  const allTickets = ticketsRes.data.data || [];
+                  const allStores = clientsRes.data.data || [];
+
+                  const ticketCountsMap = {};
+                  const tStatusCounts = {};
+                  const misTicketsPendientes = [];
+                  
+                  allTickets.forEach(t => {
+                    if (t.store_id) {
+                      ticketCountsMap[t.store_id] = (ticketCountsMap[t.store_id] || 0) + 1;
+                    }
+                    const st = String(t.status || 'OPEN').toUpperCase();
+                    tStatusCounts[st] = (tStatusCounts[st] || 0) + 1;
+
+                    // 🌟 Filtrar mis tickets asignados que NO estén cerrados
+                    if (st !== 'CLOSED' && t.assigned_to) {
+                       const asignados = t.assigned_to.split(',').map(n => n.trim());
+                       if (asignados.includes(currentUserName)) {
+                         misTicketsPendientes.push(t);
+                       }
+                    }
+                  });
+                  
+                  setTicketStatusStats(tStatusCounts);
+                  setMyTickets(misTicketsPendientes);
 
               const storesWithRealCounts = allStores.map(store => ({
                 ...store,
@@ -688,6 +786,10 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
 
         {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS */}
         <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* 🌟 NUEVO WIDGET W95 */}
+          <MyTicketsWidget myTickets={myTickets} navigate={navigate} />
+
           <StatusWidget title="Ecosistema Shopify Inc." data={techStatus.shopify} icon={shopifyIcon} />
           <StatusWidget title="Plataforma VTEX Global" data={techStatus.vtex} icon={vtexIcon} />
           <StatusWidget title="WooCommerce Monitoreo" data={techStatus.woo} icon={wooIcon} />
