@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // Ajusta tu conexión a BD
+const db = require('../config/db');
 
-// 🟢 GET: Obtener los días revisados de un mes específico para una tienda
+// 🟢 GET: Obtener los días revisados de un mes específico para el calendario
 router.get('/monthly', async (req, res) => {
   try {
     const { store_id, year, month } = req.query;
@@ -29,28 +29,33 @@ router.get('/monthly', async (req, res) => {
   }
 });
 
-// 🔵 POST: Marcar o desmarcar un día
-router.post('/toggle', async (req, res) => {
+// 🔵 POST: Guardar el Check Diario (con firma) y bloquear duplicados
+router.post('/register', async (req, res) => {
   try {
-    const { store_id, date, checked } = req.body;
+    const { store_id, date, reviewer_name } = req.body;
     
-    if (!store_id || !date) {
+    if (!store_id || !date || !reviewer_name) {
       return res.status(400).json({ success: false, error: 'Faltan parámetros.' });
     }
 
-    if (checked) {
-      const exists = await db('store_daily_reviews').where({ store_id, review_date: date }).first();
-      if (!exists) {
-        await db('store_daily_reviews').insert({ store_id, review_date: date });
-      }
-    } else {
-      await db('store_daily_reviews').where({ store_id, review_date: date }).del();
+    // Verificar si ya se registró hoy
+    const exists = await db('store_daily_reviews').where({ store_id, review_date: date }).first();
+    
+    if (exists) {
+      return res.status(400).json({ success: false, error: 'La tienda ya fue verificada el día de hoy.' });
     }
 
-    res.json({ success: true, message: 'Revisión actualizada' });
+    // Registrar
+    await db('store_daily_reviews').insert({ 
+        store_id, 
+        review_date: date,
+        reviewer_name 
+    });
+
+    res.json({ success: true, message: 'Revisión diaria registrada exitosamente' });
   } catch (error) {
-    console.error('Error guardando revisión:', error);
-    res.status(500).json({ success: false, error: 'Error al actualizar revisión' });
+    console.error('Error guardando revisión diaria:', error);
+    res.status(500).json({ success: false, error: 'Error al registrar la revisión' });
   }
 });
 

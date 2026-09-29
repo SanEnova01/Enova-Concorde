@@ -357,6 +357,7 @@ app.use('/api/metrics', verificarToken, require('./routes/metrics'));
 app.use('/api/tickets', verificarToken, require('./routes/tickets'));
 app.use('/api/stores', verificarToken, require('./routes/stores'));
 app.use('/api/manual-reviews', verificarToken, require('./routes/reviews'));
+app.use('/api/daily-reviews', verificarToken, require('./routes/manualReviews'));
 app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 app.use('/api/ai', verificarToken, require('./routes/ai'));
 app.use('/api/manual-reviews', verificarToken, require('./routes/manualReviews'));

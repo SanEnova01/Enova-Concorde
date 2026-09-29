@@ -15,23 +15,21 @@ const StoreReviewHistory = ({ storeId }) => {
   const monthsNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
   useEffect(() => {
-    const fetchData = async () => {
+   const fetchData = async () => {
       setLoading(true);
       try {
         const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
         const monthFilter = String(currentMonth + 1).padStart(2, '0');
 
-        // 1. Traer revisiones diarias (Monitor Concorde)
-        // Usamos la ruta de tu manualReviews.js que devuelve un array de fechas ['YYYY-MM-DD']
-        const resDaily = await axios.get(`/api/manual-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`, { headers });
+        // 1. Traer revisiones diarias (Monitor Concorde) -> Apunta a manualReviews.js
+        const resDaily = await axios.get(`/api/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`, { headers });
         let dailyDates = [];
         if (resDaily.data && resDaily.data.success) {
           dailyDates = resDaily.data.data;
         }
 
-        // 2. Traer revisiones QA (manual_reviews)
-        // Traemos todas las de la tienda y las agrupamos localmente
+        // 2. Traer revisiones QA (manual_reviews) -> Apunta a reviews.js
         const resQA = await axios.get(`/api/manual-reviews/${storeId}`, { headers });
         const qaMap = {};
         if (resQA.data && resQA.data.success) {

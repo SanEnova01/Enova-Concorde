@@ -18,7 +18,8 @@ const DailyReviewModal = ({ isOpen, storeId, storeName, onClose }) => {
   const checkTodayRecord = async () => {
     try {
       const [year, month] = localDate.split('-');
-      const res = await crmApi.get(`/manual-reviews/monthly?store_id=${storeId}&year=${year}&month=${month}`);
+      // 👇 Apunta a manualReviews.js
+      const res = await crmApi.get(`/daily-reviews/monthly?store_id=${storeId}&year=${year}&month=${month}`);
       
       if (res.data.success && res.data.data.includes(localDate)) {
          setIsAlreadyRegistered(true);
@@ -33,16 +34,17 @@ const DailyReviewModal = ({ isOpen, storeId, storeName, onClose }) => {
     if (!reviewerName.trim()) return alert("Por favor ingresa tu firma (Nombre).");
     setIsSaving(true);
     try {
-      await crmApi.post('/manual-reviews/daily', {
+      // 👇 Apunta a manualReviews.js
+      await crmApi.post('/daily-reviews/register', {
         store_id: storeId,
-        review_date: localDate,
+        date: localDate,
         reviewer_name: reviewerName
       });
       setIsAlreadyRegistered(true);
       alert("✅ Registro diario de monitor guardado con éxito.");
       setTimeout(() => {
         onClose();
-        window.location.reload(); // Recarga rápida para actualizar el calendario debajo
+        window.location.reload(); // Recarga para actualizar el calendario
       }, 1000);
     } catch (error) {
       alert(error.response?.data?.error || "Error al guardar el registro.");
