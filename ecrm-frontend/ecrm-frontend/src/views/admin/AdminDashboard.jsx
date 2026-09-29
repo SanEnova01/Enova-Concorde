@@ -494,6 +494,137 @@ const ConcordeSpaceshipWidget = ({ stats, planStats, ticketStatusStats }) => {
   );
 };
 
+// 🌟 SUBCOMPONENTE: Sistema de Estado Táctico (Estilo EVA / MAGI)
+const ConcordeSystemStatusWidget = ({ clients, ticketStatusStats }) => {
+  const openTickets = (ticketStatusStats['OPEN'] || 0) + (ticketStatusStats['IN_PROGRESS'] || 0);
+  
+  // Lógica de cuello de botella: 20 tickets abiertos = 100% de carga/bottleneck
+  const bottleneckPercent = Math.min(100, (openTickets / 20) * 100);
+  const isAlert = openTickets >= 10;
+  
+  // Colores neón característicos
+  const themeOrange = '#ff6600'; 
+  const colorSafe = '#39ff14'; // Verde neón
+  const colorWarning = '#ffaa00'; // Naranja neón
+  const colorCritical = '#ff003c'; // Rojo neón
+  
+  const statusColor = isAlert ? colorCritical : colorSafe;
+
+  return (
+    <div style={{
+      backgroundColor: '#050505',
+      borderRadius: '4px',
+      padding: '16px',
+      color: themeOrange,
+      fontFamily: "'Courier New', Courier, monospace",
+      boxShadow: 'inset 0 0 15px rgba(255, 102, 0, 0.15), 0 4px 10px rgba(0,0,0,0.5)',
+      border: `2px solid ${themeOrange}`,
+      position: 'relative',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '20px'
+    }}>
+      <style>{`
+        .eva-border {
+          border: 2px solid ${themeOrange};
+          box-shadow: 0 0 5px ${themeOrange}, inset 0 0 5px ${themeOrange};
+        }
+        .eva-pill {
+          border: 1px solid ${themeOrange};
+          border-radius: 12px;
+          padding: 2px 10px;
+          font-size: 10px;
+          font-weight: bold;
+          display: inline-block;
+          box-shadow: 0 0 3px ${themeOrange};
+          background-color: #050505;
+        }
+        .eva-blink {
+          animation: evaBlink 1s infinite alternate;
+        }
+        @keyframes evaBlink {
+          from { opacity: 1; text-shadow: 0 0 8px ${themeOrange}; }
+          to { opacity: 0.5; text-shadow: none; }
+        }
+      `}</style>
+      
+      {/* Header del Sistema */}
+      <div style={{ textAlign: 'center', borderBottom: `2px solid ${themeOrange}`, paddingBottom: '12px' }}>
+        <div className="eva-pill" style={{ marginBottom: '6px' }}>1st. DEFENSE LINE</div>
+        <div style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '2px', textShadow: `0 0 8px ${themeOrange}` }}>
+          MAIN BARRIER
+        </div>
+        <div style={{ fontSize: '12px', marginTop: '6px', color: statusColor, textShadow: `0 0 5px ${statusColor}`, fontWeight: 'bold' }}>
+          {isAlert ? '[ COLLAPSING ]' : '[ OPERATIONAL ]'}
+        </div>
+      </div>
+
+      {/* Cuello de botella (Bottleneck Load) */}
+      <div className="eva-border" style={{ padding: '12px', backgroundColor: 'rgba(255, 102, 0, 0.05)', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)' }}>
+          <span className="eva-pill">BOTTLENECK LOAD</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '8px', marginBottom: '8px', fontWeight: 'bold' }}>
+          <span>TICKETS ACTIVOS</span>
+          <span className={isAlert ? 'eva-blink' : ''} style={{ color: statusColor, fontSize: '14px' }}>{openTickets}</span>
+        </div>
+        <div style={{ width: '100%', backgroundColor: '#111', height: '14px', border: `1px solid ${themeOrange}` }}>
+          <div style={{ 
+            width: `${bottleneckPercent}%`, 
+            backgroundColor: statusColor, 
+            height: '100%', 
+            transition: 'width 1s ease-in-out',
+            boxShadow: `0 0 8px ${statusColor}`
+          }}></div>
+        </div>
+      </div>
+
+      {/* Módulos de Tiendas (Cuadrados de Carga) */}
+      <div className="eva-border" style={{ padding: '14px', position: 'relative', minHeight: '120px' }}>
+        <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)' }}>
+          <span className="eva-pill">STORE MODULES</span>
+        </div>
+        
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px', justifyContent: 'center' }}>
+          {clients.map(store => {
+            const tickets = store.real_ticket_count || 0;
+            // Lógica de colores según carga de tickets
+            let bgColor = colorSafe; 
+            if (tickets > 0 && tickets <= 2) bgColor = colorWarning; 
+            if (tickets > 2) bgColor = colorCritical; 
+            
+            return (
+              <div 
+                key={store.id} 
+                title={`${store.name} - Pendientes: ${tickets}`}
+                style={{ 
+                  width: '26px', 
+                  height: '26px', 
+                  backgroundColor: bgColor, 
+                  border: '1px solid #000',
+                  boxShadow: `0 0 6px ${bgColor}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#000',
+                  fontWeight: '900',
+                  fontSize: '11px',
+                  cursor: 'crosshair'
+                }}
+              >
+                {tickets > 0 ? tickets : ''}
+              </div>
+            );
+          })}
+          {clients.length === 0 && <span style={{ fontSize: '10px' }}>NO MODULES DETECTED</span>}
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
 function AdminDashboard() {
   const [stats, setStats] = useState({ tickets: 0, clients: 0 });
   const [planStats, setPlanStats] = useState({ go: 0, growth: 0, escale: 0, warranty: 0, leads: 0 });
@@ -903,6 +1034,15 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
 
         {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS */}
         <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* 🌟 NUEVO WIDGET W95 */}
+          <MyTicketsWidget myTickets={myTickets} navigate={navigate} />
+
+          {/* 🌟 SISTEMA MAGI / STATUS TÁCTICO */}
+          <ConcordeSystemStatusWidget 
+            clients={clients} 
+            ticketStatusStats={ticketStatusStats} 
+          />
           
           {/* 🌟 NUEVO WIDGET W95 */}
           <MyTicketsWidget myTickets={myTickets} navigate={navigate} />
