@@ -7,7 +7,7 @@ import wooIcon from '../../assets/woo-icon.png';
 import vtexIcon from '../../assets/vtex-icon.png';
 import shopifyIcon from '../../assets/shopify-icon.png';
 import MatrixEffect from './MatrixEffect';
-
+import PixelPetWidget from './PixelPetWidget';
 // 🌟 SUBCOMPONENTE: Contador estilo Odómetro Analógico Claro (Blanco con texto Negro)
 const AnalogOdometer = ({ value, digits = 5 }) => {
   const paddedValue = String(value).padStart(digits, '0');
@@ -529,7 +529,7 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <span>SYSTEM_MONITOR.EXE</span>
+        <span>SYSTEM_MONITOR</span>
         <div style={{ display: 'flex', gap: '2px' }}>
           <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', fontWeight: 'bold' }}>_</button>
           <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', fontWeight: 'bold' }}>X</button>
@@ -866,7 +866,12 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
     // 1. DIV CONTENEDOR PRINCIPAL: Se agrega el ref y posición relativa
     <div ref={dashboardRef} style={{ position: 'relative', width: '100%', minHeight: '100%' }}>
       
-      {/* 2. EFECTO MATRIX: Se le pasa la referencia del dashboard */}
+      {/* 🌟 AQUÍ HACES LA LLAMADA AL PIXEL PET */}
+      <PixelPetWidget 
+        ticketStatusStats={ticketStatusStats} 
+        myTickets={myTickets} 
+      />
+
       {isMatrixMode && <MatrixEffect targetRef={dashboardRef} />}
 
       {/* 3. ENVOLTURA DEL CONTENIDO: Esto oculta todo (opacity: 0) cuando se activa la Matrix */}
