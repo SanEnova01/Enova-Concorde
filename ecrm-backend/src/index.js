@@ -549,7 +549,18 @@ app.delete('/api/users/:id', verificarToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
+// GET: Obtener lista de usuarios Administradores para asignación de tickets
+app.get('/api/users/admins', verificarToken, async (req, res) => {
+  try {
+    const admins = await db('users')
+      .whereIn('role', ['admin', 'super admin'])
+      .select('id', 'name', 'email', 'role');
+    res.json({ success: true, data: admins });
+  } catch (error) {
+    console.error("Error obteniendo administradores:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 // ==========================================
 // SERVIR FRONTEND REAL
 // ==========================================

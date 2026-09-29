@@ -470,13 +470,16 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Estado</th>
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Prioridad</th>
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Tipo de Tarea</th>
+                  {/* 🌟 COLUMNAS ESTÁTICAS DE SÓLO LECTURA */}
+                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Responsable</th>
+                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', textAlign: 'center' }}>Apolo Sync</th>
                   <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Fecha</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedTickets.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ padding: '24px', textAlign: 'center', color: '#9ca3af' }}>
+                    <td colSpan="10" style={{ padding: '24px', textAlign: 'center', color: '#9ca3af' }}>
                       No se encontraron tickets en esta vista.
                     </td>
                   </tr>
@@ -610,6 +613,21 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                           >
                             {taskTypes.map(tt => <option key={tt} value={tt}>{tt}</option>)}
                           </select>
+                        </td>
+
+                        {/* 🌟 CELDAS ESTÁTICAS DE SÓLO LECTURA */}
+                        <td style={{ padding: '12px 16px', fontSize: '12px', color: '#4b5563', fontWeight: 'bold' }}>
+                          {t.assigned_to ? `👤 ${t.assigned_to}` : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin asignar</span>}
+                        </td>
+
+                        <td style={{ padding: '12px 16px', fontSize: '12px', textAlign: 'center' }}>
+                          {t.is_apolo_sync ? (
+                            <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>
+                              ✓ Apolo
+                            </span>
+                          ) : (
+                            <span style={{ color: '#9ca3af' }}>-</span>
+                          )}
                         </td>
 
                         <td style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>

@@ -15,7 +15,7 @@ function TicketDetail() {
   const [associatedStore, setAssociatedStore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [ticketError, setTicketError] = useState(false);
-
+  const [adminUsers, setAdminUsers] = useState([]);
   // Estados para el Chat Flotante
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -46,7 +46,7 @@ function TicketDetail() {
     task_type: 'CONSULTA',
     description: ''
   });
-
+  
   const statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
   
   const priorityOptions = [
@@ -107,15 +107,18 @@ function TicketDetail() {
       setLoading(true);
       setTicketError(false);
       
-      const [ticketsRes, storesRes] = await Promise.all([
+      const [ticketsRes, storesRes, adminsRes] = await Promise.all([
         crmApi.get('/tickets'),
-        crmApi.get('/stores')
+        crmApi.get('/stores'),
+        crmApi.get('/users/admins').catch(() => ({ data: [] }))
       ]);
       
       const tickets = extraerArreglo(ticketsRes);
       const stores = extraerArreglo(storesRes);
+      const admins = extraerArreglo(adminsRes);
       
       setStoresList(stores);
+      setAdminUsers(admins); // 👈 Guardamos los administradores
       
       const foundTicket = tickets.find(t => String(t.id) === String(ticketId));
       
@@ -472,9 +475,19 @@ function TicketDetail() {
             </div>
 
             <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Responsable (Opcional)</label>
-              <input type="text" className="crm-select-dropdown" style={{ width: '100%' }} placeholder="Ej: Juan Pérez" value={editForm.assigned_to} onChange={(e) => setEditForm({ ...editForm, assigned_to: e.target.value })} />
-            </div>
+  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Responsable (Opcional)</label>
+  <select 
+    className="crm-select-dropdown" 
+    style={{ width: '100%' }} 
+    value={editForm.assigned_to} 
+    onChange={(e) => setEditForm({ ...editForm, assigned_to: e.target.value })}
+  >
+    <option value="">-- Sin asignar --</option>
+    {adminUsers.map(admin => (
+      <option key={admin.id} value={admin.name}>{admin.name} ({admin.role})</option>
+    ))}
+  </select>
+</div>
 
             <div style={{ gridColumn: 'span 2' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Descripción Detallada</label>
@@ -499,24 +512,23 @@ function TicketDetail() {
           <p className="crm-text-muted"><strong>Tipo de Tarea:</strong> {ticket.task_type || 'No especificado'}</p>
           
           <div className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <strong>Responsable:</strong>
-            {userRole !== 'client' ? (
-              <input 
-                type="text" 
-                defaultValue={ticket.assigned_to || ''} 
-                onBlur={(e) => {
-                  if (e.target.value !== (ticket.assigned_to || '')) {
-                    handleQuickUpdate('assigned_to', e.target.value);
-                  }
-                }}
-                className="crm-select-dropdown" 
-                style={{ padding: '4px 8px', width: 'auto', flex: 1, backgroundColor: '#f9fafb' }}
-                placeholder="Escribe y presiona fuera para guardar..."
-              />
-            ) : (
-              <span>{ticket.assigned_to || 'Sin asignar'}</span>
-            )}
-          </div>
+  <strong>Responsable:</strong>
+  {userRole !== 'client' ? (
+    <select 
+      value={ticket.assigned_to || ''} 
+      onChange={(e) => handleQuickUpdate('assigned_to', e.target.value)}
+      className="crm-select-dropdown" 
+      style={{ padding: '4px 8px', width: 'auto', flex: 1, backgroundColor: '#f9fafb', fontWeight: 'bold' }}
+    >
+      <option value="">-- Sin asignar --</option>
+      {adminUsers.map(admin => (
+        <option key={admin.id} value={admin.name}>{admin.name} ({admin.role})</option>
+      ))}
+    </select>
+  ) : (
+    <span>{ticket.assigned_to || 'Sin asignar'}</span>
+  )}
+</div>
 
           {userRole !== 'client' && (
             <div className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', padding: '10px', backgroundColor: ticket.is_apolo_sync ? '#e0f2fe' : '#f9fafb', borderRadius: '6px', border: ticket.is_apolo_sync ? '1px solid #bae6fd' : '1px solid #e5e7eb', transition: 'all 0.3s' }}>
