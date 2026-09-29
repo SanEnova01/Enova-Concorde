@@ -495,40 +495,39 @@ const ConcordeSpaceshipWidget = ({ stats, planStats, ticketStatusStats }) => {
 };
 
 
-// 🌟 SUBCOMPONENTE: Monitor de Carga de Trabajo (Estilo Windows 95/99 - Colores Suaves)
+// 🌟 SUBCOMPONENTE: Monitor de Carga de Trabajo (Estilo Windows 99 unificado con el Theme)
 const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
   const openTickets = (ticketStatusStats['OPEN'] || 0) + (ticketStatusStats['IN_PROGRESS'] || 0);
   const bottleneckPercent = Math.min(100, (openTickets / 20) * 100);
 
-  // Colores W95 apagados (menos saturación para no cansar la vista)
-  const colorOk = '#98c698';     // Verde pastel/apagado
-  const colorWarn = '#e6d070';   // Amarillo mostaza suave
-  const colorCrit = '#d87070';   // Rojo ladrillo suave
+  // Colores W95 apagados (menos saturación)
+  const colorOk = '#98c698';     // Verde pastel
+  const colorWarn = '#e6d070';   // Amarillo suave
+  const colorCrit = '#d87070';   // Rojo suave
   const colorBar = bottleneckPercent > 50 ? '#800000' : '#000080'; // Granate o Azul clásico W95
 
   return (
     <div style={{
-      backgroundColor: '#c0c0c0', // Gris clásico W95
+      backgroundColor: '#f3f4f6',
       border: '2px solid',
-      borderColor: '#ffffff #808080 #808080 #ffffff', // Relieve 3D exterior
+      borderColor: '#ffffff #9ca3af #9ca3af #ffffff',
       padding: '2px',
       display: 'flex',
       flexDirection: 'column',
-      fontFamily: "'MS Sans Serif', 'Segoe UI', sans-serif",
-      color: '#000',
-      boxShadow: '1px 1px 0px #000'
+      fontFamily: "'Courier New', Courier, monospace",
+      color: '#111',
+      boxShadow: 'inset 1px 1px 0px #e5e7eb, inset -1px -1px 0px #4b5563, 0 4px 6px rgba(0,0,0,0.1)'
     }}>
-      {/* Barra de Título W95 */}
+      {/* Barra de Título (Unificada Negra/Dorada) */}
       <div style={{
-        backgroundColor: '#000080', // Azul clásico barra de título
-        color: '#ffffff',
-        padding: '4px 6px',
+        backgroundColor: '#111111',
+        color: '#FFD700',
+        padding: '4px 8px',
         fontWeight: 'bold',
         fontSize: '12px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        fontFamily: "'Courier New', Courier, monospace"
+        alignItems: 'center'
       }}>
         <span>SYSTEM_MONITOR.EXE</span>
         <div style={{ display: 'flex', gap: '2px' }}>
@@ -537,20 +536,19 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
         </div>
       </div>
 
-      {/* Contenido Principal */}
-      <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Contenido Principal (Fondo Blanco) */}
+      <div style={{ padding: '8px', backgroundColor: '#ffffff', border: '1px solid', borderColor: '#888 #fff #fff #888', minHeight: '220px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         
         {/* Barra de Cuello de Botella (Bottleneck) */}
         <div>
           <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Carga de Cuello de Botella (Tickets Activos):</div>
           <div style={{ 
             width: '100%', 
-            height: '20px', 
-            border: '2px solid', 
-            borderColor: '#808080 #ffffff #ffffff #808080', // Relieve hundido
-            backgroundColor: '#fff', 
-            position: 'relative',
-            padding: '2px'
+            height: '18px', 
+            border: '1px solid', 
+            borderColor: '#888 #fff #fff #888', 
+            backgroundColor: '#e5e5e5', 
+            position: 'relative'
           }}>
             <div style={{ 
               width: `${bottleneckPercent}%`, 
@@ -559,7 +557,7 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
               transition: 'width 0.5s'
             }}></div>
           </div>
-          <div style={{ fontSize: '11px', marginTop: '4px', textAlign: 'right', fontWeight: 'bold' }}>{openTickets} TICKETS GLOBALES</div>
+          <div style={{ fontSize: '10px', marginTop: '4px', textAlign: 'right', fontWeight: 'bold' }}>{openTickets} TICKETS GLOBALES</div>
         </div>
 
         {/* Cuadrícula de Módulos (Tiendas) */}
@@ -568,12 +566,12 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
           <div style={{ 
             display: 'flex', 
             flexWrap: 'wrap', 
-            gap: '4px', 
+            gap: '6px', 
             padding: '8px', 
-            border: '2px solid', 
-            borderColor: '#808080 #ffffff #ffffff #808080', 
-            backgroundColor: '#fff', 
-            minHeight: '120px', 
+            border: '1px solid', 
+            borderColor: '#888 #fff #fff #888', 
+            backgroundColor: '#e5e5e5', 
+            minHeight: '100px', 
             alignContent: 'flex-start',
             justifyContent: 'center'
           }}>
@@ -595,16 +593,16 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
                   key={store.id}
                   title={`${store.name} - Tickets pendientes: ${tickets}`}
                   style={{
-                    width: '28px',
-                    height: '28px',
+                    width: '32px',
+                    height: '32px',
                     backgroundColor: bgColor,
                     color: textColor,
                     border: '2px solid',
-                    borderColor: '#ffffff #808080 #808080 #ffffff', // Relieve de botón clásico
+                    borderColor: '#ffffff #808080 #808080 #ffffff', 
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '12px',
+                    fontSize: '14px',
                     fontWeight: 'bold',
                     cursor: 'help'
                   }}
@@ -618,10 +616,10 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
         </div>
         
         {/* Leyenda W95 */}
-        <div style={{ display: 'flex', gap: '12px', fontSize: '11px', justifyContent: 'center', borderTop: '1px solid #808080', borderBottom: '1px solid #fff', paddingTop: '8px', paddingBottom: '2px', fontWeight: 'bold' }}>
-          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'12px',height:'12px',backgroundColor:colorOk,border:'1px solid #000'}}></div> 0</span>
-          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'12px',height:'12px',backgroundColor:colorWarn,border:'1px solid #000'}}></div> 1-2</span>
-          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'12px',height:'12px',backgroundColor:colorCrit,border:'1px solid #000'}}></div> +3</span>
+        <div style={{ display: 'flex', gap: '12px', fontSize: '10px', justifyContent: 'center', borderTop: '1px dashed #ccc', paddingTop: '8px', fontWeight: 'bold' }}>
+          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'10px',height:'10px',backgroundColor:colorOk,border:'1px solid #666'}}></div> 0</span>
+          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'10px',height:'10px',backgroundColor:colorWarn,border:'1px solid #666'}}></div> 1-2</span>
+          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'10px',height:'10px',backgroundColor:colorCrit,border:'1px solid #666'}}></div> +3</span>
         </div>
 
       </div>
