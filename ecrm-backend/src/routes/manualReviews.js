@@ -7,19 +7,21 @@ router.get('/monthly', async (req, res) => {
   try {
     const { store_id, year, month } = req.query;
     
-    if (!store_id || !year || !month) {
-      return res.status(400).json({ success: false, error: 'Faltan parámetros.' });
-    }
-    
+    // Rango seguro de búsqueda sin usar EXTRACT (que a veces falla con strings)
+    const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endStr = `${year}-${String(month).padStart(2, '0')}-31`;
+
     const reviews = await db('store_daily_reviews')
-      .where('store_id', store_id)
-      .whereRaw('EXTRACT(YEAR FROM review_date) = ?', [year])
-      .whereRaw('EXTRACT(MONTH FROM review_date) = ?', [month])
+      .where({ store_id })
+      .where('review_date', '>=', startStr)
+      .where('review_date', '<=', endStr)
       .select('review_date');
 
+    // 🛑 MAGIA AQUÍ: Convertimos a ISO y cortamos el String para evitar que 
+    // la zona horaria de Perú le reste un día a la fecha original de la BD.
     const dates = reviews.map(r => {
-      const d = new Date(r.review_date);
-      return d.toISOString().split('T')[0];
+      const isoString = new Date(r.review_date).toISOString();
+      return isoString.split('T')[0]; 
     });
 
     res.json({ success: true, data: dates });

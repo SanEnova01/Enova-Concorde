@@ -16,34 +16,28 @@ const StoreReviewHistory = ({ storeId }) => {
 useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      
-      const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
       const monthFilter = String(currentMonth + 1).padStart(2, '0');
 
       let dailyDates = [];
       let qaMap = {};
 
-      // 1. Traer revisiones diarias (Monitor Concorde)
+      // 1. Traer revisiones diarias (Monitor Concorde) usando crmApi
       try {
-        const resDaily = await axios.get(`/api/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`, { headers });
+        const resDaily = await crmApi.get(`/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`);
         if (resDaily.data && resDaily.data.success) {
-          // El backend ya lo manda como ["2026-09-28"], así que lo guardamos directo
           dailyDates = resDaily.data.data;
         }
       } catch (error) {
         console.error('Error obteniendo monitor diario:', error);
       }
 
-      // 2. Traer revisiones QA (manual_reviews)
+      // 2. Traer revisiones QA (manual_reviews) usando crmApi
       try {
-        const resQA = await axios.get(`/api/manual-reviews/${storeId}`, { headers });
+        const resQA = await crmApi.get(`/manual-reviews/${storeId}`);
         if (resQA.data && resQA.data.success) {
           resQA.data.data.forEach(rev => {
-            // Extraer solo la parte YYYY-MM-DD del string puro que viene de PostgreSQL
-            // rev.review_date llega como "2026-09-28T00:00:00.000Z" o similar
+            // Corte de string perfecto para alinear con el calendario
             const dateStr = String(rev.review_date).split('T')[0];
-            
             if (!qaMap[dateStr]) qaMap[dateStr] = [];
             qaMap[dateStr].push(rev);
           });
