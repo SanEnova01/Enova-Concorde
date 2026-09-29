@@ -7,7 +7,7 @@ router.get('/monthly', async (req, res) => {
   try {
     const { store_id, year, month } = req.query;
     
-    // Rango seguro de búsqueda sin usar EXTRACT (que a veces falla con strings)
+    // Rango seguro de búsqueda
     const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
     const endStr = `${year}-${String(month).padStart(2, '0')}-31`;
 
@@ -15,14 +15,11 @@ router.get('/monthly', async (req, res) => {
       .where({ store_id })
       .where('review_date', '>=', startStr)
       .where('review_date', '<=', endStr)
-      .select('review_date');
+      // 🔥 Forzamos a que SQL formatee la fecha a texto YYYY-MM-DD
+      .select(db.raw("to_char(review_date, 'YYYY-MM-DD') as formatted_date"));
 
-    // 🛑 MAGIA AQUÍ: Convertimos a ISO y cortamos el String para evitar que 
-    // la zona horaria de Perú le reste un día a la fecha original de la BD.
-    const dates = reviews.map(r => {
-      const isoString = new Date(r.review_date).toISOString();
-      return isoString.split('T')[0]; 
-    });
+    // Ahora solo mapeamos el texto directo
+    const dates = reviews.map(r => r.formatted_date);
 
     res.json({ success: true, data: dates });
   } catch (error) {
@@ -30,7 +27,6 @@ router.get('/monthly', async (req, res) => {
     res.status(500).json({ success: false, error: 'Error del servidor' });
   }
 });
-
 // 🔵 POST: Guardar el Check Diario (con firma) y bloquear duplicados
 router.post('/register', async (req, res) => {
   try {

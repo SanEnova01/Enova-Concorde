@@ -18,16 +18,22 @@ const StoreReviewHistory = ({ storeId }) => {
     const fetchData = async () => {
       setLoading(true);
       const monthFilter = String(currentMonth + 1).padStart(2, '0');
+      
+      // 🔥 Recuperamos el token manualmente
+      const token = localStorage.getItem('crm_token');
+      const config = {
+        headers: { Authorization: `Bearer ${token}` }
+      };
 
       let dailyDates = [];
       let qaMap = {};
 
       // 1. Traer revisiones diarias (Monitor Concorde)
       try {
-        const resDaily = await crmApi.get(`/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`);
+        const resDaily = await crmApi.get(`/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`, config);
         if (resDaily.data && resDaily.data.success) {
-          // Extraemos de forma segura el formato YYYY-MM-DD
-          dailyDates = resDaily.data.data.map(d => String(d).split('T')[0]);
+          // El backend ahora envía ["2026-09-28"], lo tomamos directo
+          dailyDates = resDaily.data.data;
         }
       } catch (error) {
         console.error('Error obteniendo monitor diario:', error);
@@ -35,7 +41,7 @@ const StoreReviewHistory = ({ storeId }) => {
 
       // 2. Traer revisiones QA (manual_reviews)
       try {
-        const resQA = await crmApi.get(`/manual-reviews/${storeId}`);
+        const resQA = await crmApi.get(`/manual-reviews/${storeId}`, config);
         if (resQA.data && resQA.data.success) {
           resQA.data.data.forEach(rev => {
             const dateStr = String(rev.review_date).split('T')[0];
