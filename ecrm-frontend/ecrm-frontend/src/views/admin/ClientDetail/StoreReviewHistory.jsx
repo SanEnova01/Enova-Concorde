@@ -19,8 +19,7 @@ const StoreReviewHistory = ({ storeId }) => {
       setLoading(true);
       const monthFilter = String(currentMonth + 1).padStart(2, '0');
       
-      // 🔥 Recuperamos el token manualmente
-      const token = localStorage.getItem('crm_token');
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
       const config = {
         headers: { Authorization: `Bearer ${token}` }
       };
@@ -32,7 +31,6 @@ const StoreReviewHistory = ({ storeId }) => {
       try {
         const resDaily = await crmApi.get(`/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`, config);
         if (resDaily.data && resDaily.data.success) {
-          // El backend ahora envía ["2026-09-28"], lo tomamos directo
           dailyDates = resDaily.data.data;
         }
       } catch (error) {
@@ -44,7 +42,8 @@ const StoreReviewHistory = ({ storeId }) => {
         const resQA = await crmApi.get(`/manual-reviews/${storeId}`, config);
         if (resQA.data && resQA.data.success) {
           resQA.data.data.forEach(rev => {
-            const dateStr = String(rev.review_date).split('T')[0];
+            const d = new Date(rev.review_date);
+            const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
             if (!qaMap[dateStr]) qaMap[dateStr] = [];
             qaMap[dateStr].push(rev);
           });

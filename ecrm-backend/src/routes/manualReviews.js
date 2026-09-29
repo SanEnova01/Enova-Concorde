@@ -15,11 +15,16 @@ router.get('/monthly', async (req, res) => {
       .where({ store_id })
       .where('review_date', '>=', startStr)
       .where('review_date', '<=', endStr)
-      // 🔥 Forzamos a que SQL formatee la fecha a texto YYYY-MM-DD
-      .select(db.raw("to_char(review_date, 'YYYY-MM-DD') as formatted_date"));
+      .select('review_date');
 
-    // Ahora solo mapeamos el texto directo
-    const dates = reviews.map(r => r.formatted_date);
+    // 🛑 MAGIA AQUÍ: Convertimos a String para evitar que 
+    // la zona horaria de Perú le reste un día a la fecha original de la BD.
+    const dates = reviews.map(r => {
+      // PostgreSQL devuelve un objeto Date, extraemos la fecha local forzando el formato
+      const d = new Date(r.review_date);
+      // Al usar getUTCFullYear, getUTCMonth, etc., ignoramos la corrección de zona horaria local
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    });
 
     res.json({ success: true, data: dates });
   } catch (error) {
@@ -27,6 +32,7 @@ router.get('/monthly', async (req, res) => {
     res.status(500).json({ success: false, error: 'Error del servidor' });
   }
 });
+
 // 🔵 POST: Guardar el Check Diario (con firma) y bloquear duplicados
 router.post('/register', async (req, res) => {
   try {
