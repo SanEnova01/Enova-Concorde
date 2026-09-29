@@ -105,6 +105,9 @@ class TicketRepository {
     if (data.priority !== undefined) updatePayload.priority = sanitizePriority(data.priority);
     if (data.task_type !== undefined) updatePayload.task_type = sanitizeTaskType(data.task_type);
     if (data.store_id !== undefined && data.store_id !== 'null') updatePayload.store_id = data.store_id;
+    
+    // 👇 NUEVO CAMPO AÑADIDO PARA APOLO SYNC 👇
+    if (data.is_apolo_sync !== undefined) updatePayload.is_apolo_sync = data.is_apolo_sync;
 
     const [updated] = await db('tickets')
       .where({ id })

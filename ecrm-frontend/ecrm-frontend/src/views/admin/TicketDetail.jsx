@@ -210,6 +210,19 @@ function TicketDetail() {
     }
   };
 
+  const handleQuickUpdate = async (field, value) => {
+    try {
+      const response = await crmApi.put(`/tickets/${ticketId}`, { [field]: value });
+      if (response.status === 200 || response.data?.success) {
+        setTicket(prev => ({ ...prev, [field]: value }));
+        showAlert('Dato actualizado correctamente en la base de datos.', 'success');
+      }
+    } catch (error) {
+      console.error('Error en guardado rápido:', error);
+      showAlert('Hubo un error al actualizar el dato.', 'error');
+    }
+  };
+
   const handleSaveTicketDetails = async (e) => {
     e.preventDefault();
     try {
@@ -484,7 +497,41 @@ function TicketDetail() {
           <p className="crm-text-muted"><strong>Asunto / Nombre:</strong> {ticket.name}</p>
           <p className="crm-text-muted"><strong>Prioridad Operativa:</strong> <span className="crm-badge">{ticket.priority}</span></p>
           <p className="crm-text-muted"><strong>Tipo de Tarea:</strong> {ticket.task_type || 'No especificado'}</p>
-          <p className="crm-text-muted"><strong>Responsable:</strong> {ticket.assigned_to || 'Sin asignar'}</p>
+          
+          <div className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+            <strong>Responsable:</strong>
+            {userRole !== 'client' ? (
+              <input 
+                type="text" 
+                defaultValue={ticket.assigned_to || ''} 
+                onBlur={(e) => {
+                  if (e.target.value !== (ticket.assigned_to || '')) {
+                    handleQuickUpdate('assigned_to', e.target.value);
+                  }
+                }}
+                className="crm-select-dropdown" 
+                style={{ padding: '4px 8px', width: 'auto', flex: 1, backgroundColor: '#f9fafb' }}
+                placeholder="Escribe y presiona fuera para guardar..."
+              />
+            ) : (
+              <span>{ticket.assigned_to || 'Sin asignar'}</span>
+            )}
+          </div>
+
+          {userRole !== 'client' && (
+            <div className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', padding: '10px', backgroundColor: ticket.is_apolo_sync ? '#e0f2fe' : '#f9fafb', borderRadius: '6px', border: ticket.is_apolo_sync ? '1px solid #bae6fd' : '1px solid #e5e7eb', transition: 'all 0.3s' }}>
+              <input 
+                type="checkbox" 
+                id="apoloSyncCheck"
+                checked={ticket.is_apolo_sync || false}
+                onChange={(e) => handleQuickUpdate('is_apolo_sync', e.target.checked)}
+                style={{ cursor: 'pointer', width: '18px', height: '18px', accentColor: '#0ea5e9' }}
+              />
+              <label htmlFor="apoloSyncCheck" style={{ fontWeight: 'bold', cursor: 'pointer', color: ticket.is_apolo_sync ? '#0369a1' : '#4b5563', fontSize: '13px', margin: 0 }}>
+                ⚙️ Requiere Acción en APOLO SYNC
+              </label>
+            </div>
+          )}
           
           {/* CINTURÓN DE SEGURIDAD: Solo Admin puede cambiar estados aquí */}
           {userRole !== 'client' && (
