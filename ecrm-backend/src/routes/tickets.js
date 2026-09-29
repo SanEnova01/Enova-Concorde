@@ -24,17 +24,23 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET: Listar todos los tickets
+// GET: Listar todos los tickets (Soporta filtro ?is_apolo_sync=true)
 router.get('/', async (req, res) => {
   try {
-    const results = await TicketRepository.getAll();
+    const filters = {};
+
+    // Capturar si envían el filtro por URL (ej: ?is_apolo_sync=true)
+    if (req.query.is_apolo_sync === 'true' || req.query.is_apolo_sync === true) {
+      filters.is_apolo_sync = true;
+    }
+
+    const results = await TicketRepository.getAll(filters);
     res.status(200).json({ success: true, data: results });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });
-
 // PATCH: Actualizar el estado de un ticket (Kanban drag&drop)
 router.patch('/:id/status', async (req, res) => {
   try {
