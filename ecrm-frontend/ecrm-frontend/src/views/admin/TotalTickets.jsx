@@ -490,17 +490,15 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                       <tr 
                         key={t.id} 
                         title={t.description ? t.description.substring(0, 300) + (t.description.length > 300 ? '...' : '') : 'Sin descripción'}
-                        onClick={() => navigate(`/admin/tickets/${t.id}`)}
                         style={{ 
                           borderBottom: '1px solid #e5e7eb', 
-                          cursor: 'pointer',
                           backgroundColor: isSelected ? '#fefce8' : 'transparent',
                           transition: 'background-color 0.15s'
                         }} 
                         onMouseEnter={e => { if(!isSelected) e.currentTarget.style.backgroundColor = '#f3f4f6'; }} 
                         onMouseLeave={e => { if(!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                           <input 
                             type="checkbox"
                             checked={isSelected}
@@ -508,11 +506,24 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                             style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                           />
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 'bold', color: '#111' }}>
-                          {t.serial_number || t.id}
+                        <td style={{ padding: 0 }}>
+                          <a 
+                            href={`/admin/tickets/${t.id}`}
+                            onClick={e => { if(!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); navigate(`/admin/tickets/${t.id}`); } }}
+                            style={{ display: 'block', padding: '12px 16px', fontSize: '13px', fontWeight: 'bold', color: '#111', textDecoration: 'none' }}
+                          >
+                            {t.serial_number || t.id}
+                          </a>
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: '13px', color: '#111', fontWeight: '500' }}>
-                          {t.name}
+                        <td style={{ padding: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <a 
+                              href={`/admin/tickets/${t.id}`}
+                              onClick={e => { if(!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); navigate(`/admin/tickets/${t.id}`); } }}
+                              style={{ display: 'block', padding: '12px 16px', fontSize: '13px', color: '#111', fontWeight: '500', textDecoration: 'none' }}
+                            >
+                              {t.name}
+                            </a>
                           {(() => {
                             const match = t.description?.match(/\[GMAIL_ID:\s*([a-zA-Z0-9]+)\]/);
                             if (match && match[1]) {
