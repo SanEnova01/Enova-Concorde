@@ -328,7 +328,7 @@ const MyTicketsWidget = ({ myTickets, navigate }) => {
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <span>MIS TICKETS ASIGNADOS</span>
+        <span>TICKETS ASIGNADOS</span>
         <div style={{ display: 'flex', gap: '2px' }}>
           <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>_</button>
           <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>X</button>
@@ -495,111 +495,143 @@ const ConcordeSpaceshipWidget = ({ stats, planStats, ticketStatusStats }) => {
 };
 
 
-// 🌟 SUBCOMPONENTE: Monitor de Carga y Módulos (Estilo Windows 95)
+// 🌟 SUBCOMPONENTE: Monitor de Carga y Módulos (Estilo Evangelion MAGI)
 const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
   const openTickets = (ticketStatusStats['OPEN'] || 0) + (ticketStatusStats['IN_PROGRESS'] || 0);
   const bottleneckPercent = Math.min(100, (openTickets / 20) * 100);
   const isAlert = openTickets >= 10;
 
+  // Colores neón MAGI
+  const themeOrange = '#ff6600'; 
+  const colorSafe = '#39ff14'; // Verde neón
+  const colorWarning = '#ffaa00'; // Naranja neón
+  const colorCritical = '#ff003c'; // Rojo neón
+  const statusColor = isAlert ? colorCritical : colorSafe;
+
   return (
     <div style={{
-      backgroundColor: '#f3f4f6',
-      border: '2px solid',
-      borderColor: '#ffffff #9ca3af #9ca3af #ffffff',
-      padding: '2px',
+      backgroundColor: '#050505',
+      borderRadius: '4px',
+      padding: '16px',
+      color: themeOrange,
+      fontFamily: "'Courier New', Courier, monospace",
+      boxShadow: 'inset 0 0 15px rgba(255, 102, 0, 0.15), 0 4px 10px rgba(0,0,0,0.5)',
+      border: `2px solid ${themeOrange}`,
+      position: 'relative',
+      overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
-      fontFamily: "'Courier New', Courier, monospace",
-      color: '#111',
-      boxShadow: 'inset 1px 1px 0px #e5e7eb, inset -1px -1px 0px #4b5563, 0 4px 6px rgba(0,0,0,0.1)'
+      gap: '20px'
     }}>
-      {/* Barra de Título W95 */}
-      <div style={{
-        backgroundColor: '#111111',
-        color: '#FFD700',
-        padding: '4px 8px',
-        fontWeight: 'bold',
-        fontSize: '12px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <span>SYSTEM_MONITOR.EXE</span>
-        <div style={{ display: 'flex', gap: '2px' }}>
-          <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000' }}>_</button>
-          <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000' }}>X</button>
+      <style>{`
+        .eva-border {
+          border: 2px solid ${themeOrange};
+          box-shadow: 0 0 5px ${themeOrange}, inset 0 0 5px ${themeOrange};
+        }
+        .eva-pill {
+          border: 1px solid ${themeOrange};
+          border-radius: 12px;
+          padding: 2px 10px;
+          font-size: 10px;
+          font-weight: bold;
+          display: inline-block;
+          box-shadow: 0 0 3px ${themeOrange};
+          background-color: #050505;
+        }
+        .eva-blink {
+          animation: evaBlink 1s infinite alternate;
+        }
+        @keyframes evaBlink {
+          from { opacity: 1; text-shadow: 0 0 8px ${themeOrange}; }
+          to { opacity: 0.5; text-shadow: none; }
+        }
+      `}</style>
+      
+      {/* Header del Sistema */}
+      <div style={{ textAlign: 'center', borderBottom: `2px solid ${themeOrange}`, paddingBottom: '12px' }}>
+        <div className="eva-pill" style={{ marginBottom: '6px' }}>1st. DEFENSE LINE</div>
+        <div style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '2px', textShadow: `0 0 8px ${themeOrange}` }}>
+          MAIN BARRIER
+        </div>
+        <div style={{ fontSize: '12px', marginTop: '6px', color: statusColor, textShadow: `0 0 5px ${statusColor}`, fontWeight: 'bold' }}>
+          {isAlert ? '[ COLLAPSING ]' : '[ OPERATIONAL ]'}
         </div>
       </div>
 
-      {/* Contenido Principal (Hundido) */}
-      <div style={{ padding: '10px', backgroundColor: '#ffffff', border: '1px solid', borderColor: '#888 #fff #fff #888', minHeight: '220px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        
-        {/* Barra de Cuello de Botella (Bottleneck) */}
-        <div>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase' }}>System Bottleneck Load:</div>
-          <div style={{ width: '100%', height: '18px', border: '1px solid', borderColor: '#888 #fff #fff #888', backgroundColor: '#e5e5e5', position: 'relative' }}>
-            <div style={{ 
-              width: `${bottleneckPercent}%`, 
-              height: '100%', 
-              backgroundColor: isAlert ? '#dc2626' : '#111',
-              transition: 'width 0.5s'
-            }}></div>
-          </div>
-          <div style={{ fontSize: '10px', marginTop: '4px', textAlign: 'right', fontWeight: 'bold' }}>{openTickets} TICKETS ACTIVOS</div>
+      {/* Cuello de botella (Bottleneck Load) */}
+      <div className="eva-border" style={{ padding: '12px', backgroundColor: 'rgba(255, 102, 0, 0.05)', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)' }}>
+          <span className="eva-pill">BOTTLENECK LOAD</span>
         </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '8px', marginBottom: '8px', fontWeight: 'bold' }}>
+          <span>TICKETS ACTIVOS</span>
+          <span className={isAlert ? 'eva-blink' : ''} style={{ color: statusColor, fontSize: '14px' }}>{openTickets}</span>
+        </div>
+        <div style={{ width: '100%', backgroundColor: '#111', height: '14px', border: `1px solid ${themeOrange}` }}>
+          <div style={{ 
+            width: `${bottleneckPercent}%`, 
+            backgroundColor: statusColor, 
+            height: '100%', 
+            transition: 'width 1s ease-in-out',
+            boxShadow: `0 0 8px ${statusColor}`
+          }}></div>
+        </div>
+      </div>
 
-        {/* Cuadrícula de Módulos (Tiendas) */}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase' }}>Store Modules:</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px', border: '1px solid', borderColor: '#888 #fff #fff #888', backgroundColor: '#e5e5e5', minHeight: '100px', alignContent: 'flex-start' }}>
-            {clients.map(store => {
-              const tickets = store.real_ticket_count || 0;
-              
-              // Código de color de carga
-              let bgColor = '#16a34a'; // Verde (0 tickets)
-              let textColor = '#ffffff';
-              if (tickets > 0 && tickets <= 2) {
-                bgColor = '#eab308'; // Amarillo (1-2 tickets)
-                textColor = '#000000';
-              } else if (tickets > 2) {
-                bgColor = '#dc2626'; // Rojo (Crítico)
-                textColor = '#ffffff';
-              }
-
-              return (
-                <div 
-                  key={store.id}
-                  title={`${store.name} - Tickets pendientes: ${tickets}`}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    backgroundColor: bgColor,
-                    color: textColor,
-                    border: '2px solid',
-                    borderColor: '#fff #666 #666 #fff', // Efecto Botón 3D clásico
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    cursor: 'crosshair'
-                  }}
-                >
-                  {tickets > 0 ? tickets : ''}
-                </div>
-              );
-            })}
-            {clients.length === 0 && <span style={{ fontSize: '11px' }}>No hay tiendas registradas.</span>}
-          </div>
+      {/* Módulos de Tiendas (Cuadrados de Carga en ms) */}
+      <div className="eva-border" style={{ padding: '14px', position: 'relative', minHeight: '120px' }}>
+        <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)' }}>
+          <span className="eva-pill">STORE MODULES</span>
         </div>
         
-        {/* Leyenda W95 */}
-        <div style={{ display: 'flex', gap: '10px', fontSize: '10px', justifyContent: 'center', fontWeight: 'bold', borderTop: '1px dashed #ccc', paddingTop: '8px' }}>
-          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'10px',height:'10px',backgroundColor:'#16a34a',border:'1px solid #666'}}></div> 0</span>
-          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'10px',height:'10px',backgroundColor:'#eab308',border:'1px solid #666'}}></div> 1-2</span>
-          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'10px',height:'10px',backgroundColor:'#dc2626',border:'1px solid #666'}}></div> +3</span>
-        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px', justifyContent: 'center' }}>
+          {clients.map(store => {
+            // Asumimos que la métrica llega como 'load_ms' o 'ttfb_ms' desde el endpoint. 
+            // Si la métrica no existe, será 0.
+            const loadTimeMs = store.load_ms || store.ttfb_ms || 0; 
+            
+            // Lógica de colores según velocidad de carga web
+            let bgColor = colorSafe; // Verde (Rápido: <= 1.5s)
+            let textColor = '#000000';
+            
+            if (loadTimeMs > 1500 && loadTimeMs <= 3000) {
+              bgColor = colorWarning; // Amarillo/Naranja (Regular: 1.5s - 3s)
+            } else if (loadTimeMs > 3000) {
+              bgColor = colorCritical; // Rojo (Lento/Crítico: > 3s)
+              textColor = '#ffffff';
+            } else if (loadTimeMs === 0) {
+              bgColor = '#222222'; // Gris oscuro (Sin datos registrados)
+              textColor = '#666666';
+            }
+            
+            // Mostrar segundos (ej: 2.1)
+            const displayValue = loadTimeMs > 0 ? (loadTimeMs / 1000).toFixed(1) : '-';
 
+            return (
+              <div 
+                key={store.id} 
+                title={`${store.name} - Tiempo de carga: ${loadTimeMs}ms`}
+                style={{ 
+                  width: '26px', 
+                  height: '26px', 
+                  backgroundColor: bgColor, 
+                  border: '1px solid #000',
+                  boxShadow: loadTimeMs > 0 ? `0 0 6px ${bgColor}` : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: textColor,
+                  fontWeight: '900',
+                  fontSize: '10px',
+                  cursor: 'crosshair'
+                }}
+              >
+                {displayValue}
+              </div>
+            );
+          })}
+          {clients.length === 0 && <span style={{ fontSize: '10px' }}>NO MODULES DETECTED</span>}
+        </div>
       </div>
     </div>
   );
@@ -739,7 +771,10 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
 
               const storesWithRealCounts = allStores.map(store => ({
                 ...store,
-                real_ticket_count: ticketCountsMap[store.id] || 0
+                real_ticket_count: ticketCountsMap[store.id] || 0,
+                // Mapeamos explícitamente los tiempos si vienen en el payload, si no, se irán a 0.
+                load_ms: store.load_ms || 0,
+                ttfb_ms: store.ttfb_ms || 0
               }));
 
               const planesValidos = ['go', 'growth', 'escale', 'scale', 'scale_plus', 'warranty', 'leads', 'lead'];
