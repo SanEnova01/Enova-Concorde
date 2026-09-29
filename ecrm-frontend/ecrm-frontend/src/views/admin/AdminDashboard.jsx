@@ -576,7 +576,7 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
             justifyContent: 'center'
           }}>
             {clients.map(store => {
-              const tickets = store.real_ticket_count || 0;
+              const tickets = store.active_ticket_count || 0; // 🌟 AHORA LEE SOLO LOS ACTIVOS
               
               // Colores estilo W95 Apagados
               let bgColor = colorOk; 
@@ -737,21 +737,26 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
                   const allTickets = ticketsRes.data.data || [];
                   const allStores = clientsRes.data.data || [];
 
-                  const ticketCountsMap = {};
+                  const historyCountsMap = {}; // Para la tabla (TODOS los tickets)
+                  const activeCountsMap = {};  // Para el Monitor W95 (Solo abiertos/en progreso)
                   const tStatusCounts = {};
                   const misTicketsPendientes = [];
                   
                   allTickets.forEach(t => {
                     const st = String(t.status || 'OPEN').toUpperCase();
                     
-                    // 🌟 CORRECCIÓN: Contar el ticket para la tienda SOLO si no está resuelto ni cerrado
-                    if (t.store_id && st !== 'CLOSED' && st !== 'RESOLVED') {
-                      ticketCountsMap[t.store_id] = (ticketCountsMap[t.store_id] || 0) + 1;
+                    if (t.store_id) {
+                      // 1. Sumamos al histórico SIEMPRE
+                      historyCountsMap[t.store_id] = (historyCountsMap[t.store_id] || 0) + 1;
+                      
+                      // 2. Sumamos a los activos SOLO si no están cerrados ni resueltos
+                      if (st !== 'CLOSED' && st !== 'RESOLVED') {
+                        activeCountsMap[t.store_id] = (activeCountsMap[t.store_id] || 0) + 1;
+                      }
                     }
                     
                     tStatusCounts[st] = (tStatusCounts[st] || 0) + 1;
 
-                    // 🌟 Filtrar mis tickets asignados que NO estén cerrados
                     if (st !== 'CLOSED' && t.assigned_to) {
                        const asignados = t.assigned_to.split(',').map(n => n.trim());
                        if (asignados.includes(currentUserName)) {
@@ -765,8 +770,8 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
 
               const storesWithRealCounts = allStores.map(store => ({
                 ...store,
-                real_ticket_count: ticketCountsMap[store.id] || 0,
-                // Mapeamos explícitamente los tiempos si vienen en el payload, si no, se irán a 0.
+                real_ticket_count: historyCountsMap[store.id] || 0, // 🌟 VUELVE EL HISTÓRICO A LA TABLA
+                active_ticket_count: activeCountsMap[store.id] || 0, // 🌟 NUEVO VALOR PARA EL WIDGET W95
                 load_ms: store.load_ms || 0,
                 ttfb_ms: store.ttfb_ms || 0
               }));
@@ -920,26 +925,24 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
         <div style={{ flex: '2 1 600px', display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
           
           <div className="crm-grid-stats" style={{ marginBottom: 0 }}>
-            {/* CARD: TICKETS TOTALES (SOLO SUPER ADMIN) */}
-            {userRole === 'super admin' && (
-              <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1 }}>
-                <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
-                
-                <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <AnalogOdometer value={stats.tickets} digits={5} />
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                    {Object.entries(ticketStatusStats).map(([status, count]) => (
-                      <span key={status} className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>
-                        {status}: <strong>{count}</strong>
-                      </span>
-                    ))}
-                    {Object.keys(ticketStatusStats).length === 0 && (
-                      <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>SIN TICKETS</span>
-                    )}
-                  </div>
+            {/* CARD: TICKETS TOTALES (VISIBLE PARA TODOS) */}
+            <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', flex: 1 }}>
+              <span className="crm-stat-label" style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>TICKETS TOTALES</span>
+              
+              <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <AnalogOdometer value={stats.tickets} digits={5} />
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {Object.entries(ticketStatusStats).map(([status, count]) => (
+                    <span key={status} className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>
+                      {status}: <strong>{count}</strong>
+                    </span>
+                  ))}
+                  {Object.keys(ticketStatusStats).length === 0 && (
+                    <span className="crm-badge" style={{ fontSize: '9px', padding: '2px 5px', backgroundColor: '#f0f0f0' }}>SIN TICKETS</span>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
 
             {/* CARD: CLIENTES ACTIVOS CON DESGROSE DE PLANES */}
             <div className="crm-card-paper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', flex: 1 }}>
@@ -1009,7 +1012,9 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
                         </td>
                         <td>{client.web || 'No asignada'}</td>
                         <td><span className="crm-badge">{client.plan_type}</span></td>
-                        <td><strong>{client.real_ticket_count}</strong></td>
+                        <td>
+                          <strong>{client.real_ticket_count}</strong>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -1054,13 +1059,11 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
           {/* 🌟 NUEVO WIDGET W95 */}
           <MyTicketsWidget myTickets={myTickets} navigate={navigate} />
 
-          {/* 🌟 NUEVO MONITOR DE MÓDULOS W95 (SOLO SUPER ADMIN) */}
-          {userRole === 'super admin' && (
-            <StoreMonitorWidget 
-              clients={clients} 
-              ticketStatusStats={ticketStatusStats} 
-            />
-          )}
+          {/* 🌟 NUEVO MONITOR DE MÓDULOS W95 (VISIBLE PARA TODOS) */}
+          <StoreMonitorWidget 
+            clients={clients} 
+            ticketStatusStats={ticketStatusStats} 
+          />
                     
           {/* BOTÓN EASTER EGG */}
           <button 
