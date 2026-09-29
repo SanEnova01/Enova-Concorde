@@ -86,9 +86,17 @@ class TicketRepository {
     }
   }
 
-  static async getAll() {
+  static async getAll(filters = {}) {
     try {
-      return await db('tickets').orderBy('created_at', 'desc');
+      let query = db('tickets').orderBy('created_at', 'desc');
+
+      // Si se envía el filtro de apolo, solo devolvemos los que están en true
+      // Al usar un objeto filters vacío por defecto, el resto de Concorde no se verá afectado
+      if (filters.is_apolo_sync) {
+        query = query.where({ is_apolo_sync: true });
+      }
+
+      return await query;
     } catch (error) {
       throw new Error('Error al obtener los tickets: ' + error.message);
     }

@@ -9,7 +9,16 @@ const ManualReviewForm = () => {
   const [activeTab, setActiveTab] = useState('FORM');
   const [stores, setStores] = useState([]);
   const [checks, setChecks] = useState({});
-  const [reviewDate, setReviewDate] = useState(new Date().toISOString().split('T')[0]);
+  // 🌟 FIX ZONA HORARIA: Forzar la extracción de la fecha basada en la hora local (Lima/Latam)
+  const getLocalDateString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [reviewDate, setReviewDate] = useState(getLocalDateString());
   const [reviewerName, setReviewerName] = useState('');
   const [loading, setLoading] = useState(true);
 
