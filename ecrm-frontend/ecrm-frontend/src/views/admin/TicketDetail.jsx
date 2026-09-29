@@ -27,6 +27,21 @@ function TicketDetail() {
   const [isStoreDropdownOpen, setIsStoreDropdownOpen] = useState(false);
   const storeDropdownRef = useRef(null);
 
+  // Estados para el selector múltiple de responsables
+  const [isAssignDropdownOpen, setIsAssignDropdownOpen] = useState(false);
+  const assignDropdownRef = useRef(null);
+  
+  // Función helper para manejar el string separado por comas
+  const toggleAssignee = (currentString, newName) => {
+    let arr = currentString ? currentString.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (arr.includes(newName)) {
+      arr = arr.filter(n => n !== newName);
+    } else {
+      arr.push(newName);
+    }
+    return arr.join(', ');
+  };
+
   // ESTADO PARA EL MODAL PERSONALIZADO
   const [modalConfig, setModalConfig] = useState({
     isOpen: false,
@@ -96,6 +111,9 @@ function TicketDetail() {
     const handleClickOutside = (event) => {
       if (storeDropdownRef.current && !storeDropdownRef.current.contains(event.target)) {
         setIsStoreDropdownOpen(false);
+      }
+      if (assignDropdownRef.current && !assignDropdownRef.current.contains(event.target)) {
+        setIsAssignDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -474,20 +492,35 @@ function TicketDetail() {
               </select>
             </div>
 
-            <div style={{ gridColumn: 'span 2' }}>
-  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Responsable (Opcional)</label>
-  <select 
-    className="crm-select-dropdown" 
-    style={{ width: '100%' }} 
-    value={editForm.assigned_to} 
-    onChange={(e) => setEditForm({ ...editForm, assigned_to: e.target.value })}
-  >
-    <option value="">-- Sin asignar --</option>
-    {adminUsers.map(admin => (
-      <option key={admin.id} value={admin.name}>{admin.name} ({admin.role})</option>
-    ))}
-  </select>
-</div>
+            <div style={{ gridColumn: 'span 2' }} ref={assignDropdownRef}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Responsables Asignados</label>
+              <div 
+                className="crm-select-dropdown" 
+                onClick={() => setIsAssignDropdownOpen(!isAssignDropdownOpen)}
+                style={{ width: '100%', cursor: 'pointer', minHeight: '36px', display: 'flex', alignItems: 'center' }}
+              >
+                {editForm.assigned_to || '-- Sin asignar --'}
+              </div>
+              
+              {isAssignDropdownOpen && (
+                <div style={{ position: 'absolute', maxHeight: '200px', overflowY: 'auto', backgroundColor: '#fff', border: '1px solid #d0d0d0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', marginTop: '4px', zIndex: 10, width: 'calc(100% - 48px)' }}>
+                  {adminUsers.map(admin => {
+                    const isChecked = (editForm.assigned_to || '').split(',').map(s => s.trim()).includes(admin.name);
+                    return (
+                      <label key={admin.id} style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', margin: 0, backgroundColor: isChecked ? '#fefce8' : '#fff' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={() => setEditForm({ ...editForm, assigned_to: toggleAssignee(editForm.assigned_to, admin.name) })}
+                          style={{ marginRight: '8px', cursor: 'pointer' }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: isChecked ? 'bold' : 'normal' }}>{admin.name} <span style={{ color: '#888', fontSize: '11px' }}>({admin.role})</span></span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <div style={{ gridColumn: 'span 2' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Descripción Detallada</label>
@@ -512,23 +545,43 @@ function TicketDetail() {
           <p className="crm-text-muted"><strong>Tipo de Tarea:</strong> {ticket.task_type || 'No especificado'}</p>
           
           <div className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-  <strong>Responsable:</strong>
-  {userRole !== 'client' ? (
-    <select 
-      value={ticket.assigned_to || ''} 
-      onChange={(e) => handleQuickUpdate('assigned_to', e.target.value)}
-      className="crm-select-dropdown" 
-      style={{ padding: '4px 8px', width: 'auto', flex: 1, backgroundColor: '#f9fafb', fontWeight: 'bold' }}
-    >
-      <option value="">-- Sin asignar --</option>
-      {adminUsers.map(admin => (
-        <option key={admin.id} value={admin.name}>{admin.name} ({admin.role})</option>
-      ))}
-    </select>
-  ) : (
-    <span>{ticket.assigned_to || 'Sin asignar'}</span>
-  )}
-</div>
+            <strong>Responsables:</strong>
+            {userRole !== 'client' ? (
+              <div style={{ position: 'relative', flex: 1 }}>
+                <div 
+                  className="crm-select-dropdown" 
+                  onClick={() => setIsAssignDropdownOpen(!isAssignDropdownOpen)}
+                  style={{ padding: '4px 8px', backgroundColor: '#f9fafb', fontWeight: 'bold', cursor: 'pointer', minHeight: '28px', display: 'flex', alignItems: 'center' }}
+                >
+                  {ticket.assigned_to || '-- Sin asignar --'}
+                </div>
+                
+                {isAssignDropdownOpen && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: '200px', overflowY: 'auto', backgroundColor: '#fff', border: '1px solid #d0d0d0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', marginTop: '4px', zIndex: 10 }}>
+                    {adminUsers.map(admin => {
+                      const isChecked = (ticket.assigned_to || '').split(',').map(s => s.trim()).includes(admin.name);
+                      return (
+                        <label key={admin.id} style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', margin: 0, backgroundColor: isChecked ? '#fefce8' : '#fff' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked}
+                            onChange={() => {
+                              const newValue = toggleAssignee(ticket.assigned_to, admin.name);
+                              handleQuickUpdate('assigned_to', newValue);
+                            }}
+                            style={{ marginRight: '8px', cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: '13px', fontWeight: isChecked ? 'bold' : 'normal' }}>{admin.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span>{ticket.assigned_to || 'Sin asignar'}</span>
+            )}
+          </div>
 
           {userRole !== 'client' && (
             <div className="crm-text-muted" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', padding: '10px', backgroundColor: ticket.is_apolo_sync ? '#e0f2fe' : '#f9fafb', borderRadius: '6px', border: ticket.is_apolo_sync ? '1px solid #bae6fd' : '1px solid #e5e7eb', transition: 'all 0.3s' }}>
