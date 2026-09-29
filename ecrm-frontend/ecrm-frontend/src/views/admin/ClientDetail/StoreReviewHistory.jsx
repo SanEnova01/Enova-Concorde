@@ -13,25 +13,30 @@ const StoreReviewHistory = ({ storeId }) => {
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
   const monthsNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-  useEffect(() => {
-   const fetchData = async () => {
+useEffect(() => {
+    const fetchData = async () => {
       setLoading(true);
-      try {
-        const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
-        const headers = { Authorization: `Bearer ${token}` };
-        const monthFilter = String(currentMonth + 1).padStart(2, '0');
+      
+      const token = localStorage.getItem('crm_token') || localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const monthFilter = String(currentMonth + 1).padStart(2, '0');
 
-        // 1. Traer revisiones diarias (Monitor Concorde) -> Apunta a manualReviews.js
+      let dailyDates = [];
+      let qaMap = {};
+
+      // 1. Traer revisiones diarias (Monitor Concorde)
+      try {
         const resDaily = await axios.get(`/api/daily-reviews/monthly?store_id=${storeId}&year=${currentYear}&month=${monthFilter}`, { headers });
-        let dailyDates = [];
         if (resDaily.data && resDaily.data.success) {
           dailyDates = resDaily.data.data;
         }
+      } catch (error) {
+        console.error('Error obteniendo monitor diario:', error);
+      }
 
-        // 2. Traer revisiones QA (manual_reviews) -> Apunta a reviews.js
+      // 2. Traer revisiones QA (manual_reviews)
+      try {
         const resQA = await axios.get(`/api/manual-reviews/${storeId}`, { headers });
-        const qaMap = {};
         if (resQA.data && resQA.data.success) {
           resQA.data.data.forEach(rev => {
             const dateStr = new Date(rev.review_date).toISOString().split('T')[0];
@@ -39,14 +44,14 @@ const StoreReviewHistory = ({ storeId }) => {
             qaMap[dateStr].push(rev);
           });
         }
-
-        setDailyReviews(dailyDates);
-        setQaReviews(qaMap);
       } catch (error) {
-        console.error('Error obteniendo datos del calendario:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error obteniendo revisiones QA:', error);
       }
+
+      // Asignar los datos obtenidos (incluso si uno falló, el otro cargará)
+      setDailyReviews(dailyDates);
+      setQaReviews(qaMap);
+      setLoading(false);
     };
 
     if (storeId) fetchData();
