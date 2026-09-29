@@ -495,143 +495,135 @@ const ConcordeSpaceshipWidget = ({ stats, planStats, ticketStatusStats }) => {
 };
 
 
-// 🌟 SUBCOMPONENTE: Monitor de Carga y Módulos (Estilo Evangelion MAGI)
+// 🌟 SUBCOMPONENTE: Monitor de Carga de Trabajo (Estilo Windows 95/99 - Colores Suaves)
 const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
   const openTickets = (ticketStatusStats['OPEN'] || 0) + (ticketStatusStats['IN_PROGRESS'] || 0);
   const bottleneckPercent = Math.min(100, (openTickets / 20) * 100);
-  const isAlert = openTickets >= 10;
 
-  // Colores neón MAGI
-  const themeOrange = '#ff6600'; 
-  const colorSafe = '#39ff14'; // Verde neón
-  const colorWarning = '#ffaa00'; // Naranja neón
-  const colorCritical = '#ff003c'; // Rojo neón
-  const statusColor = isAlert ? colorCritical : colorSafe;
+  // Colores W95 apagados (menos saturación para no cansar la vista)
+  const colorOk = '#98c698';     // Verde pastel/apagado
+  const colorWarn = '#e6d070';   // Amarillo mostaza suave
+  const colorCrit = '#d87070';   // Rojo ladrillo suave
+  const colorBar = bottleneckPercent > 50 ? '#800000' : '#000080'; // Granate o Azul clásico W95
 
   return (
     <div style={{
-      backgroundColor: '#050505',
-      borderRadius: '4px',
-      padding: '16px',
-      color: themeOrange,
-      fontFamily: "'Courier New', Courier, monospace",
-      boxShadow: 'inset 0 0 15px rgba(255, 102, 0, 0.15), 0 4px 10px rgba(0,0,0,0.5)',
-      border: `2px solid ${themeOrange}`,
-      position: 'relative',
-      overflow: 'hidden',
+      backgroundColor: '#c0c0c0', // Gris clásico W95
+      border: '2px solid',
+      borderColor: '#ffffff #808080 #808080 #ffffff', // Relieve 3D exterior
+      padding: '2px',
       display: 'flex',
       flexDirection: 'column',
-      gap: '20px'
+      fontFamily: "'MS Sans Serif', 'Segoe UI', sans-serif",
+      color: '#000',
+      boxShadow: '1px 1px 0px #000'
     }}>
-      <style>{`
-        .eva-border {
-          border: 2px solid ${themeOrange};
-          box-shadow: 0 0 5px ${themeOrange}, inset 0 0 5px ${themeOrange};
-        }
-        .eva-pill {
-          border: 1px solid ${themeOrange};
-          border-radius: 12px;
-          padding: 2px 10px;
-          font-size: 10px;
-          font-weight: bold;
-          display: inline-block;
-          box-shadow: 0 0 3px ${themeOrange};
-          background-color: #050505;
-        }
-        .eva-blink {
-          animation: evaBlink 1s infinite alternate;
-        }
-        @keyframes evaBlink {
-          from { opacity: 1; text-shadow: 0 0 8px ${themeOrange}; }
-          to { opacity: 0.5; text-shadow: none; }
-        }
-      `}</style>
-      
-      {/* Header del Sistema */}
-      <div style={{ textAlign: 'center', borderBottom: `2px solid ${themeOrange}`, paddingBottom: '12px' }}>
-        <div className="eva-pill" style={{ marginBottom: '6px' }}>1st. DEFENSE LINE</div>
-        <div style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '2px', textShadow: `0 0 8px ${themeOrange}` }}>
-          MAIN BARRIER
-        </div>
-        <div style={{ fontSize: '12px', marginTop: '6px', color: statusColor, textShadow: `0 0 5px ${statusColor}`, fontWeight: 'bold' }}>
-          {isAlert ? '[ COLLAPSING ]' : '[ OPERATIONAL ]'}
+      {/* Barra de Título W95 */}
+      <div style={{
+        backgroundColor: '#000080', // Azul clásico barra de título
+        color: '#ffffff',
+        padding: '4px 6px',
+        fontWeight: 'bold',
+        fontSize: '12px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontFamily: "'Courier New', Courier, monospace"
+      }}>
+        <span>SYSTEM_MONITOR.EXE</span>
+        <div style={{ display: 'flex', gap: '2px' }}>
+          <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', fontWeight: 'bold' }}>_</button>
+          <button style={{ backgroundColor: '#c0c0c0', border: '1px solid', borderColor: '#fff #000 #000 #fff', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', fontWeight: 'bold' }}>X</button>
         </div>
       </div>
 
-      {/* Cuello de botella (Bottleneck Load) */}
-      <div className="eva-border" style={{ padding: '12px', backgroundColor: 'rgba(255, 102, 0, 0.05)', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)' }}>
-          <span className="eva-pill">BOTTLENECK LOAD</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '8px', marginBottom: '8px', fontWeight: 'bold' }}>
-          <span>TICKETS ACTIVOS</span>
-          <span className={isAlert ? 'eva-blink' : ''} style={{ color: statusColor, fontSize: '14px' }}>{openTickets}</span>
-        </div>
-        <div style={{ width: '100%', backgroundColor: '#111', height: '14px', border: `1px solid ${themeOrange}` }}>
+      {/* Contenido Principal */}
+      <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        
+        {/* Barra de Cuello de Botella (Bottleneck) */}
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Carga de Cuello de Botella (Tickets Activos):</div>
           <div style={{ 
-            width: `${bottleneckPercent}%`, 
-            backgroundColor: statusColor, 
-            height: '100%', 
-            transition: 'width 1s ease-in-out',
-            boxShadow: `0 0 8px ${statusColor}`
-          }}></div>
+            width: '100%', 
+            height: '20px', 
+            border: '2px solid', 
+            borderColor: '#808080 #ffffff #ffffff #808080', // Relieve hundido
+            backgroundColor: '#fff', 
+            position: 'relative',
+            padding: '2px'
+          }}>
+            <div style={{ 
+              width: `${bottleneckPercent}%`, 
+              height: '100%', 
+              backgroundColor: colorBar, 
+              transition: 'width 0.5s'
+            }}></div>
+          </div>
+          <div style={{ fontSize: '11px', marginTop: '4px', textAlign: 'right', fontWeight: 'bold' }}>{openTickets} TICKETS GLOBALES</div>
         </div>
-      </div>
 
-      {/* Módulos de Tiendas (Cuadrados de Carga en ms) */}
-      <div className="eva-border" style={{ padding: '14px', position: 'relative', minHeight: '120px' }}>
-        <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)' }}>
-          <span className="eva-pill">STORE MODULES</span>
+        {/* Cuadrícula de Módulos (Tiendas) */}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Módulos de Tiendas (Carga de Trabajo):</div>
+          <div style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: '4px', 
+            padding: '8px', 
+            border: '2px solid', 
+            borderColor: '#808080 #ffffff #ffffff #808080', 
+            backgroundColor: '#fff', 
+            minHeight: '120px', 
+            alignContent: 'flex-start',
+            justifyContent: 'center'
+          }}>
+            {clients.map(store => {
+              const tickets = store.real_ticket_count || 0;
+              
+              // Colores estilo W95 Apagados
+              let bgColor = colorOk; 
+              let textColor = '#000';
+              if (tickets > 0 && tickets <= 2) {
+                bgColor = colorWarn; 
+              } else if (tickets > 2) {
+                bgColor = colorCrit; 
+                textColor = '#fff';
+              }
+
+              return (
+                <div 
+                  key={store.id}
+                  title={`${store.name} - Tickets pendientes: ${tickets}`}
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    backgroundColor: bgColor,
+                    color: textColor,
+                    border: '2px solid',
+                    borderColor: '#ffffff #808080 #808080 #ffffff', // Relieve de botón clásico
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'help'
+                  }}
+                >
+                  {tickets}
+                </div>
+              );
+            })}
+            {clients.length === 0 && <span style={{ fontSize: '11px' }}>No hay módulos detectados.</span>}
+          </div>
         </div>
         
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px', justifyContent: 'center' }}>
-          {clients.map(store => {
-            // Asumimos que la métrica llega como 'load_ms' o 'ttfb_ms' desde el endpoint. 
-            // Si la métrica no existe, será 0.
-            const loadTimeMs = store.load_ms || store.ttfb_ms || 0; 
-            
-            // Lógica de colores según velocidad de carga web
-            let bgColor = colorSafe; // Verde (Rápido: <= 1.5s)
-            let textColor = '#000000';
-            
-            if (loadTimeMs > 1500 && loadTimeMs <= 3000) {
-              bgColor = colorWarning; // Amarillo/Naranja (Regular: 1.5s - 3s)
-            } else if (loadTimeMs > 3000) {
-              bgColor = colorCritical; // Rojo (Lento/Crítico: > 3s)
-              textColor = '#ffffff';
-            } else if (loadTimeMs === 0) {
-              bgColor = '#222222'; // Gris oscuro (Sin datos registrados)
-              textColor = '#666666';
-            }
-            
-            // Mostrar segundos (ej: 2.1)
-            const displayValue = loadTimeMs > 0 ? (loadTimeMs / 1000).toFixed(1) : '-';
-
-            return (
-              <div 
-                key={store.id} 
-                title={`${store.name} - Tiempo de carga: ${loadTimeMs}ms`}
-                style={{ 
-                  width: '26px', 
-                  height: '26px', 
-                  backgroundColor: bgColor, 
-                  border: '1px solid #000',
-                  boxShadow: loadTimeMs > 0 ? `0 0 6px ${bgColor}` : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: textColor,
-                  fontWeight: '900',
-                  fontSize: '10px',
-                  cursor: 'crosshair'
-                }}
-              >
-                {displayValue}
-              </div>
-            );
-          })}
-          {clients.length === 0 && <span style={{ fontSize: '10px' }}>NO MODULES DETECTED</span>}
+        {/* Leyenda W95 */}
+        <div style={{ display: 'flex', gap: '12px', fontSize: '11px', justifyContent: 'center', borderTop: '1px solid #808080', borderBottom: '1px solid #fff', paddingTop: '8px', paddingBottom: '2px', fontWeight: 'bold' }}>
+          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'12px',height:'12px',backgroundColor:colorOk,border:'1px solid #000'}}></div> 0</span>
+          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'12px',height:'12px',backgroundColor:colorWarn,border:'1px solid #000'}}></div> 1-2</span>
+          <span style={{display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'12px',height:'12px',backgroundColor:colorCrit,border:'1px solid #000'}}></div> +3</span>
         </div>
+
       </div>
     </div>
   );
@@ -751,10 +743,13 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
                   const misTicketsPendientes = [];
                   
                   allTickets.forEach(t => {
-                    if (t.store_id) {
+                    const st = String(t.status || 'OPEN').toUpperCase();
+                    
+                    // 🌟 CORRECCIÓN: Contar el ticket para la tienda SOLO si no está resuelto ni cerrado
+                    if (t.store_id && st !== 'CLOSED' && st !== 'RESOLVED') {
                       ticketCountsMap[t.store_id] = (ticketCountsMap[t.store_id] || 0) + 1;
                     }
-                    const st = String(t.status || 'OPEN').toUpperCase();
+                    
                     tStatusCounts[st] = (tStatusCounts[st] || 0) + 1;
 
                     // 🌟 Filtrar mis tickets asignados que NO estén cerrados
