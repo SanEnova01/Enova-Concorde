@@ -28,10 +28,11 @@ const SmallAnalogOdometer = ({ value, digits = 4 }) => {
 function TotalTickets() {
   const navigate = useNavigate();
   
-  // 1. ESTADOS PRINCIPALES
+// 1. ESTADOS PRINCIPALES
   const [tickets, setTickets] = useState([]);
   const [stores, setStores] = useState([]);
-  const [viewMode, setViewMode] = useState('LIST'); 
+  const [adminUsers, setAdminUsers] = useState([]); // 🌟 NUEVO: Guarda los usuarios reales de la BD
+  const [viewMode, setViewMode] = useState('LIST');
   const [selectedDayTickets, setSelectedDayTickets] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -83,7 +84,12 @@ function TotalTickets() {
 
   const fetchData = async () => {
     try {
-      const [ticketsRes, storesRes] = await Promise.all([crmApi.get('/tickets'), crmApi.get('/stores')]);
+      // 🌟 Añadimos la llamada a /users/admins
+      const [ticketsRes, storesRes, usersRes] = await Promise.all([
+        crmApi.get('/tickets'), 
+        crmApi.get('/stores'),
+        crmApi.get('/users/admins') 
+      ]);
       
       if (ticketsRes.data) {
         setTickets(Array.isArray(ticketsRes.data) ? ticketsRes.data : (ticketsRes.data.data || []));
@@ -96,6 +102,11 @@ function TotalTickets() {
           setFormData(prev => ({ ...prev, store_id: parsedStores[0].id }));
         }
       }
+
+      if (usersRes.data && usersRes.data.success) {
+        setAdminUsers(usersRes.data.data || []);
+      }
+
       setLoading(false);
     } catch (error) { 
       console.error(error); 
@@ -120,11 +131,7 @@ function TotalTickets() {
     return t.status !== 'CLOSED';
   });
 
-  // Extraemos a todos los responsables únicos para armar el filtro dinámicamente
-  const allAssignees = Array.from(new Set(
-    tickets.flatMap(t => t.assigned_to ? t.assigned_to.split(',').map(n => n.trim()) : [])
-  )).filter(Boolean).sort();
-
+  // 🌟 LÓGICA DE FILTRADO LIMPIA (Compara contra el usuario de la BD)
   const assignedFiltered = statusFiltered.filter(t => {
     if (assigneeFilter === '') return true; 
     
@@ -133,9 +140,13 @@ function TotalTickets() {
     if (!hasAssignee) return false;
     
     const asignados = t.assigned_to.split(',').map(n => n.trim().toLowerCase());
-    if (assigneeFilter === 'ME') return asignados.includes(currentUser.toLowerCase());
     
-    return asignados.includes(assigneeFilter.toLowerCase());
+    if (assigneeFilter === 'ME') {
+      return asignados.some(a => a.includes(currentUser.toLowerCase()) || currentUser.toLowerCase().includes(a));
+    }
+    
+    // Compara el nombre exacto extraído de la BD con lo que haya tipeado el usuario en el ticket
+    return asignados.some(a => a.includes(assigneeFilter.toLowerCase()) || assigneeFilter.toLowerCase().includes(a));
   });
 
   const searchedTickets = assignedFiltered.filter(t => {
@@ -381,7 +392,7 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                 boxSizing: 'border-box'
               }}
             />
-            {/* 🌟 SELECTOR DINÁMICO DE RESPONSABLES */}
+            {/* 🌟 SELECTOR DINÁMICO DE RESPONSABLES (DESDE LA BD) */}
             <select
               value={assigneeFilter}
               onChange={(e) => setAssigneeFilter(e.target.value)}
@@ -401,8 +412,8 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
               <option value="ME">🗂️ Mis Tickets</option>
               <option value="UNASSIGNED">⚠️ Sin asignar</option>
               <optgroup label="Filtrar por Empleado">
-                {allAssignees.map(name => (
-                  <option key={name} value={name}>👤 {name}</option>
+                {adminUsers.map(user => (
+                  <option key={user.id} value={user.name}>👤 {user.name}</option>
                 ))}
               </optgroup>
             </select>
