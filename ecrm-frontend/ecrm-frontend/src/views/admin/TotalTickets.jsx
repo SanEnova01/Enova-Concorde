@@ -42,9 +42,9 @@ function TotalTickets() {
   const [searchTerm, setSearchTerm] = useState('');     // Buscador por ID, Asunto o Store ID
   const [storeFilterSearch, setStoreFilterSearch] = useState(''); // Filtro en selector de tienda masivo
 
-  // 🌟 NUEVOS ESTADOS: Filtro de Mis Tickets y Ordenamiento
+  // 🌟 NUEVOS ESTADOS: Filtro de Asignación y Ordenamiento
   const [currentUser, setCurrentUser] = useState('');
-  const [showMyTicketsOnly, setShowMyTicketsOnly] = useState(false);
+  const [assigneeFilter, setAssigneeFilter] = useState(''); // '' = Todos, 'ME' = Mis Tickets, 'UNASSIGNED' = Sin Asignar
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
 
   // TAB DE ESTADO: ACTIVOS (Sin CLOSED) VS CERRADOS (CLOSED)
@@ -120,14 +120,25 @@ function TotalTickets() {
     return t.status !== 'CLOSED';
   });
 
-  const myTicketsFiltered = statusFiltered.filter(t => {
-    if (!showMyTicketsOnly) return true;
-    if (!t.assigned_to) return false;
+  // Extraemos a todos los responsables únicos para armar el filtro dinámicamente
+  const allAssignees = Array.from(new Set(
+    tickets.flatMap(t => t.assigned_to ? t.assigned_to.split(',').map(n => n.trim()) : [])
+  )).filter(Boolean).sort();
+
+  const assignedFiltered = statusFiltered.filter(t => {
+    if (assigneeFilter === '') return true; 
+    
+    const hasAssignee = t.assigned_to && t.assigned_to.trim() !== '';
+    if (assigneeFilter === 'UNASSIGNED') return !hasAssignee;
+    if (!hasAssignee) return false;
+    
     const asignados = t.assigned_to.split(',').map(n => n.trim().toLowerCase());
-    return asignados.includes(currentUser.toLowerCase());
+    if (assigneeFilter === 'ME') return asignados.includes(currentUser.toLowerCase());
+    
+    return asignados.includes(assigneeFilter.toLowerCase());
   });
 
-  const searchedTickets = myTicketsFiltered.filter(t => {
+  const searchedTickets = assignedFiltered.filter(t => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase().trim();
     return (
@@ -166,7 +177,7 @@ function TotalTickets() {
   useEffect(() => {
     setSelectedIds([]);
     setListPage(1);
-  }, [ticketView, statusTab, searchTerm, showMyTicketsOnly]);
+  }, [ticketView, statusTab, searchTerm, assigneeFilter]);
 
   // EDICIÓN INDIVIDUAL EN LÍNEA
 const handleSingleFieldChange = async (ticketId, field, value) => {
@@ -370,22 +381,31 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                 boxSizing: 'border-box'
               }}
             />
-            {/* 🌟 BOTÓN TOGGLE "MIS TICKETS" */}
-            <button 
-              onClick={() => setShowMyTicketsOnly(!showMyTicketsOnly)}
+            {/* 🌟 SELECTOR DINÁMICO DE RESPONSABLES */}
+            <select
+              value={assigneeFilter}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
               style={{
                 padding: '0 16px',
-                backgroundColor: showMyTicketsOnly ? '#111' : '#fff',
-                color: showMyTicketsOnly ? '#FFD700' : '#111',
+                backgroundColor: assigneeFilter !== '' ? '#111' : '#fff',
+                color: assigneeFilter !== '' ? '#FFD700' : '#111',
                 border: '2px solid #111',
                 borderRadius: '6px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
-                whiteSpace: 'nowrap'
+                outline: 'none',
+                height: '38px'
               }}
             >
-              {showMyTicketsOnly ? '🗂️ Viendo Mis Tickets' : '👤 Filtrar Mis Tickets'}
-            </button>
+              <option value="">👥 Todos los tickets</option>
+              <option value="ME">🗂️ Mis Tickets</option>
+              <option value="UNASSIGNED">⚠️ Sin asignar</option>
+              <optgroup label="Filtrar por Empleado">
+                {allAssignees.map(name => (
+                  <option key={name} value={name}>👤 {name}</option>
+                ))}
+              </optgroup>
+            </select>
           </div>
 
           {/* SELECCIÓN ACTIVOS / CERRADOS */}
