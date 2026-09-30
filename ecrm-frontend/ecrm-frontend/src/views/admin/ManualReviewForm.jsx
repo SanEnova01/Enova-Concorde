@@ -103,8 +103,9 @@ const ManualReviewForm = () => {
   const getAvailableMonths = (reviews) => {
     const months = new Set();
     reviews.forEach(rev => {
-       const date = new Date(rev.review_date);
-       const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+       // 🌟 FIX: Extraer Año y Mes cortando el string directamente, sin usar Date()
+       const [year, month] = rev.review_date.split('T')[0].split('-');
+       const monthStr = `${year}-${month}`;
        months.add(monthStr);
     });
     return Array.from(months).sort((a, b) => b.localeCompare(a)); 
@@ -114,9 +115,9 @@ const ManualReviewForm = () => {
     if (!pdfMonth) return alert('Selecciona un mes para descargar.');
 
     const filteredReviews = store.reviews.filter(rev => {
-      const d = new Date(rev.review_date);
-      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      return m === pdfMonth;
+      // 🌟 FIX: Filtrar usando el string exacto para evitar el salto de día
+      const [y, m] = rev.review_date.split('T')[0].split('-');
+      return `${y}-${m}` === pdfMonth;
     });
 
     if (filteredReviews.length === 0) return alert('No hay registros para este mes.');
@@ -273,7 +274,12 @@ const ManualReviewForm = () => {
   };
 
   const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    // 🌟 FIX: Alimentamos el constructor Date() con componentes numéricos locales
+    // Así forzamos la medianoche LOCAL de Lima y nunca se resta un día.
+    const [year, month, day] = dateStr.split('T')[0].split('-');
+    const localDate = new Date(year, month - 1, day);
+    
+    return localDate.toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
   };
 
   const filteredHistoryStores = Object.values(historyByStore).filter(store => 
