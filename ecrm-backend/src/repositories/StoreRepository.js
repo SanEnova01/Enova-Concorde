@@ -16,7 +16,8 @@ class StoreRepository {
         tecnologia: storeData.tecnologia || null,
         notes: storeData.notes || null,
         logo_url: storeData.logo_url || null,
-        has_cooppilot: storeData.has_cooppilot || false, // 👈 NUEVO SWITCH
+        has_cooppilot: storeData.has_cooppilot || false,
+        assigned_to: storeData.assigned_to || null, // 🌟 GUARDA EL RESPONSABLE
         ticket_count: 0 
       }).returning('*');
 
@@ -72,6 +73,10 @@ class StoreRepository {
       }
       if (typeof storeData.has_returns !== 'undefined') {
         updatePayload.has_returns = storeData.has_returns;
+      }
+      // 🌟 PERMITE ACTUALIZAR EL RESPONSABLE DESDE LA TABLA
+      if (typeof storeData.assigned_to !== 'undefined') {
+        updatePayload.assigned_to = storeData.assigned_to;
       }
 
       const [updatedStore] = await db('stores')

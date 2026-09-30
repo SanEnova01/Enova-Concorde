@@ -15,31 +15,34 @@ function ClientsList() {
   // ESTADO PARA EL CAMBIO DE VISTA (grid o table)
   const [viewMode, setViewMode] = useState('grid');
   
-  // Estado para el formulario de nueva tienda
+ // Estado para el formulario de nueva tienda
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    id: '',
-    name: '',
-    web: '',
-    emails: '',
-    phone: '',
-    plan_type: 'GO',
-    tecnologia: '',
-    notes: '',
-    logo_url: '' 
+    id: '', name: '', web: '', emails: '', phone: '', plan_type: 'GO', tecnologia: '', notes: '', logo_url: '', assigned_to: '' 
   });
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = viewMode === 'table' ? 15 : 9;
-
   const navigate = useNavigate();
+
+  // 🌟 NUEVOS ESTADOS: Asignación y Usuarios
+  const [currentUser, setCurrentUser] = useState('');
+  const [showMyStoresOnly, setShowMyStoresOnly] = useState(false);
+  const [adminUsers, setAdminUsers] = useState([]);
 
   const fetchClients = async () => {
     try {
-      const response = await crmApi.get('/stores');
-      if (response.data.success) {
-        setClients(response.data.data);
-        setFilteredClients(response.data.data);
+      const [storesRes, usersRes] = await Promise.all([
+        crmApi.get('/stores'),
+        crmApi.get('/users/admins').catch(() => ({ data: { success: false, data: [] } }))
+      ]);
+      
+      if (storesRes.data && storesRes.data.success) {
+        setClients(storesRes.data.data);
+        setFilteredClients(storesRes.data.data);
+      }
+      if (usersRes.data && usersRes.data.success) {
+        setAdminUsers(usersRes.data.data);
       }
       setLoading(false);
     } catch (error) {
@@ -49,12 +52,37 @@ function ClientsList() {
   };
 
   useEffect(() => {
+    const token = localStorage.getItem('crm_token');
+    if (token) {
+      const payload = JSON.parse(window.atob(token.split('.')[1]));
+      setCurrentUser(payload.name || payload.email);
+    }
     fetchClients();
   }, []);
+
+  // 🌟 FUNCIÓN PARA ACTUALIZAR RESPONSABLE EN LÍNEA
+  const handleAssigneeChange = async (storeId, newAssignee) => {
+    try {
+      await crmApi.put(`/stores/${storeId}`, { assigned_to: newAssignee });
+      setClients(prev => prev.map(c => c.id === storeId ? { ...c, assigned_to: newAssignee } : c));
+    } catch (error) {
+      console.error("Error al asignar tienda:", error);
+      alert("Error al actualizar el responsable en la base de datos.");
+    }
+  };
 
   useEffect(() => {
     let result = [...clients];
     
+    // 🌟 FILTRAR MIS TIENDAS ASIGNADAS
+    if (showMyStoresOnly) {
+      result = result.filter(c => {
+        if (!c.assigned_to) return false;
+        const asignados = String(c.assigned_to).toLowerCase().split(',').map(s => s.trim());
+        return asignados.some(a => a.includes(currentUser.toLowerCase()) || currentUser.toLowerCase().includes(a));
+      });
+    }
+
     // Filtrar por Plan
     if (planFilter !== 'ALL') {
       result = result.filter(c => c.plan_type === planFilter);
@@ -211,10 +239,28 @@ function ClientsList() {
   return (
     <div>
       {/* Barra de Acciones y Filtros */}
-      <div className="crm-actions-bar">
-        <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Gestión de Clientes</h1>
+      <div className="crm-actions-bar" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
         
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* 🌟 TABS DE FILTRADO DE TIENDAS */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Gestión de Clientes</h1>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={() => { setShowMyStoresOnly(false); setCurrentPage(1); }}
+              style={{ padding: '8px 16px', backgroundColor: !showMyStoresOnly ? '#111' : '#f3f4f6', color: !showMyStoresOnly ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              🏢 Todas las Tiendas
+            </button>
+            <button 
+              onClick={() => { setShowMyStoresOnly(true); setCurrentPage(1); }}
+              style={{ padding: '8px 16px', backgroundColor: showMyStoresOnly ? '#111' : '#f3f4f6', color: showMyStoresOnly ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              👤 Mis Tiendas Asignadas
+            </button>
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
           
           {/* CONTROLADOR DE CAMBIO DE VISTA */}
           <div style={{ display: 'flex', gap: '4px', backgroundColor: '#e5e7eb', padding: '4px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
@@ -394,8 +440,24 @@ function ClientsList() {
                 </div>
               </div>
 
-              <div style={{ marginTop: '12px' }}>
+           <div style={{ marginTop: '12px' }}>
                 <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>ID:</strong> {client.id}</p>
+                
+                {/* 🌟 SELECTOR DE ASIGNACIÓN EN LÍNEA */}
+                <div style={{ margin: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={e => e.stopPropagation()}>
+                  <strong className="crm-text-muted">Asignado a:</strong>
+                  <select
+                    value={client.assigned_to || ''}
+                    onChange={(e) => handleAssigneeChange(client.id, e.target.value)}
+                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '11px', outline: 'none', cursor: 'pointer', backgroundColor: '#f9fafb' }}
+                  >
+                    <option value="">Sin asignar</option>
+                    {adminUsers.map(user => (
+                      <option key={user.id} value={user.name}>{user.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <p className="crm-text-muted" style={{ margin: '6px 0', display: 'flex', alignItems: 'center' }}>
                   <strong>Tecnología:</strong> 
                   <span style={getTechBadgeStyle(client.tecnologia)}>
@@ -417,6 +479,7 @@ function ClientsList() {
                 <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb', width: '50px' }}>Logo</th>
                 <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Tienda & ID</th>
                 <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Plan</th>
+                <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Responsable</th>
                 <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Tecnología</th>
                 <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb' }}>Web</th>
                 <th style={{ padding: '14px', fontWeight: '900', color: '#111', textAlign: 'center' }}>Tickets</th>
@@ -448,6 +511,19 @@ function ClientsList() {
                   </td>
                   <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <span className="crm-badge">{client.plan_type}</span>
+                  </td>
+                  {/* 🌟 CELDA DEL RESPONSABLE AÑADIDA AQUÍ */}
+                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }} onClick={e => e.stopPropagation()}>
+                    <select
+                      value={client.assigned_to || ''}
+                      onChange={(e) => handleAssigneeChange(client.id, e.target.value)}
+                      style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '11px', outline: 'none', cursor: 'pointer', backgroundColor: '#f9fafb', fontWeight: 'bold', color: '#111' }}
+                    >
+                      <option value="">Sin asignar</option>
+                      {adminUsers.map(user => (
+                        <option key={user.id} value={user.name}>{user.name}</option>
+                      ))}
+                    </select>
                   </td>
                   <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <span style={getTechBadgeStyle(client.tecnologia)}>{client.tecnologia || 'No indicada'}</span>

@@ -646,10 +646,11 @@ const [aiBanner, setAiBanner] = useState({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 11;
 
-  // 🌟 NUEVOS ESTADOS PARA LOS TICKETS ASIGNADOS
+  // 🌟 NUEVOS ESTADOS PARA LOS TICKETS Y TIENDAS ASIGNADAS
   const [currentUser, setCurrentUser] = useState('');
-  const [userRole, setUserRole] = useState(''); // <-- NUEVO ESTADO PARA EL ROL
+  const [userRole, setUserRole] = useState(''); 
   const [myTickets, setMyTickets] = useState([]);
+  const [showMyStoresOnly, setShowMyStoresOnly] = useState(false); // 🌟 Filtro de Mis Tiendas
 
   const [techStatus] = useState({
     shopify: {
@@ -833,12 +834,20 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
 
   const filteredClients = clients
     .filter(client => {
+      // 🌟 1. FILTRO DE TABS (Mis Tiendas vs Todas)
+      if (showMyStoresOnly) {
+        if (!client.assigned_to) return false;
+        const asignados = String(client.assigned_to).toLowerCase().split(',').map(s => s.trim());
+        if (!asignados.includes(currentUser.toLowerCase())) return false;
+      }
+
+      // 🌟 2. FILTRO DE BÚSQUEDA TEXTUAL
       const query = searchQuery.toLowerCase().trim();
       if (!query) return true;
       return (
-        client.name.toLowerCase().includes(query) ||
+        (client.name && client.name.toLowerCase().includes(query)) ||
         (client.web && client.web.toLowerCase().includes(query)) ||
-        client.plan_type.toLowerCase().includes(query)
+        (client.plan_type && client.plan_type.toLowerCase().includes(query))
       );
     })
     .sort((a, b) => {
@@ -962,11 +971,39 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
           </div>
 
           <div className="crm-card-paper" style={{ margin: 0 }}>
+            {/* Cabecera Principal con Botón a Tiendas */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
               <h2 className="crm-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Lista General de Clientes</h2>
+              <button 
+                onClick={() => navigate('/admin/clientes')}
+                style={{ padding: '6px 12px', backgroundColor: '#111', color: '#FFD700', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Ir a Gestión de Tiendas ↗
+              </button>
+            </div>
+
+            {/* Fila de Controles: Tabs y Buscador */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              
+              {/* 🌟 TABS DE FILTRADO DE TIENDAS */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => { setShowMyStoresOnly(false); setCurrentPage(1); }}
+                  style={{ padding: '6px 12px', backgroundColor: !showMyStoresOnly ? '#111' : '#f3f4f6', color: !showMyStoresOnly ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  🏢 Todas las Tiendas
+                </button>
+                <button 
+                  onClick={() => { setShowMyStoresOnly(true); setCurrentPage(1); }}
+                  style={{ padding: '6px 12px', backgroundColor: showMyStoresOnly ? '#111' : '#f3f4f6', color: showMyStoresOnly ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  👤 Mis Tiendas Asignadas
+                </button>
+              </div>
+
               <input 
                 type="text" 
-                placeholder="Buscar por cliente o plan..." 
+                placeholder="🔍 Buscar por cliente o plan..." 
                 value={searchQuery} 
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -976,7 +1013,6 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
                 style={{ width: '250px' }}
               />
             </div>
-
             <div className="crm-table-container">
               <table className="crm-table-data">
                 <thead>

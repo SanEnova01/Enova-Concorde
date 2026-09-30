@@ -1,9 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import crmApi from '../../api/crmApi';
 
+// Componente reutilizable para los inputs del formulario
+const FormInput = ({ label, type = "text", value, onChange, placeholder, required = false, description }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+    <label className="crm-stat-label">{label}</label>
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      className="crm-input-text"
+      placeholder={placeholder}
+      required={required}
+    />
+    {description && <span style={{ fontSize: '11px', color: '#666' }}>{description}</span>}
+  </div>
+);
+
 function UsersManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Estado para deshabilitar botones durante peticiones
   
   // Estados para el Modal
   const [showModal, setShowModal] = useState(false);
@@ -11,23 +28,20 @@ function UsersManagement() {
   const [currentUser, setCurrentUser] = useState(null);
   
   // Datos del formulario
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'client'
-  });
+  const initialFormState = { name: '', email: '', password: '', role: 'client' };
+  const [formData, setFormData] = useState(initialFormState);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const response = await crmApi.get('/users');
-      if (response.data && response.data.success) {
+      if (response?.data?.success) {
         setUsers(response.data.data);
       }
-      setLoading(false);
     } catch (error) {
       console.error('Error cargando usuarios:', error);
+      alert('Error al cargar la lista de usuarios. Por favor, intente nuevamente.');
+    } finally {
       setLoading(false);
     }
   };
@@ -36,54 +50,74 @@ function UsersManagement() {
     fetchUsers();
   }, []);
 
-  const handleOpenCreate = () => {
-    setIsEditing(false);
-    setCurrentUser(null);
-    setFormData({ name: '', email: '', password: '', role: 'client' });
+  const handleOpenModal = (user = null) => {
+    if (user) {
+      setIsEditing(true);
+      setCurrentUser(user);
+      setFormData({ name: user.name, email: user.email, password: '', role: user.role });
+    } else {
+      setIsEditing(false);
+      setCurrentUser(null);
+      setFormData(initialFormState);
+    }
     setShowModal(true);
   };
 
-  const handleOpenEdit = (user) => {
-    setIsEditing(true);
-    setCurrentUser(user);
-    setFormData({
-      name: user.name,
-      email: user.email,
-      password: '', // Se deja vacío para que solo se actualice si se escribe algo nuevo
-      role: user.role
-    });
-    setShowModal(true);
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setFormData(initialFormState);
+    setCurrentUser(null);
+    setIsEditing(false);
   };
 
   const handleDelete = async (id, name) => {
     if (window.confirm(`¿Estás súper seguro de eliminar la cuenta de ${name}? Esta acción no se puede deshacer.`)) {
+      setIsSubmitting(true);
       try {
         await crmApi.delete(`/users/${id}`);
-        fetchUsers();
+        setUsers(prevUsers => prevUsers.filter(user => user.id !== id)); // Optimistic UI update
+        alert(`Usuario ${name} eliminado correctamente.`);
       } catch (error) {
         console.error('Error al eliminar:', error);
-        alert('Hubo un error al intentar eliminar el usuario.');
+        alert('Hubo un error al intentar eliminar el usuario. Revise la consola.');
+        fetchUsers(); // Revert optimistic update on failure
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
 
+  const handleInputChange = (field) => (e) => {
+    setFormData(prev => ({ ...prev, [field]: e.target.value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       if (isEditing) {
-        // Petición PUT para editar
         await crmApi.put(`/users/${currentUser.id}`, formData);
         alert('Usuario actualizado correctamente.');
       } else {
-        // Petición POST para crear
         await crmApi.post('/users', formData);
         alert('Usuario creado exitosamente.');
       }
-      setShowModal(false);
+      handleCloseModal();
       fetchUsers();
     } catch (error) {
       console.error('Error guardando usuario:', error);
       alert(error.response?.data?.error || 'Ocurrió un error al guardar los datos.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Función auxiliar para obtener el color del badge según el rol
+  const getRoleBadgeStyle = (role) => {
+    switch (role) {
+      case 'super admin': return { backgroundColor: '#fee2e2', color: '#991b1b' };
+      case 'admin': return { backgroundColor: '#e0e7ff', color: '#3730a3' };
+      default: return { backgroundColor: '#f3f4f6', color: '#1f2937' };
     }
   };
 
@@ -93,7 +127,9 @@ function UsersManagement() {
     <div>
       <div className="crm-actions-bar">
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Gestor de Cuentas (Super Admin)</h1>
-        <button onClick={handleOpenCreate} className="crm-btn-black">Crear Nuevo Usuario</button>
+        <button onClick={() => handleOpenModal()} className="crm-btn-black" disabled={isSubmitting}>
+          Crear Nuevo Usuario
+        </button>
       </div>
 
       <div className="crm-card-paper crm-table-container">
@@ -119,15 +155,29 @@ function UsersManagement() {
                   <td style={{ fontWeight: 'bold' }}>{u.id}</td>
                   <td>{u.name}</td>
                   <td>{u.email}</td>
-                  <td><span className="crm-badge" style={{ 
-                    backgroundColor: u.role === 'super admin' ? '#fee2e2' : u.role === 'admin' ? '#e0e7ff' : '#f3f4f6',
-                    color: u.role === 'super admin' ? '#991b1b' : u.role === 'admin' ? '#3730a3' : '#1f2937',
-                    border: 'none'
-                  }}>{u.role.toUpperCase()}</span></td>
-                  <td style={{ fontSize: '12px' }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td>
+                    <span className="crm-badge" style={{ ...getRoleBadgeStyle(u.role), border: 'none' }}>
+                      {u.role.toUpperCase()}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: '12px' }}>{new Date(u.created_at).toLocaleDateString('es-ES')}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button onClick={() => handleOpenEdit(u)} className="crm-btn-border" style={{ padding: '6px 12px', marginRight: '8px' }}>Editar</button>
-                    <button onClick={() => handleDelete(u.id, u.name)} className="crm-btn-red" style={{ padding: '6px 12px' }}>Borrar</button>
+                    <button 
+                      onClick={() => handleOpenModal(u)} 
+                      className="crm-btn-border" 
+                      style={{ padding: '6px 12px', marginRight: '8px' }}
+                      disabled={isSubmitting}
+                    >
+                      Editar
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(u.id, u.name)} 
+                      className="crm-btn-red" 
+                      style={{ padding: '6px 12px' }}
+                      disabled={isSubmitting}
+                    >
+                      Borrar
+                    </button>
                   </td>
                 </tr>
               ))
@@ -136,9 +186,8 @@ function UsersManagement() {
         </table>
       </div>
 
-      {/* MODAL DE CREACIÓN / EDICIÓN */}
       {showModal && (
-        <div className="crm-modal-mask" onClick={() => setShowModal(false)}>
+        <div className="crm-modal-mask" onClick={handleCloseModal}>
           <div className="crm-modal-content" onClick={e => e.stopPropagation()}>
             <h3 className="crm-section-title" style={{ marginTop: 0 }}>
               {isEditing ? 'Editar Cuenta de Usuario' : 'Registrar Nuevo Usuario'}
@@ -146,19 +195,28 @@ function UsersManagement() {
             
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="crm-stat-label">Nombre Completo</label>
-                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="crm-input-text" required />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="crm-stat-label">Correo Electrónico de Acceso</label>
-                <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="crm-input-text" required />
-              </div>
+              <FormInput 
+                label="Nombre Completo" 
+                value={formData.name} 
+                onChange={handleInputChange('name')} 
+                required 
+              />
+              
+              <FormInput 
+                label="Correo Electrónico de Acceso" 
+                type="email" 
+                value={formData.email} 
+                onChange={handleInputChange('email')} 
+                required 
+              />
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label className="crm-stat-label">Nivel de Acceso (Rol)</label>
-                <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="crm-select-dropdown">
+                <select 
+                  value={formData.role} 
+                  onChange={handleInputChange('role')} 
+                  className="crm-select-dropdown"
+                >
                   <option value="client">Cliente / Marca (Solo ve su tienda)</option>
                   <option value="admin">Administrador (Agencia Operativa)</option>
                   <option value="super admin">Super Admin (Control Total)</option>
@@ -166,25 +224,25 @@ function UsersManagement() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '6px', border: '1px dashed #ccc' }}>
-                <label className="crm-stat-label" style={{ color: '#d9534f' }}>
-                  {isEditing ? 'Restablecer Contraseña' : 'Crear Contraseña'}
-                </label>
-                <input 
+                <FormInput 
+                  label={isEditing ? 'Restablecer Contraseña' : 'Crear Contraseña'}
                   type="text" 
-                  placeholder={isEditing ? "Deja en blanco para no cambiarla" : "Escribe una contraseña..."} 
                   value={formData.password} 
-                  onChange={e => setFormData({...formData, password: e.target.value})} 
-                  className="crm-input-text" 
-                  required={!isEditing} 
+                  onChange={handleInputChange('password')} 
+                  placeholder={isEditing ? "Deja en blanco para no cambiarla" : "Escribe una contraseña..."}
+                  required={!isEditing}
+                  description={isEditing ? "Si el cliente olvidó su clave, escribe una nueva aquí. Se sobreescribirá la anterior." : null}
                 />
-                {isEditing && <span style={{ fontSize: '11px', color: '#666' }}>Si el cliente olvidó su clave, escribe una nueva aquí. Se sobreescribirá la anterior.</span>}
               </div>
 
               <div className="crm-pagination-box" style={{ marginTop: '16px', justifyContent: 'space-between' }}>
-                <button type="submit" className="crm-btn-black">{isEditing ? 'Guardar Cambios' : 'Crear Cuenta'}</button>
-                <button type="button" onClick={() => setShowModal(false)} className="crm-btn-border">Cancelar</button>
+                <button type="submit" className="crm-btn-black" disabled={isSubmitting}>
+                  {isSubmitting ? 'Procesando...' : (isEditing ? 'Guardar Cambios' : 'Crear Cuenta')}
+                </button>
+                <button type="button" onClick={handleCloseModal} className="crm-btn-border" disabled={isSubmitting}>
+                  Cancelar
+                </button>
               </div>
-
             </form>
           </div>
         </div>

@@ -72,8 +72,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PATCH: Actualizar los datos e imagen de la tienda
-router.patch('/:id', async (req, res) => {
+// PUT y PATCH: Actualizar los datos e imagen de la tienda (Incluye asignaciones)
+const updateStoreHandler = async (req, res) => {
   try {
     const { id } = req.params;
     const storeData = req.body;
@@ -90,9 +90,13 @@ router.patch('/:id', async (req, res) => {
 
     res.status(200).json({ success: true, data: result });
   } catch (error) {
-    console.error("Error en ruta PATCH /stores:", error);
+    console.error("Error en ruta de actualización /stores:", error);
     res.status(500).json({ success: false, error: 'Error interno del servidor al actualizar.' });
   }
-});
+};
+
+// 🌟 Habilitamos ambas rutas para que Frontend y Backend conecten sin errores
+router.patch('/:id', updateStoreHandler);
+router.put('/:id', updateStoreHandler);
 
 module.exports = router;
