@@ -42,6 +42,11 @@ function TotalTickets() {
   const [searchTerm, setSearchTerm] = useState('');     // Buscador por ID, Asunto o Store ID
   const [storeFilterSearch, setStoreFilterSearch] = useState(''); // Filtro en selector de tienda masivo
 
+  // 🌟 NUEVOS ESTADOS: Filtro de Mis Tickets y Ordenamiento
+  const [currentUser, setCurrentUser] = useState('');
+  const [showMyTicketsOnly, setShowMyTicketsOnly] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
+
   // TAB DE ESTADO: ACTIVOS (Sin CLOSED) VS CERRADOS (CLOSED)
   const [statusTab, setStatusTab] = useState('ACTIVE');  // 'ACTIVE' | 'CLOSED'
   const [ticketView, setTicketView] = useState('B2B');   // 'B2B' | 'B2C'
@@ -99,37 +104,69 @@ function TotalTickets() {
   };
 
   useEffect(() => {
+    const token = localStorage.getItem('crm_token');
+    if (token) {
+      const payload = JSON.parse(window.atob(token.split('.')[1]));
+      setCurrentUser(payload.name || payload.email);
+    }
     fetchData();
   }, []);
 
-  // PIPELINE DE FILTRADO (B2B/B2C -> ACTIVOS/CERRADOS -> BUSCADOR ID/ASUNTO/STORE_ID)
+  // 🌟 PIPELINE DE FILTRADO Y ORDENAMIENTO
   const typeFiltered = tickets.filter(t => ticketView === 'B2B' ? !t.is_b2c : t.is_b2c);
 
   const statusFiltered = typeFiltered.filter(t => {
-    if (statusTab === 'CLOSED') {
-      return t.status === 'CLOSED';
-    }
+    if (statusTab === 'CLOSED') return t.status === 'CLOSED';
     return t.status !== 'CLOSED';
   });
 
-  const searchedTickets = statusFiltered.filter(t => {
-    if (!searchTerm.trim()) return true;
-    const term = searchTerm.toLowerCase().trim();
-    const serialMatch = String(t.serial_number || t.id || '').toLowerCase().includes(term);
-    const nameMatch = String(t.name || '').toLowerCase().includes(term);
-    const storeMatch = String(t.store_id || '').toLowerCase().includes(term);
-    return serialMatch || nameMatch || storeMatch;
+  const myTicketsFiltered = statusFiltered.filter(t => {
+    if (!showMyTicketsOnly) return true;
+    if (!t.assigned_to) return false;
+    const asignados = t.assigned_to.split(',').map(n => n.trim().toLowerCase());
+    return asignados.includes(currentUser.toLowerCase());
   });
 
-  // CÁLCULO DE PAGINACIÓN DE 10 EN 10 PARA VISTA DE LISTA
-  const totalListPages = Math.ceil(searchedTickets.length / listItemsPerPage) || 1;
-  const paginatedTickets = searchedTickets.slice((listPage - 1) * listItemsPerPage, listPage * listItemsPerPage);
+  const searchedTickets = myTicketsFiltered.filter(t => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
+    return (
+      String(t.serial_number || t.id || '').toLowerCase().includes(term) ||
+      String(t.name || '').toLowerCase().includes(term) ||
+      String(t.store_id || '').toLowerCase().includes(term)
+    );
+  });
 
-  // Limpiar seleccionados y reiniciar a página 1 al cambiar filtros o búsqueda
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
+
+  const sortedTickets = [...searchedTickets].sort((a, b) => {
+    if (!sortConfig.key) return 0;
+    let valA = a[sortConfig.key] !== null && a[sortConfig.key] !== undefined ? String(a[sortConfig.key]).toLowerCase() : '';
+    let valB = b[sortConfig.key] !== null && b[sortConfig.key] !== undefined ? String(b[sortConfig.key]).toLowerCase() : '';
+    
+    if (sortConfig.key === 'created_at') {
+      valA = new Date(a.created_at).getTime();
+      valB = new Date(b.created_at).getTime();
+    }
+
+    if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // CÁLCULO DE PAGINACIÓN DE 20 EN 20 PARA VISTA DE LISTA
+  const totalListPages = Math.ceil(sortedTickets.length / listItemsPerPage) || 1;
+  const paginatedTickets = sortedTickets.slice((listPage - 1) * listItemsPerPage, listPage * listItemsPerPage);
+
+  // Limpiar seleccionados y reiniciar a página 1 al cambiar filtros
   useEffect(() => {
     setSelectedIds([]);
     setListPage(1);
-  }, [ticketView, statusTab, searchTerm]);
+  }, [ticketView, statusTab, searchTerm, showMyTicketsOnly]);
 
   // EDICIÓN INDIVIDUAL EN LÍNEA
 const handleSingleFieldChange = async (ticketId, field, value) => {
@@ -314,15 +351,16 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
         {/* BARRA DE BÚSQUEDA MULTI-CAMPO Y TABS ACTIVOS / CERRADOS */}
         <div style={{ display: 'flex', gap: '12px', width: '100%', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>
           
-          {/* BUSCADOR */}
-          <div style={{ flex: '1', minWidth: '280px' }}>
+          {/* BUSCADOR Y FILTRO MIS TICKETS */}
+          <div style={{ flex: '1', minWidth: '280px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <input 
               type="text"
               placeholder="🔍 Buscar por ID, Asunto o Store ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                width: '100%',
+                flex: '1',
+                minWidth: '200px',
                 padding: '9px 14px',
                 borderRadius: '6px',
                 border: '2px solid #111',
@@ -332,6 +370,22 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                 boxSizing: 'border-box'
               }}
             />
+            {/* 🌟 BOTÓN TOGGLE "MIS TICKETS" */}
+            <button 
+              onClick={() => setShowMyTicketsOnly(!showMyTicketsOnly)}
+              style={{
+                padding: '0 16px',
+                backgroundColor: showMyTicketsOnly ? '#111' : '#fff',
+                color: showMyTicketsOnly ? '#FFD700' : '#111',
+                border: '2px solid #111',
+                borderRadius: '6px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {showMyTicketsOnly ? '🗂️ Viendo Mis Tickets' : '👤 Filtrar Mis Tickets'}
+            </button>
           </div>
 
           {/* SELECCIÓN ACTIVOS / CERRADOS */}
@@ -464,16 +518,33 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
                       style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                     />
                   </th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>ID</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Asunto</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Store ID / Tienda</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Estado</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Prioridad</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Tipo de Tarea</th>
-                  {/* 🌟 COLUMNAS ESTÁTICAS DE SÓLO LECTURA */}
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Responsable</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', textAlign: 'center' }}>Apolo Sync</th>
-                  <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111' }}>Fecha</th>
+                  <th onClick={() => handleSort('serial_number')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    ID {sortConfig.key === 'serial_number' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('name')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    Asunto {sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('store_id')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    Store ID / Tienda {sortConfig.key === 'store_id' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('status')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    Estado {sortConfig.key === 'status' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('priority')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    Prioridad {sortConfig.key === 'priority' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('task_type')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    Tipo de Tarea {sortConfig.key === 'task_type' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('assigned_to')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    Responsable {sortConfig.key === 'assigned_to' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('is_apolo_sync')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', textAlign: 'center', cursor: 'pointer', userSelect: 'none' }}>
+                    Apolo Sync {sortConfig.key === 'is_apolo_sync' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th onClick={() => handleSort('created_at')} style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '900', color: '#111', cursor: 'pointer', userSelect: 'none' }}>
+                    Fecha {sortConfig.key === 'created_at' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}
+                  </th>
                 </tr>
               </thead>
               <tbody>
