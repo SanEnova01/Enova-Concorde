@@ -499,19 +499,77 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
 // ==========================================
 // NUEVAS RUTAS: GESTIÓN COMPLETA DE USUARIOS
 // ==========================================
+
+// 1. Obtener lista de admins (Debe ir antes que /:id para no chocar)
+app.get('/api/users/admins', verificarToken, async (req, res) => {
+  try {
+    const admins = await db('users')
+      .whereIn('role', ['admin', 'super admin'])
+      .select('id', 'name', 'email', 'role', 'created_at');
+    res.json({ success: true, data: admins });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 2. 🌟 NUEVO ENDPOINT: Estadísticas de usuario para el Perfil
+app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await db('users').where({ id: userId }).first();
+    if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+
+    const userNameLower = user.name.toLowerCase();
+
+    // Tiendas Asignadas
+    const assignedStores = await db('stores')
+      .whereRaw('LOWER(assigned_to) LIKE ?', [`%${userNameLower}%`])
+      .select('id', 'name', 'plan_type');
+
+    // Tickets Asignados
+    const assignedTickets = await db('tickets')
+      .whereRaw('LOWER(assigned_to) LIKE ?', [`%${userNameLower}%`])
+      .select('id', 'status', 'created_at', 'updated_at');
+
+    const openTickets = assignedTickets.filter(t => t.status !== 'CLOSED' && t.status !== 'RESOLVED').length;
+    const resolvedTickets = assignedTickets.filter(t => t.status === 'CLOSED' || t.status === 'RESOLVED').length;
+
+    let lastActivity = user.created_at || new Date();
+    if (assignedTickets.length > 0) {
+      const sortedTickets = assignedTickets.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+      lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        myStores: assignedStores,
+        totalTickets: assignedTickets.length,
+        openTickets,
+        resolvedTickets,
+        lastActivity
+      }
+    });
+  } catch (error) {
+    console.error("Error obteniendo stats de usuario:", error);
+    res.status(500).json({ success: false, error: 'Error calculando métricas.' });
+  }
+});
+
+// 3. Listar usuarios (🌟 FIX: Traemos created_at para evitar Invalid Date)
 app.get('/api/users', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
       return res.status(403).json({ success: false, error: 'Permiso denegado.' });
     }
-    const users = await db('users').select('id', 'name', 'email', 'role');
+    const users = await db('users').select('id', 'name', 'email', 'role', 'created_at');
     res.json({ success: true, data: users });
   } catch (error) {
-    console.error("Error obteniendo usuarios:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
+// 4. Actualizar usuario
 app.put('/api/users/:id', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
@@ -537,6 +595,7 @@ app.put('/api/users/:id', verificarToken, async (req, res) => {
   }
 });
 
+// 5. Eliminar usuario
 app.delete('/api/users/:id', verificarToken, async (req, res) => {
   try {
     if (req.adminUser.role !== 'super admin') {
