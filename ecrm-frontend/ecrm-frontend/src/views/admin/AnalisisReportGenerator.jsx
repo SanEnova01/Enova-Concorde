@@ -20,7 +20,7 @@ function AnalisisReportGenerator() {
 
   const chartsRef = useRef({});
 
-  const num = (v) => parseFloat(String(v).replace(/[^\d.-]/g, '')) || 0;
+  const cleanNum = (v) => parseFloat(String(v).replace(/[^\d.-]/g, '')) || 0;
   const fmtN = (v) => new Intl.NumberFormat('es-ES').format(Math.round(v));
   const fmtPct = (v) => (v * 100).toFixed(2).replace('.', ',') + '%';
   const txt = (v) => (!v || String(v).trim() === '') ? 'No identificado' : String(v).trim();
@@ -64,7 +64,7 @@ function AnalisisReportGenerator() {
     let t = 0, mx = -1, mn = Infinity, dMx = '', dMn = '', lb = [], vl = [];
     data.forEach(r => {
       if (r.length < 2) return;
-      let v = num(r[1]), d = r[0];
+      let v = cleanNum(r[1]), d = r[0];
       lb.push(dateFmt(d)); vl.push(v); t += v;
       if (v > mx) { mx = v; dMx = d; }
       if (v < mn) { mn = v; dMn = d; }
@@ -84,74 +84,74 @@ function AnalisisReportGenerator() {
     let tSes = 0, tVis = 0, tVist = 0, tDurPnd = 0;
     data.forEach(r => {
       if (r.length < 5) return;
-      let s = num(r[1]);
-      tSes += s; tVis += num(r[2]); tVist += num(r[3]); tDurPnd += (num(r[4]) * s);
+      let s = cleanNum(r[1]);
+      tSes += s; tVis += cleanNum(r[2]); tVist += cleanNum(r[3]); tDurPnd += (cleanNum(r[4]) * s);
     });
     let avgD = tSes > 0 ? (tDurPnd / tSes) : 0;
     let tb = document.getElementById('tb-metricas');
     tb.innerHTML = `
-      <tr><td>Sesiones Totales</td><td class="text-right">${fmtN(tSes)}</td></tr>
-      <tr><td>Visitantes de la tienda online</td><td class="text-right">${fmtN(tVis)}</td></tr>
-      <tr><td>Vistas de página</td><td class="text-right">${fmtN(tVist)}</td></tr>
-      <tr><td>Duración media de la sesión</td><td class="text-right">${avgD.toFixed(2).replace('.', ',')} s (${Math.floor(avgD/60)} min ${Math.floor(avgD%60)} s)</td></tr>
+      <tr><td>Sesiones Totales</td><td class="arg-text-right">${fmtN(tSes)}</td></tr>
+      <tr><td>Visitantes de la tienda online</td><td class="arg-text-right">${fmtN(tVis)}</td></tr>
+      <tr><td>Vistas de página</td><td class="arg-text-right">${fmtN(tVist)}</td></tr>
+      <tr><td>Duración media de la sesión</td><td class="arg-text-right">${avgD.toFixed(2).replace('.', ',')} s (${Math.floor(avgD/60)} min ${Math.floor(avgD%60)} s)</td></tr>
     `;
   };
 
   const doCanales = (data) => {
-    let tot = data.reduce((a, r) => a + num(r[1]), 0), lb = [], vl = [], tb = document.getElementById('tb-canales');
+    let tot = data.reduce((a, r) => a + cleanNum(r[1]), 0), lb = [], vl = [], tb = document.getElementById('tb-canales');
     tb.innerHTML = '';
     data.forEach(r => {
       if (r.length < 4) return;
-      let c = txt(r[0]), s = num(r[1]), reb = num(r[3]);
+      let c = txt(r[0]), s = cleanNum(r[1]), reb = cleanNum(r[3]);
       lb.push(c); vl.push(s);
-      tb.innerHTML += `<tr><td>${c}</td><td class="text-right">${fmtN(s)}</td><td class="text-right">${fmtN(num(r[2]))}</td><td class="text-right">${fmtPct(reb<=1?reb:reb/100)}</td><td class="text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
+      tb.innerHTML += `<tr><td>${c}</td><td class="arg-text-right">${fmtN(s)}</td><td class="arg-text-right">${fmtN(cleanNum(r[2]))}</td><td class="arg-text-right">${fmtPct(reb<=1?reb:reb/100)}</td><td class="arg-text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
     });
     drawGeneral('c-canales', 'pie', lb, vl, '');
   };
 
   const doDisp = (data) => {
-    let tot = data.reduce((a, r) => a + num(r[1]), 0), lb = [], vl = [], tb = document.getElementById('tb-disp');
+    let tot = data.reduce((a, r) => a + cleanNum(r[1]), 0), lb = [], vl = [], tb = document.getElementById('tb-disp');
     tb.innerHTML = '';
     data.forEach(r => {
       if (r.length < 2) return;
-      let d = trans(r[0]), s = num(r[1]);
+      let d = trans(r[0]), s = cleanNum(r[1]);
       lb.push(d); vl.push(s);
-      tb.innerHTML += `<tr><td>${d}</td><td class="text-right">${fmtN(s)}</td><td class="text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
+      tb.innerHTML += `<tr><td>${d}</td><td class="arg-text-right">${fmtN(s)}</td><td class="arg-text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
     });
     drawGeneral('c-disp', 'doughnut', lb, vl, '');
   };
 
   const doDemog = (data, id) => {
-    let tot = data.reduce((a, r) => a + num(r[1]), 0), tb = document.getElementById(id);
+    let tot = data.reduce((a, r) => a + cleanNum(r[1]), 0), tb = document.getElementById(id);
     tb.innerHTML = '';
     data.slice(0, 10).forEach(r => {
       if (r.length < 2) return;
-      let s = num(r[1]);
-      tb.innerHTML += `<tr><td>${txt(r[0])}</td><td class="text-right">${fmtN(s)}</td><td class="text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
+      let s = cleanNum(r[1]);
+      tb.innerHTML += `<tr><td>${txt(r[0])}</td><td class="arg-text-right">${fmtN(s)}</td><td class="arg-text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
     });
   };
 
   const doPaginas = (data) => {
-    let tot = data.reduce((a, r) => a + num(r[1]), 0), lb = [], vl = [], tb = document.getElementById('tb-paginas');
+    let tot = data.reduce((a, r) => a + cleanNum(r[1]), 0), lb = [], vl = [], tb = document.getElementById('tb-paginas');
     tb.innerHTML = '';
     data.slice(0, 10).forEach(r => {
       if (r.length < 2) return;
-      let p = r[0], s = num(r[1]);
+      let p = r[0], s = cleanNum(r[1]);
       lb.push(p.length > 18 ? p.substring(0, 18) + '...' : p);
       vl.push(s);
       let tableText = p.length > 50 ? p.substring(0, 50) + '...' : p;
-      tb.innerHTML += `<tr><td style="word-break: break-all;">${tableText}</td><td class="text-right">${fmtN(s)}</td><td class="text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
+      tb.innerHTML += `<tr><td style="word-break: break-all;">${tableText}</td><td class="arg-text-right">${fmtN(s)}</td><td class="arg-text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
     });
     drawGeneral('c-paginas', 'bar', lb, vl, 'Vistas');
   };
 
   const doUTM = (data, id) => {
-    let tot = data.reduce((a, r) => a + num(r[1]), 0), tb = document.getElementById(id);
+    let tot = data.reduce((a, r) => a + cleanNum(r[1]), 0), tb = document.getElementById(id);
     tb.innerHTML = '';
     data.slice(0, 10).forEach(r => {
       if (r.length < 2) return;
-      let s = num(r[1]);
-      tb.innerHTML += `<tr><td>${txt(r[0])}</td><td class="text-right">${fmtN(s)}</td><td class="text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
+      let s = cleanNum(r[1]);
+      tb.innerHTML += `<tr><td>${txt(r[0])}</td><td class="arg-text-right">${fmtN(s)}</td><td class="arg-text-right">${tot?fmtPct(s/tot):'0%'}</td></tr>`;
     });
   };
 
@@ -196,14 +196,15 @@ function AnalisisReportGenerator() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 20, bottom: 45, left: 10, right: 30 } },
+        animation: false,
+        layout: { padding: { top: 15, bottom: 25, left: 15, right: 45 } },
         plugins: {
           title: { display: true, text: `Sesiones Diarias (${periodStr})`, font: { size: 12, weight: 'bold' }, color: '#333' },
           legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 12, font: { size: 10 }, usePointStyle: true } }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: { size: 9 } } },
-          y: { beginAtZero: true, ticks: { font: { size: 10 } } }
+          x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: { size: 9 }, color: '#555' } },
+          y: { beginAtZero: true, suggestedMax: Math.ceil(mx / 100) * 100 + 100, grid: { color: '#e5e5e5' }, ticks: { font: { size: 10 }, color: '#555' } }
         }
       }
     });
@@ -226,7 +227,12 @@ function AnalisisReportGenerator() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: 15 },
+        animation: false,
+        layout: {
+          padding: (typ === 'bar')
+            ? { top: 15, bottom: 25, left: 15, right: 45 }
+            : { top: 10, bottom: 15, left: 10, right: 10 }
+        },
         plugins: {
           legend: { display: isPie, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 15 } }
         },
@@ -241,7 +247,6 @@ function AnalisisReportGenerator() {
   return (
     <div style={{ padding: '40px 20px', backgroundColor: '#f3f2eb', minHeight: '100vh', fontFamily: 'Arial, Helvetica, sans-serif', color: '#000' }}>
       
-      {/* ESTILOS EXACTOS Y AISLAMIENTO DE IMPRESIÓN */}
       <style>{`
         .arg-body { background-color: #f3f2eb; color: #000; font-family: Arial, Helvetica, sans-serif; }
         .arg-controls-panel { background: #fff; border: 4px solid #000; padding: 25px; margin-bottom: 40px; box-shadow: 6px 6px 0 #000; max-width: 1000px; margin-left: auto; margin-right: auto; }
@@ -269,8 +274,9 @@ function AnalisisReportGenerator() {
         .arg-description { font-size: 14px; font-weight: 700; margin-bottom: 20px; color: #222; }
         .arg-sub-heading { font-weight: 900; margin-bottom: 8px; margin-top: 20px; text-transform: uppercase; font-size: 14px; }
 
-        .arg-chart-area { width: 100%; border: 3px solid #000; background-color: #f9f9f9; padding: 10px; margin-bottom: 20px; height: 350px; display: block; }
-        .arg-canvas-wrapper { position: relative; height: 100%; width: 100%; display: block; }
+        .arg-chart-area { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; border: 3px solid #000 !important; background-color: #fff !important; padding: 10px !important; margin-bottom: 20px !important; height: 350px !important; display: block !important; position: relative !important; overflow: hidden !important; }
+        .arg-canvas-wrapper { position: relative !important; height: 100% !important; width: 100% !important; display: block !important; overflow: hidden !important; }
+        .arg-canvas-wrapper canvas, .arg-chart-area canvas { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; display: block !important; }
 
         .arg-table { width: 100%; border-collapse: collapse; border: 4px solid #000; margin-bottom: 15px; }
         .arg-table th, .arg-table td { border: 2px solid #000; padding: 10px 12px; font-size: 13px; }
@@ -279,19 +285,23 @@ function AnalisisReportGenerator() {
         .arg-text-right { text-align: right; }
         .arg-text-center { text-align: center; }
 
-        /* IMPRESIÓN LIMPIA DE PDF (OCULTA SIDEBAR Y CONTROLES) */
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 12mm 10mm 12mm 10mm;
+          }
           .no-print, .crm-sidebar, .crm-mobile-header, .crm-sidebar-overlay { display: none !important; }
-          body { background-color: #fff !important; padding: 0 !important; }
+          body { background-color: #fff !important; padding: 0 !important; margin: 0 !important; }
           .crm-main-content { margin-left: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
           .crm-layout { display: block !important; }
-          .arg-container { max-width: 100% !important; margin: 0 !important; background: #fff !important; }
-          .arg-section-box { break-inside: avoid; page-break-inside: avoid; border-width: 3px; padding: 20px; }
-          .arg-table { border-width: 3px; }
-          .arg-table th, .arg-table td { border-width: 1px; padding: 6px 8px; font-size: 11px; }
-          .arg-chart-area { border-width: 2px; height: 320px; padding: 5px; }
-          .arg-canvas-wrapper { width: 100%; height: 100%; }
-          .arg-main-header { margin-top: 0; padding-top: 0; }
+          .arg-container { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; }
+          .arg-section-box { break-inside: avoid !important; page-break-inside: avoid !important; border-width: 3px !important; padding: 20px !important; margin-bottom: 25px !important; background-color: #fff !important; }
+          .arg-table { border-width: 3px !important; }
+          .arg-table th, .arg-table td { border-width: 1px !important; padding: 6px 8px !important; font-size: 11px !important; }
+          .arg-chart-area { border-width: 2px !important; height: 320px !important; padding: 8px !important; background-color: #fff !important; overflow: hidden !important; }
+          .arg-canvas-wrapper { width: 100% !important; height: 100% !important; overflow: hidden !important; }
+          .arg-canvas-wrapper canvas, .arg-chart-area canvas { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; }
+          .arg-main-header { margin-top: 0 !important; padding-top: 0 !important; }
         }
       `}</style>
 
@@ -408,7 +418,7 @@ function AnalisisReportGenerator() {
           <p className="arg-sub-heading">Por País</p>
           <table className="arg-table">
             <thead><tr><th>PAÍS</th><th className="arg-text-right">SESIONES</th><th className="arg-text-right">% DEL TOTAL</th></tr></thead>
-            <tbody id="tb-pais"><tr><td colSpan="3" className="arg-text-center">Cargue el CSV</td></tr></tbody>
+            <tbody id="tb-pais"><tr><td colSpan="3" class="arg-text-center">Cargue el CSV</td></tr></tbody>
           </table>
           <p className="arg-sub-heading">Por Ciudad</p>
           <table className="arg-table">
