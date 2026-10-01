@@ -6,7 +6,24 @@ function ClientsList() {
   const [clients, setClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+  const handleCopyEmailTemplate = () => {
+    const textToCopy = `Buenos dias,
+
+Se creó un ticket de atención para este requerimiento.
+
+Les avisare apenas tengamos alguna actualización.
+
+Recordar enviarnos siempre las solicitudes a estos correos:
+
+Atención General: soporte@enova.agency
+Jefatura de Área: santiago@enova.agency
+
+Saludos!`;
+
+    navigator.clipboard.writeText(textToCopy)
+      .then(() => alert('¡Mensaje copiado al portapapeles! 📧'))
+      .catch(() => alert('No se pudo copiar el texto.'));
+  };
   // FILTROS
   const [planFilter, setPlanFilter] = useState('ALL');
   const [techFilter, setTechFilter] = useState('ALL');
@@ -258,9 +275,18 @@ function ClientsList() {
             <option value="Custom">Custom / Propio</option>
           </select>
 
-          <button onClick={() => setShowForm(!showForm)} className="crm-btn-black">
-            {showForm ? 'Cancelar' : 'Nuevo Cliente'}
-          </button>
+          <button 
+  onClick={handleCopyEmailTemplate} 
+  className="crm-btn-border" 
+  title="Copiar plantilla de correo"
+  style={{ padding: '8px 12px', fontSize: '16px', cursor: 'pointer' }}
+>
+  📧
+</button>
+
+<button onClick={() => setShowForm(!showForm)} className="crm-btn-black">
+  {showForm ? 'Cancelar' : 'Nuevo Cliente'}
+</button>
         </div>
       </div>
 
