@@ -506,8 +506,8 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
 app.get('/api/users/admins', verificarToken, async (req, res) => {
   try {
     const admins = await db('users')
-      .whereIn('role', ['admin', 'super admin'])
-      .select('id', 'name', 'email', 'role', 'created_at');
+      .whereRaw('LOWER(role) IN (?, ?)', ['admin', 'super admin'])
+      .select('id', 'name', 'email', 'role'); // Retiramos created_at explícito
     res.json({ success: true, data: admins });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -572,7 +572,23 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
+// 3. Listar usuarios (🌟 FIX: Extraemos todo de forma segura)
+app.get('/api/users', verificarToken, async (req, res) => {
+  try {
+    if (String(req.adminUser.role).toLowerCase() !== 'super admin') {
+      return res.status(403).json({ success: false, error: 'Permiso denegado.' });
+    }
+    const users = await db('users').select('*');
+    // Limpiamos la contraseña antes de enviar al frontend por seguridad
+    const safeUsers = users.map(u => {
+      delete u.password;
+      return u;
+    });
+    res.json({ success: true, data: safeUsers });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 // 4. Actualizar usuario
 app.put('/api/users/:id', verificarToken, async (req, res) => {
   try {

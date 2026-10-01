@@ -47,9 +47,10 @@ function UsersManagement() {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
   };
 
-  const filteredUsers = users.filter(u => {
-    if (activeTab === 'TEAM') return u.role === 'admin' || u.role === 'super admin';
-    return u.role === 'client';
+const filteredUsers = users.filter(u => {
+    const r = String(u.role).toLowerCase().trim(); // 🌟 Hace el filtro a prueba de fallos
+    if (activeTab === 'TEAM') return r === 'admin' || r === 'super admin';
+    return r === 'client';
   });
 
   const handleOpenForm = (user = null) => {
@@ -184,7 +185,7 @@ function UsersManagement() {
                     </span>
                   </td>
                   <td style={{ fontSize: '12px', color: '#666' }}>
-                    {new Date(u.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {u.created_at ? new Date(u.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'No registrada'}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     {activeTab === 'TEAM' && (
