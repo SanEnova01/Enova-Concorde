@@ -530,41 +530,28 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
       });
     }
 
-    let assignedStores = [];
-    try {
-      const allStores = await db('stores').select('id', 'name', 'plan_type', 'assigned_to');
-      assignedStores = allStores.filter(store => {
-         if(!store.assigned_to) return false;
-         const assignees = String(store.assigned_to).toLowerCase().split(',').map(s => s.trim());
-         return assignees.includes(userName.toLowerCase());
-      });
-    } catch (e) { console.error("Aviso BD Stores:", e.message); }
+    // Consulta SQL directa a Stores (usando ILIKE para ignorar mayúsculas)
+    const assignedStores = await db('stores')
+      .whereRaw('assigned_to ILIKE ?', [`%${userName}%`])
+      .select('id', 'name', 'plan_type')
+      .catch(err => { throw new Error(`Error en tabla stores: ${err.message}`); });
 
-    let assignedTickets = [];
-    try {
-      const allTickets = await db('tickets').select('id', 'status', 'created_at', 'updated_at', 'assigned_to');
-      assignedTickets = allTickets.filter(ticket => {
-         if(!ticket.assigned_to) return false;
-         const assignees = String(ticket.assigned_to).toLowerCase().split(',').map(s => s.trim());
-         return assignees.includes(userName.toLowerCase());
-      });
-    } catch (e) { console.error("Aviso BD Tickets:", e.message); }
+    // Consulta SQL directa a Tickets
+    const assignedTickets = await db('tickets')
+      .whereRaw('assigned_to ILIKE ?', [`%${userName}%`])
+      .select('id', 'status', 'created_at', 'updated_at')
+      .catch(err => { throw new Error(`Error en tabla tickets: ${err.message}`); });
 
     const openTickets = assignedTickets.filter(t => t.status !== 'CLOSED' && t.status !== 'RESOLVED').length;
     const resolvedTickets = assignedTickets.filter(t => t.status === 'CLOSED' || t.status === 'RESOLVED').length;
 
-    // 🌟 EXTRAE LA FECHA DE LAST_LOGIN O EL ÚLTIMO TICKET MODIFICADO
     let lastActivity = user.last_login || user.created_at || new Date();
     const userLastTime = new Date(lastActivity).getTime();
 
     if (assignedTickets.length > 0) {
-      const sortedTickets = assignedTickets.sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
-        const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
-        return dateB - dateA; // Orden descendente
-      });
+      const sortedTickets = assignedTickets.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
       const lastTicketTime = new Date(sortedTickets[0].updated_at || sortedTickets[0].created_at).getTime();
-
+      
       if (lastTicketTime > userLastTime) {
         lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at;
       }
@@ -581,19 +568,7 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error obteniendo stats de usuario:", error);
-    res.status(500).json({ success: false, error: 'Error calculando métricas: ' + error.message });
-  }
-});
-// 3. Listar usuarios (🌟 FIX: Traemos created_at para evitar Invalid Date)
-app.get('/api/users', verificarToken, async (req, res) => {
-  try {
-    if (req.adminUser.role !== 'super admin') {
-      return res.status(403).json({ success: false, error: 'Permiso denegado.' });
-    }
-    const users = await db('users').select('id', 'name', 'email', 'role', 'created_at');
-    res.json({ success: true, data: users });
-  } catch (error) {
+    console.error("Error obteniendo stats de usuario:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

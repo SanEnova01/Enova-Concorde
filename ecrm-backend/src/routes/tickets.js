@@ -45,7 +45,9 @@ router.get('/', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    
+    // 🌟 AHORA EXTRAE LA ASIGNACIÓN EN LUGAR DE DESCARTARLA
+    const { status, assigned_to, assignee } = req.body;
 
     const validStatuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
     
@@ -56,7 +58,11 @@ router.patch('/:id/status', async (req, res) => {
       });
     }
 
-    const result = await TicketRepository.updateStatus(id, status);
+    // Unifica el nombre de la variable para el repositorio
+    const finalAssignee = assigned_to !== undefined ? assigned_to : assignee;
+    
+    // Envía el dato a la base de datos
+    const result = await TicketRepository.updateStatus(id, status, finalAssignee);
     
     if (!result) {
       return res.status(404).json({ success: false, error: 'Ticket no encontrado.' });

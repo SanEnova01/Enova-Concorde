@@ -105,16 +105,17 @@ class TicketRepository {
   static async update(id, data) {
     const updatePayload = {};
 
-    // Solo agrega al payload los campos que realmente se enviaron desde el frontend
     if (data.name !== undefined) updatePayload.name = data.name;
     if (data.description !== undefined) updatePayload.description = data.description;
-    if (data.assigned_to !== undefined) updatePayload.assigned_to = data.assigned_to || null;
+    
+    // 🌟 CAPTURA LA ASIGNACIÓN SIN IMPORTAR SI EL FRONTEND ENVÍA assigned_to O assignee
+    const assigneeValue = data.assigned_to !== undefined ? data.assigned_to : data.assignee;
+    if (assigneeValue !== undefined) updatePayload.assigned_to = assigneeValue || null;
     
     if (data.priority !== undefined) updatePayload.priority = sanitizePriority(data.priority);
     if (data.task_type !== undefined) updatePayload.task_type = sanitizeTaskType(data.task_type);
     if (data.store_id !== undefined && data.store_id !== 'null') updatePayload.store_id = data.store_id;
     
-    // 👇 NUEVO CAMPO AÑADIDO PARA APOLO SYNC 👇
     if (data.is_apolo_sync !== undefined) updatePayload.is_apolo_sync = data.is_apolo_sync;
 
     const [updated] = await db('tickets')
@@ -125,17 +126,18 @@ class TicketRepository {
     return updated;
   }
 
-  static async delete(id) {
-    return await db('tickets').where({ id }).del();
-  }
-  
-  static async updateStatus(id, status) {
+  static async updateStatus(id, status, assigned_to) {
     try {
       const updateData = { status };
       if (status === 'CLOSED' || status === 'RESOLVED') {
         updateData.closed_at = db.fn.now();
       } else {
         updateData.closed_at = null;
+      }
+
+      // 🌟 FUERZA EL GUARDADO DEL USUARIO SI SE ASIGNA DESDE EL KANBAN
+      if (assigned_to !== undefined) {
+        updateData.assigned_to = assigned_to || null;
       }
 
       const [updatedTicket] = await db('tickets')
