@@ -717,14 +717,7 @@ app.get(/.*/, (req, res) => {
 // ==========================================
 // 🚀 INICIALIZACIÓN DE SERVICIOS EN SEGUNDO PLANO
 // ==========================================
-const HubspotService = require('./services/HubspotService');
-setInterval(() => {
-  HubspotService.syncTickets();
-}, 2 * 60 * 1000);
-
-HubspotService.syncTickets();
 require('./services/GmailSyncService');
-
 // ==========================================
 // 🔴 NUEVO: SISTEMA DE WEBSOCKETS Y CONSOLA
 // ==========================================
