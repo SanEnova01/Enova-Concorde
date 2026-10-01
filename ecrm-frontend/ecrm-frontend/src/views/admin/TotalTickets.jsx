@@ -1006,9 +1006,18 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
             
             <form onSubmit={handleCreateTicket} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="crm-stat-label">Asunto / Nombre del Ticket</label>
-                <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="crm-input-text" required style={{ width: 'auto' }} />
-              </div>
+                  <label className="crm-stat-label">Responsable (Opcional)</label>
+                  <select 
+                    value={formData.assigned_to} 
+                    onChange={e => setFormData({...formData, assigned_to: e.target.value})} 
+                    className="crm-select-dropdown"
+                  >
+                    <option value="">Sin asignar</option>
+                    {adminUsers.map(user => (
+                      <option key={user.id} value={user.name}>{user.name}</option>
+                    ))}
+                  </select>
+                </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
