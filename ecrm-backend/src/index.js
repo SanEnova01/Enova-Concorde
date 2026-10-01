@@ -187,6 +187,9 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       { expiresIn: '12h' }
     );
 
+    // 🌟 REGISTRAMOS LA ÚLTIMA CONEXIÓN DEL USUARIO EN LA BD
+    await db('users').where({ id: user.id }).update({ updated_at: db.fn.now() }).catch(() => {});
+
     res.status(200).json({
       success: true,
       token: token,
@@ -524,33 +527,43 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
     if (!userName) {
       return res.json({
         success: true,
-        data: { myStores: [], totalTickets: 0, openTickets: 0, resolvedTickets: 0, lastActivity: user.created_at || new Date() }
+        data: { myStores: [], totalTickets: 0, openTickets: 0, resolvedTickets: 0, lastActivity: user.updated_at || user.created_at || new Date() }
       });
     }
 
-    // Tiendas Asignadas (Con COALESCE para evitar crash por nulos)
-    const assignedStores = await db('stores')
-      .whereRaw("COALESCE(assigned_to, '') ILIKE ?", [`%${userName}%`])
-      .select('id', 'name', 'plan_type')
-      .catch(() => []);
+    // 🌟 FIX: Usamos el método seguro .where de Knex con 'ilike' en lugar de whereRaw
+    let assignedStores = [];
+    try {
+      assignedStores = await db('stores')
+        .where('assigned_to', 'ilike', `%${userName}%`)
+        .select('id', 'name', 'plan_type');
+    } catch (e) { console.error("Aviso DB Stores:", e.message); }
 
-    // Tickets Asignados (Con COALESCE para evitar crash por nulos)
-    const assignedTickets = await db('tickets')
-      .whereRaw("COALESCE(assigned_to, '') ILIKE ?", [`%${userName}%`])
-      .select('id', 'status', 'created_at', 'updated_at')
-      .catch(() => []);
+    let assignedTickets = [];
+    try {
+      assignedTickets = await db('tickets')
+        .where('assigned_to', 'ilike', `%${userName}%`)
+        .select('id', 'status', 'created_at', 'updated_at');
+    } catch (e) { console.error("Aviso DB Tickets:", e.message); }
 
     const openTickets = assignedTickets.filter(t => t.status !== 'CLOSED' && t.status !== 'RESOLVED').length;
     const resolvedTickets = assignedTickets.filter(t => t.status === 'CLOSED' || t.status === 'RESOLVED').length;
 
-    let lastActivity = user.created_at || new Date();
+    // 🌟 FIX: Usamos el updated_at que ahora se guarda en el login, o el ticket más reciente
+    let lastActivity = user.updated_at || user.created_at || new Date();
+    const userLastTime = new Date(lastActivity).getTime();
+
     if (assignedTickets.length > 0) {
       const sortedTickets = assignedTickets.sort((a, b) => {
         const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
         const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
         return dateB - dateA;
       });
-      lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at || lastActivity;
+      const lastTicketTime = new Date(sortedTickets[0].updated_at || sortedTickets[0].created_at).getTime();
+      
+      if (lastTicketTime > userLastTime) {
+        lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at;
+      }
     }
 
     res.json({
