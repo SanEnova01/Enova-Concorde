@@ -687,19 +687,25 @@ ${quickSolutionText}`;
       this.isProcessing = false;
     }
   }
-// 🌟 NUEVO MÉTODO: AUTO-RESPUESTA HTML EN LA MISMA CADENA
+// 🌟 NUEVO MÉTODO: AUTO-RESPUESTA HTML EN LA MISMA CADENA (RESPONDER A TODOS)
   async sendAutoReplyInThread(threadId, lastMessage, ticket) {
     try {
       const headers = lastMessage.payload?.headers || [];
 
-      // Extraer datos del mensaje original para asegurar que se agrupe en la misma cadena
       const messageId = headers.find(h => h.name.toLowerCase() === 'message-id')?.value;
       const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
       const replyTo = headers.find(h => h.name.toLowerCase() === 'reply-to')?.value;
       const from = headers.find(h => h.name.toLowerCase() === 'from')?.value;
       
+      // Extraemos también a quiénes más iba dirigido y quiénes estaban en copia
+      const originalTo = headers.find(h => h.name.toLowerCase() === 'to')?.value || '';
+      const originalCc = headers.find(h => h.name.toLowerCase() === 'cc')?.value || '';
+      
       const recipient = replyTo || from;
       if (!recipient) return;
+
+      // Combinamos el remitente principal con todos los que estaban en 'To'
+      const allTo = [recipient, originalTo].filter(Boolean).join(', ');
 
       const replySubject = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
       
@@ -763,7 +769,8 @@ ${quickSolutionText}`;
 
       // Formato crudo compatible con Gmail API para HTML
       const rawMessageLines = [
-        `To: ${recipient}`,
+        `To: ${allTo}`,
+        originalCc ? `Cc: ${originalCc}` : null,
         `Subject: ${replySubject}`,
         `In-Reply-To: ${messageId}`,
         `References: ${messageId}`,
@@ -772,7 +779,7 @@ ${quickSolutionText}`;
         `Content-Transfer-Encoding: base64`,
         ``,
         Buffer.from(htmlContent).toString('base64')
-      ];
+      ].filter(Boolean); // El filter(Boolean) elimina la línea de "Cc:" si está vacía
 
       const rawMessage = rawMessageLines.join('\r\n');
       const encodedMessage = Buffer.from(rawMessage)
