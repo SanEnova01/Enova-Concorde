@@ -9,13 +9,13 @@ function ClientsList() {
   
   // FILTROS
   const [planFilter, setPlanFilter] = useState('ALL');
-  const [techFilter, setTechFilter] = useState('ALL'); // 👈 NUEVO FILTRO DE TECNOLOGÍA
+  const [techFilter, setTechFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // ESTADO PARA EL CAMBIO DE VISTA (grid o table)
+  // VISTA (grid o table)
   const [viewMode, setViewMode] = useState('grid');
   
- // Estado para el formulario de nueva tienda
+  // Formulario nueva tienda
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     id: '', name: '', web: '', emails: '', phone: '', plan_type: 'GO', tecnologia: '', notes: '', logo_url: '', assigned_to: '' 
@@ -25,24 +25,15 @@ function ClientsList() {
   const itemsPerPage = viewMode === 'table' ? 15 : 9;
   const navigate = useNavigate();
 
-  // 🌟 NUEVOS ESTADOS: Asignación y Usuarios
   const [currentUser, setCurrentUser] = useState('');
   const [showMyStoresOnly, setShowMyStoresOnly] = useState(false);
-  const [adminUsers, setAdminUsers] = useState([]);
 
   const fetchClients = async () => {
     try {
-      const [storesRes, usersRes] = await Promise.all([
-        crmApi.get('/stores'),
-        crmApi.get('/users/admins').catch(() => ({ data: { success: false, data: [] } }))
-      ]);
-      
+      const storesRes = await crmApi.get('/stores');
       if (storesRes.data && storesRes.data.success) {
         setClients(storesRes.data.data);
         setFilteredClients(storesRes.data.data);
-      }
-      if (usersRes.data && usersRes.data.success) {
-        setAdminUsers(usersRes.data.data);
       }
       setLoading(false);
     } catch (error) {
@@ -54,27 +45,18 @@ function ClientsList() {
   useEffect(() => {
     const token = localStorage.getItem('crm_token');
     if (token) {
-      const payload = JSON.parse(window.atob(token.split('.')[1]));
-      setCurrentUser(payload.name || payload.email);
+      try {
+        const payload = JSON.parse(window.atob(token.split('.')[1]));
+        setCurrentUser(payload.name || payload.email || '');
+      } catch (e) {}
     }
     fetchClients();
   }, []);
 
-  // 🌟 FUNCIÓN PARA ACTUALIZAR RESPONSABLE EN LÍNEA
-  const handleAssigneeChange = async (storeId, newAssignee) => {
-    try {
-      await crmApi.put(`/stores/${storeId}`, { assigned_to: newAssignee });
-      setClients(prev => prev.map(c => c.id === storeId ? { ...c, assigned_to: newAssignee } : c));
-    } catch (error) {
-      console.error("Error al asignar tienda:", error);
-      alert("Error al actualizar el responsable en la base de datos.");
-    }
-  };
-
   useEffect(() => {
     let result = [...clients];
     
-    // 🌟 FILTRAR MIS TIENDAS ASIGNADAS (FIX: Con validación de usuario y dependencias completas)
+    // FILTRAR MIS TIENDAS ASIGNADAS
     if (showMyStoresOnly) {
       if (!currentUser || !currentUser.trim()) {
         result = [];
@@ -101,7 +83,7 @@ function ClientsList() {
       });
     }
     
-    // Filtrar por Búsqueda de Texto
+    // Búsqueda
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       result = result.filter(c => 
@@ -110,7 +92,6 @@ function ClientsList() {
       );
     }
 
-    // ORDENAMIENTO PERSONALIZADO POR JERARQUÍA DE PLAN
     const planPriority = {
       'ESCALE': 1,
       'GROWTH': 2,
@@ -123,22 +104,17 @@ function ClientsList() {
     result.sort((a, b) => {
       const priorityA = planPriority[a.plan_type] || 99;
       const priorityB = planPriority[b.plan_type] || 99;
-      
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
+      if (priorityA !== priorityB) return priorityA - priorityB;
       return (a.name || '').localeCompare(b.name || '');
     });
     
     setFilteredClients(result);
     setCurrentPage(1);
-  }, [planFilter, techFilter, searchQuery, clients, showMyStoresOnly, currentUser]); // 🌟 FIX: showMyStoresOnly y currentUser agregados
-  // RESOLUTOR DE LOGO
+  }, [planFilter, techFilter, searchQuery, clients, showMyStoresOnly, currentUser]);
+
   const getLogoUrl = (url) => {
     if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
-    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     const apiBase = crmApi.defaults.baseURL || '';
     const domain = apiBase.replace(/\/api$/, ''); 
     return `${domain}${url.startsWith('/') ? '' : '/'}${url}`;
@@ -149,26 +125,21 @@ function ClientsList() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Subir imagen
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const uploadData = new FormData();
     uploadData.append('logo', file);
-
     try {
       const response = await crmApi.post('/upload', uploadData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-
       if (response.data.success) {
         setFormData(prev => ({ ...prev, logo_url: response.data.url }));
         alert('Imagen procesada y lista para adjuntar al cliente.');
       }
     } catch (error) {
-      console.error("Error al subir el logo:", error);
-      alert('Error al subir la imagen al servidor. Revisa tu consola.');
+      alert('Error al subir la imagen al servidor.');
     }
   };
 
@@ -187,51 +158,27 @@ function ClientsList() {
         alert('Cliente registrado con éxito');
         setShowForm(false);
         setFormData({
-          id: '',
-          name: '',
-          web: '',
-          emails: '',
-          phone: '',
-          plan_type: 'GO',
-          tecnologia: '',
-          notes: '',
-          logo_url: '',
+          id: '', name: '', web: '', emails: '', phone: '', plan_type: 'GO', tecnologia: '', notes: '', logo_url: ''
         });
         fetchClients(); 
       }
     } catch (error) {
-      console.error(error);
       alert('Error al registrar el cliente en el servidor.');
     }
   };
 
-  // ESTILOS PARA BADGE DE TECNOLOGÍA
   const getTechBadgeStyle = (tech) => {
     const baseStyle = {
-      padding: '2px 10px',
-      borderRadius: '12px', 
-      fontSize: '10px',
-      fontWeight: 'bold',
-      marginLeft: '8px',
-      display: 'inline-block',
-      textTransform: 'uppercase'
+      padding: '2px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', marginLeft: '8px', display: 'inline-block', textTransform: 'uppercase'
     };
-
     if (!tech) return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }; 
-
     const t = tech.toLowerCase();
-    if (t === 'shopify') {
-      return { ...baseStyle, backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }; 
-    } else if (t === 'woocommerce') {
-      return { ...baseStyle, backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }; 
-    } else if (t === 'vtex') {
-      return { ...baseStyle, backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }; 
-    } else {
-      return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }; 
-    }
+    if (t === 'shopify') return { ...baseStyle, backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }; 
+    if (t === 'woocommerce') return { ...baseStyle, backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }; 
+    if (t === 'vtex') return { ...baseStyle, backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }; 
+    return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db' }; 
   };
 
-  // Paginación
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredClients.slice(indexOfFirstItem, indexOfLastItem);
@@ -241,10 +188,7 @@ function ClientsList() {
 
   return (
     <div>
-      {/* Barra de Acciones y Filtros */}
       <div className="crm-actions-bar" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
-        
-        {/* 🌟 TABS DE FILTRADO DE TIENDAS */}
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Gestión de Clientes</h1>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -264,8 +208,6 @@ function ClientsList() {
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
-          
-          {/* CONTROLADOR DE CAMBIO DE VISTA */}
           <div style={{ display: 'flex', gap: '4px', backgroundColor: '#e5e7eb', padding: '4px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
             <button
               onClick={() => setViewMode('grid')}
@@ -297,12 +239,7 @@ function ClientsList() {
             className="crm-input-text"
           />
 
-          {/* FILTRO DE PLANES */}
-          <select 
-            value={planFilter} 
-            onChange={(e) => setPlanFilter(e.target.value)}
-            className="crm-select-dropdown"
-          >
+          <select value={planFilter} onChange={(e) => setPlanFilter(e.target.value)} className="crm-select-dropdown">
             <option value="ALL">Todos los planes</option>
             <option value="GO">GO</option>
             <option value="GROWTH">GROWTH</option>
@@ -312,12 +249,7 @@ function ClientsList() {
             <option value="LEAD">LEAD</option>
           </select>
 
-          {/* NUEVO FILTRO DE TECNOLOGÍA */}
-          <select 
-            value={techFilter} 
-            onChange={(e) => setTechFilter(e.target.value)}
-            className="crm-select-dropdown"
-          >
+          <select value={techFilter} onChange={(e) => setTechFilter(e.target.value)} className="crm-select-dropdown">
             <option value="ALL">Todas las tecnologías</option>
             <option value="Shopify">Shopify</option>
             <option value="Woocommerce">WooCommerce</option>
@@ -326,21 +258,16 @@ function ClientsList() {
             <option value="Custom">Custom / Propio</option>
           </select>
 
-          <button 
-            onClick={() => setShowForm(!showForm)} 
-            className="crm-btn-black"
-          >
+          <button onClick={() => setShowForm(!showForm)} className="crm-btn-black">
             {showForm ? 'Cancelar' : 'Nuevo Cliente'}
           </button>
         </div>
       </div>
 
-      {/* Formulario de registro condicional */}
       {showForm && (
         <form onSubmit={handleFormSubmit} className="crm-card-paper" style={{ marginBottom: '32px' }}>
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Registrar Nueva Tienda / Cliente</h3>
           <div className="crm-grid-two-columns" style={{ gap: '16px', marginBottom: '20px' }}>
-            
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label className="crm-stat-label">ID Personalizado (Opcional)</label>
               <input type="text" name="id" value={formData.id} onChange={handleInputChange} className="crm-input-text" placeholder="Generado automaticamente si se deja vacio" style={{ width: 'auto' }} />
@@ -392,18 +319,8 @@ function ClientsList() {
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label className="crm-stat-label">Subir Logotipo de la Tienda</label>
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleLogoUpload} 
-                className="crm-input-text" 
-                style={{ width: 'auto', padding: '5px' }} 
-              />
-              {formData.logo_url && (
-                <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold' }}>
-                  ✓ Imagen subida y lista para guardar
-                </span>
-              )}
+              <input type="file" accept="image/*" onChange={handleLogoUpload} className="crm-input-text" style={{ width: 'auto', padding: '5px' }} />
+              {formData.logo_url && <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold' }}>✓ Imagen subida y lista para guardar</span>}
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: 'span 2' }}>
@@ -415,9 +332,7 @@ function ClientsList() {
         </form>
       )}
 
-      {/* RENDERIZADO CONDICIONAL DE LA VISTA */}
       {viewMode === 'grid' ? (
-        /* VISTA 1: GRID / TARJETAS */
         <div className="crm-grid-three-columns">
           {currentItems.map(client => (
             <div 
@@ -443,22 +358,15 @@ function ClientsList() {
                 </div>
               </div>
 
-           <div style={{ marginTop: '12px' }}>
+              <div style={{ marginTop: '12px' }}>
                 <p className="crm-text-muted" style={{ margin: '6px 0' }}><strong>ID:</strong> {client.id}</p>
                 
-                {/* 🌟 SELECTOR DE ASIGNACIÓN EN LÍNEA */}
-                <div style={{ margin: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={e => e.stopPropagation()}>
+                {/* 🌟 VISTA SOLO LECTURA DEL RESPONSABLE */}
+                <div style={{ margin: '6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <strong className="crm-text-muted">Asignado a:</strong>
-                  <select
-                    value={client.assigned_to || ''}
-                    onChange={(e) => handleAssigneeChange(client.id, e.target.value)}
-                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '11px', outline: 'none', cursor: 'pointer', backgroundColor: '#f9fafb' }}
-                  >
-                    <option value="">Sin asignar</option>
-                    {adminUsers.map(user => (
-                      <option key={user.id} value={user.name}>{user.name}</option>
-                    ))}
-                  </select>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: client.assigned_to ? '#111' : '#6b7280', backgroundColor: client.assigned_to ? '#f3f4f6' : 'transparent', padding: '2px 6px', borderRadius: '4px' }}>
+                    {client.assigned_to || 'Sin asignar'}
+                  </span>
                 </div>
 
                 <p className="crm-text-muted" style={{ margin: '6px 0', display: 'flex', alignItems: 'center' }}>
@@ -474,7 +382,6 @@ function ClientsList() {
           ))}
         </div>
       ) : (
-        /* VISTA 2: TABLA / LISTA */
         <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #111' }}>
@@ -515,18 +422,15 @@ function ClientsList() {
                   <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <span className="crm-badge">{client.plan_type}</span>
                   </td>
-                  {/* 🌟 CELDA DEL RESPONSABLE AÑADIDA AQUÍ */}
-                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }} onClick={e => e.stopPropagation()}>
-                    <select
-                      value={client.assigned_to || ''}
-                      onChange={(e) => handleAssigneeChange(client.id, e.target.value)}
-                      style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '11px', outline: 'none', cursor: 'pointer', backgroundColor: '#f9fafb', fontWeight: 'bold', color: '#111' }}
-                    >
-                      <option value="">Sin asignar</option>
-                      {adminUsers.map(user => (
-                        <option key={user.id} value={user.name}>{user.name}</option>
-                      ))}
-                    </select>
+                  {/* 🌟 VISTA SOLO LECTURA DEL RESPONSABLE EN TABLA */}
+                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb', color: '#111', fontWeight: 'bold', fontSize: '12px' }}>
+                    {client.assigned_to ? (
+                      <span style={{ backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: '4px' }}>
+                        {client.assigned_to}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#9ca3af', fontWeight: 'normal' }}>Sin asignar</span>
+                    )}
                   </td>
                   <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <span style={getTechBadgeStyle(client.tecnologia)}>{client.tecnologia || 'No indicada'}</span>
@@ -548,7 +452,6 @@ function ClientsList() {
         <div className="crm-text-loading" style={{ marginTop: '20px' }}>No se encontraron clientes con los criterios ingresados.</div>
       )}
 
-      {/* Controles de Paginacion */}
       {totalPages > 1 && (
         <div className="crm-pagination-box">
           <button 

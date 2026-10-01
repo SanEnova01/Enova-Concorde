@@ -11,6 +11,7 @@ const FormInput = ({ label, type = "text", value, onChange, placeholder, require
 
 function UsersManagement() {
   const [users, setUsers] = useState([]);
+  const [allStores, setAllStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('TEAM'); 
@@ -38,17 +39,26 @@ function UsersManagement() {
     }
   };
 
+  const fetchStores = async () => {
+    try {
+      const res = await crmApi.get('/stores');
+      if (res.data?.success) setAllStores(res.data.data || []);
+    } catch (e) {
+      console.error('Error cargando tiendas:', e);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchStores();
   }, []);
 
-  // 🌟 FIX: Función restaurada que previene la pantalla blanca
   const handleInputChange = (field) => (e) => {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
   };
 
-const filteredUsers = users.filter(u => {
-    const r = String(u.role).toLowerCase().trim(); // 🌟 Hace el filtro a prueba de fallos
+  const filteredUsers = users.filter(u => {
+    const r = String(u.role).toLowerCase().trim();
     if (activeTab === 'TEAM') return r === 'admin' || r === 'super admin';
     return r === 'client';
   });
@@ -83,6 +93,42 @@ const filteredUsers = users.filter(u => {
       setShowStatsModal(false);
     } finally {
       setLoadingStats(false);
+    }
+  };
+
+  // 🌟 FUNCIÓN PARA ASIGNAR / DESASIGNAR TIENDAS AL USUARIO DESDE EL MODAL
+  const handleToggleStoreAssignment = async (store) => {
+    if (!currentUser) return;
+    const userName = currentUser.name;
+    const currentAssignees = store.assigned_to 
+      ? store.assigned_to.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    
+    const isAssigned = currentAssignees.some(a => a.toLowerCase() === userName.toLowerCase());
+    
+    let newAssignees;
+    if (isAssigned) {
+      newAssignees = currentAssignees.filter(a => a.toLowerCase() !== userName.toLowerCase());
+    } else {
+      newAssignees = [...currentAssignees, userName];
+    }
+
+    const newAssignedToString = newAssignees.join(', ');
+
+    try {
+      await crmApi.put(`/stores/${store.id}`, { assigned_to: newAssignedToString });
+      
+      setAllStores(prev => prev.map(s => s.id === store.id ? { ...s, assigned_to: newAssignedToString } : s));
+
+      setUserStats(prev => {
+        if (!prev) return prev;
+        const updatedMyStores = isAssigned
+          ? prev.myStores.filter(s => s.id !== store.id)
+          : [...prev.myStores, { ...store, assigned_to: newAssignedToString }];
+        return { ...prev, myStores: updatedMyStores };
+      });
+    } catch (err) {
+      alert("Error al actualizar la asignación de la tienda.");
     }
   };
 
@@ -178,10 +224,10 @@ const filteredUsers = users.filter(u => {
                   <td style={{ color: '#4b5563' }}>{u.email}</td>
                   <td>
                     <span className="crm-badge" style={{ 
-                      backgroundColor: u.role === 'super admin' ? '#fee2e2' : u.role === 'admin' ? '#e0e7ff' : '#f3f4f6',
-                      color: u.role === 'super admin' ? '#991b1b' : u.role === 'admin' ? '#3730a3' : '#1f2937'
+                      backgroundColor: String(u.role).toLowerCase() === 'super admin' ? '#fee2e2' : String(u.role).toLowerCase() === 'admin' ? '#e0e7ff' : '#f3f4f6',
+                      color: String(u.role).toLowerCase() === 'super admin' ? '#991b1b' : String(u.role).toLowerCase() === 'admin' ? '#3730a3' : '#1f2937'
                     }}>
-                      {u.role.toUpperCase()}
+                      {String(u.role).toUpperCase()}
                     </span>
                   </td>
                   <td style={{ fontSize: '12px', color: '#666' }}>
@@ -252,7 +298,7 @@ const filteredUsers = users.filter(u => {
           <div className="crm-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
             <div style={{ borderBottom: '2px solid #111', paddingBottom: '16px', marginBottom: '20px' }}>
               <h2 style={{ margin: 0, fontWeight: '900', fontSize: '24px' }}>{currentUser.name}</h2>
-              <p style={{ margin: '4px 0 0 0', color: '#666', fontSize: '13px' }}>{currentUser.email} • {currentUser.role.toUpperCase()}</p>
+              <p style={{ margin: '4px 0 0 0', color: '#666', fontSize: '13px' }}>{currentUser.email} • {String(currentUser.role).toUpperCase()}</p>
             </div>
 
             {loadingStats ? (
@@ -283,21 +329,62 @@ const filteredUsers = users.filter(u => {
                   </div>
                 </div>
 
+                {/* 🌟 GESTIÓN COMPLETA DE ASIGNACIÓN DE TIENDAS */}
                 <div style={{ marginBottom: '16px' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: '900', margin: '0 0 12px 0' }}>Tiendas Asignadas ({userStats.myStores.length})</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: '900', margin: 0 }}>
+                      Tiendas Asignadas ({userStats.myStores.length})
+                    </h3>
+                  </div>
+
                   {userStats.myStores.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f3f4f6', borderRadius: '8px', color: '#666', fontSize: '13px' }}>
+                    <div style={{ padding: '12px', textAlign: 'center', backgroundColor: '#f3f4f6', borderRadius: '8px', color: '#666', fontSize: '13px', marginBottom: '12px' }}>
                       Este usuario no tiene tiendas asignadas en este momento.
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '150px', overflowY: 'auto', paddingRight: '4px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px', maxHeight: '120px', overflowY: 'auto', paddingRight: '4px' }}>
                       {userStats.myStores.map(store => (
-                        <span key={store.id} style={{ padding: '6px 12px', backgroundColor: '#111', color: '#FFD700', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' }}>
+                        <span key={store.id} style={{ padding: '6px 12px', backgroundColor: '#111', color: '#FFD700', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           🏢 {store.name}
+                          <button 
+                            onClick={() => handleToggleStoreAssignment(store)} 
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontWeight: 'bold', fontSize: '14px', lineHeight: 1 }}
+                            title="Desasignar tienda"
+                          >
+                            ×
+                          </button>
                         </span>
                       ))}
                     </div>
                   )}
+
+                  <div style={{ backgroundColor: '#f9fafb', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                    <label className="crm-stat-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
+                      ➕ Asignar / Desasignar Tiendas del Catálogo:
+                    </label>
+                    <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {allStores.map(store => {
+                        const isAssigned = (store.assigned_to || '')
+                          .split(',')
+                          .map(s => s.trim().toLowerCase())
+                          .includes(currentUser.name.toLowerCase());
+
+                        return (
+                          <label key={store.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', padding: '4px 0' }}>
+                            <input 
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={() => handleToggleStoreAssignment(store)}
+                              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontWeight: isAssigned ? 'bold' : 'normal', color: isAssigned ? '#111' : '#4b5563' }}>
+                              {store.name} <span style={{ fontSize: '10px', color: '#9ca3af' }}>({store.plan_type || 'SIN PLAN'})</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </>
             ) : null}
