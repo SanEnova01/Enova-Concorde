@@ -770,7 +770,7 @@ ${quickSolutionText}`;
       // Formato crudo compatible con Gmail API para HTML
       const rawMessageLines = [
         `To: ${allTo}`,
-        originalCc ? `Cc: ${originalCc}` : null,
+        ...(originalCc ? [`Cc: ${originalCc}`] : []),
         `Subject: ${replySubject}`,
         `In-Reply-To: ${messageId}`,
         `References: ${messageId}`,
@@ -779,7 +779,7 @@ ${quickSolutionText}`;
         `Content-Transfer-Encoding: base64`,
         ``,
         Buffer.from(htmlContent).toString('base64')
-      ].filter(Boolean); // El filter(Boolean) elimina la línea de "Cc:" si está vacía
+      ];
 
       const rawMessage = rawMessageLines.join('\r\n');
       const encodedMessage = Buffer.from(rawMessage)
