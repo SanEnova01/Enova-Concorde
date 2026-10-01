@@ -2,9 +2,28 @@ import React, { useState, useRef } from 'react';
 import Papa from 'papaparse';
 import Chart from 'chart.js/auto';
 
+const MONTHS = [
+  { value: '0', label: 'Enero', abbr: 'Ene', upper: 'ENERO' },
+  { value: '1', label: 'Febrero', abbr: 'Feb', upper: 'FEBRERO' },
+  { value: '2', label: 'Marzo', abbr: 'Mar', upper: 'MARZO' },
+  { value: '3', label: 'Abril', abbr: 'Abr', upper: 'ABRIL' },
+  { value: '4', label: 'Mayo', abbr: 'May', upper: 'MAYO' },
+  { value: '5', label: 'Junio', abbr: 'Jun', upper: 'JUNIO' },
+  { value: '6', label: 'Julio', abbr: 'Jul', upper: 'JULIO' },
+  { value: '7', label: 'Agosto', abbr: 'Ago', upper: 'AGOSTO' },
+  { value: '8', label: 'Septiembre', abbr: 'Sep', upper: 'SEPTIEMBRE' },
+  { value: '9', label: 'Octubre', abbr: 'Oct', upper: 'OCTUBRE' },
+  { value: '10', label: 'Noviembre', abbr: 'Nov', upper: 'NOVIEMBRE' },
+  { value: '11', label: 'Diciembre', abbr: 'Dic', upper: 'DICIEMBRE' },
+];
+
 function AnalisisReportGenerator() {
   const [storeName, setStoreName] = useState('KNOMAD');
-  const [period, setPeriod] = useState('AGOSTO 2026');
+  const [selectedMonth, setSelectedMonth] = useState('7'); // Default: Agosto
+  const [selectedYear, setSelectedYear] = useState(2026);
+
+  const currentMonthObj = MONTHS.find(m => m.value === String(selectedMonth)) || MONTHS[7];
+  const periodStr = `${currentMonthObj.upper} ${selectedYear}`;
 
   const filesRef = {
     sessions: useRef(null),
@@ -24,20 +43,14 @@ function AnalisisReportGenerator() {
   const fmtN = (v) => new Intl.NumberFormat('es-ES').format(Math.round(v));
   const fmtPct = (v) => (v * 100).toFixed(2).replace('.', ',') + '%';
   const txt = (v) => (!v || String(v).trim() === '') ? 'No identificado' : String(v).trim();
+
+  // Formatea la fecha usando siempre la abreviatura del mes seleccionado en el dropdown
   const dateFmt = (d) => {
     if (!d) return '';
     const p = String(d).split('-');
-    if (p.length === 3) {
-      const year = parseInt(p[0]);
-      const monthIndex = parseInt(p[1]) - 1;
-      const day = p[2];
-      // Genera la abreviatura real según la fecha del CSV (Ene, Feb, Mar, Abr, May, Jun, Jul, Ago, Sep, Oct, Nov, Dic)
-      const dateObj = new Date(year, monthIndex, parseInt(day));
-      const monthName = dateObj.toLocaleString('es-ES', { month: 'short' });
-      const monthCapitalized = monthName.charAt(0).toUpperCase() + monthName.slice(1).replace('.', '');
-      return `${day} ${monthCapitalized}`;
-    }
-    return d;
+    const rawDay = p.length === 3 ? p[2] : p[0];
+    const day = String(parseInt(rawDay, 10)).padStart(2, '0');
+    return `${day} ${currentMonthObj.abbr}`;
   };
 
   const dict = { 'mobile': 'Móvil (Mobile)', 'desktop': 'Escritorio (Desktop)', 'tablet': 'Tablet', 'other': 'Otro' };
@@ -88,7 +101,7 @@ function AnalisisReportGenerator() {
     document.getElementById('t-max').innerText = `${dateFmt(dMx)} (${fmtN(mx)} sesiones)`;
     document.getElementById('t-min').innerText = `${dateFmt(dMn)} (${fmtN(mn)} sesiones)`;
 
-    drawSessionsChart('c-sesiones', lb, vl, avg, mx, mn, period);
+    drawSessionsChart('c-sesiones', lb, vl, avg, mx, mn, periodStr);
   };
 
   const doMetricas = (data) => {
@@ -166,7 +179,7 @@ function AnalisisReportGenerator() {
     });
   };
 
-  const drawSessionsChart = (id, lb, dt, avg, mx, mn, periodStr) => {
+  const drawSessionsChart = (id, lb, dt, avg, mx, mn, pStr) => {
     if (chartsRef.current[id]) chartsRef.current[id].destroy();
     const canvas = document.getElementById(id);
     if (!canvas) return;
@@ -210,7 +223,7 @@ function AnalisisReportGenerator() {
         animation: false,
         layout: { padding: { top: 15, bottom: 25, left: 15, right: 45 } },
         plugins: {
-          title: { display: true, text: `Sesiones Diarias (${periodStr})`, font: { size: 12, weight: 'bold' }, color: '#333' },
+          title: { display: true, text: `Sesiones Diarias (${pStr})`, font: { size: 12, weight: 'bold' }, color: '#333' },
           legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 12, font: { size: 10 }, usePointStyle: true } }
         },
         scales: {
@@ -266,7 +279,7 @@ function AnalisisReportGenerator() {
         .arg-control-group { display: flex; flex-direction: column; gap: 5px; background: #f9f9f9; padding: 10px; border: 1px solid #ddd; }
         .arg-control-group label { font-weight: 900; font-size: 11px; text-transform: uppercase; color: #333; }
         .arg-control-group input[type="file"] { font-size: 11px; }
-        .arg-control-group input[type="text"] { padding: 8px; border: 2px solid #000; font-family: inherit; font-weight: bold; }
+        .arg-control-group input[type="text"], .arg-control-group select, .arg-control-group input[type="number"] { padding: 8px; border: 2px solid #000; font-family: inherit; font-weight: bold; background: #fff; }
         .arg-btn-group { display: flex; gap: 15px; margin-top: 25px; justify-content: center; }
         .arg-btn { background: #000; color: #fff; padding: 12px 24px; border: 2px solid #000; font-weight: 900; cursor: pointer; font-size: 14px; text-transform: uppercase; transition: 0.2s; }
         .arg-btn:hover { background: #fff; color: #000; }
@@ -320,13 +333,21 @@ function AnalisisReportGenerator() {
       <div className="arg-controls-panel no-print">
         <h2>⚙️ Configuración y Carga de CSVs</h2>
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-          <div className="arg-control-group" style={{ flex: 1 }}>
+          <div className="arg-control-group" style={{ flex: 2 }}>
             <label>Tienda / Cliente:</label>
             <input type="text" value={storeName} onChange={e => setStoreName(e.target.value)} />
           </div>
           <div className="arg-control-group" style={{ flex: 1 }}>
-            <label>Período:</label>
-            <input type="text" value={period} onChange={e => setPeriod(e.target.value)} />
+            <label>Mes:</label>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
+              {MONTHS.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="arg-control-group" style={{ flex: 1 }}>
+            <label>Año:</label>
+            <input type="number" value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value, 10) || 2026)} />
           </div>
         </div>
 
@@ -358,7 +379,7 @@ function AnalisisReportGenerator() {
           </div>
           <div className="subtitle">
             REPORTE DE RENDIMIENTO WEB<br />
-            <span>PERÍODO: {period}</span>
+            <span>PERÍODO: {periodStr}</span>
           </div>
         </header>
 
@@ -429,7 +450,7 @@ function AnalisisReportGenerator() {
           <p className="arg-sub-heading">Por País</p>
           <table className="arg-table">
             <thead><tr><th>PAÍS</th><th className="arg-text-right">SESIONES</th><th className="arg-text-right">% DEL TOTAL</th></tr></thead>
-            <tbody id="tb-pais"><tr><td colSpan="3" class="arg-text-center">Cargue el CSV</td></tr></tbody>
+            <tbody id="tb-pais"><tr><td colSpan="3" className="arg-text-center">Cargue el CSV</td></tr></tbody>
           </table>
           <p className="arg-sub-heading">Por Ciudad</p>
           <table className="arg-table">
