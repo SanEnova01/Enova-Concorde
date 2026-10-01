@@ -498,13 +498,42 @@ const ConcordeSpaceshipWidget = ({ stats, planStats, ticketStatusStats }) => {
 // 🌟 SUBCOMPONENTE: Monitor de Carga de Trabajo (Estilo Windows 99 unificado con el Theme)
 const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
   const openTickets = (ticketStatusStats['OPEN'] || 0) + (ticketStatusStats['IN_PROGRESS'] || 0);
-  const bottleneckPercent = Math.min(100, (openTickets / 20) * 100);
+  const bottleneckPercent = Math.min(100, Math.max(0, (openTickets / 20) * 100));
 
   // Colores W95 apagados (menos saturación)
   const colorOk = '#98c698';     // Verde pastel
   const colorWarn = '#e6d070';   // Amarillo suave
   const colorCrit = '#d87070';   // Rojo suave
-  const colorBar = bottleneckPercent > 50 ? '#800000' : '#000080'; // Granate o Azul clásico W95
+
+  // 🌟 Color dinámico: 0% -> Verde (Hue 120), 50% -> Amarillo (Hue 60), 100% -> Rojo (Hue 0)
+  const hue = (100 - bottleneckPercent) * 1.2;
+  const colorBar = `hsl(${Math.max(0, hue)}, 80%, 35%)`;
+
+  // 🌟 Estado para el orden aleatorio de las tiendas
+  const [displayClients, setDisplayClients] = useState([]);
+
+  useEffect(() => {
+    setDisplayClients(clients);
+  }, [clients]);
+
+  // 🌟 Aleatorización cada 5 segundos SOLO si la pestaña está activa/visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setDisplayClients(prev => {
+          if (!prev || prev.length <= 1) return prev;
+          const array = [...prev];
+          for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+          }
+          return array;
+        });
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div style={{
@@ -554,7 +583,7 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
               width: `${bottleneckPercent}%`, 
               height: '100%', 
               backgroundColor: colorBar, 
-              transition: 'width 0.5s'
+              transition: 'width 0.5s, background-color 0.5s'
             }}></div>
           </div>
           <div style={{ fontSize: '10px', marginTop: '4px', textAlign: 'right', fontWeight: 'bold' }}>{openTickets} TICKETS GLOBALES</div>
@@ -575,8 +604,8 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
             alignContent: 'flex-start',
             justifyContent: 'center'
           }}>
-            {clients.map(store => {
-              const tickets = store.active_ticket_count || 0; // 🌟 AHORA LEE SOLO LOS ACTIVOS
+            {displayClients.map(store => {
+              const tickets = store.active_ticket_count || 0;
               
               // Colores estilo W95 Apagados
               let bgColor = colorOk; 
@@ -611,7 +640,7 @@ const StoreMonitorWidget = ({ clients, ticketStatusStats }) => {
                 </div>
               );
             })}
-            {clients.length === 0 && <span style={{ fontSize: '11px' }}>No hay módulos detectados.</span>}
+            {displayClients.length === 0 && <span style={{ fontSize: '11px' }}>No hay módulos detectados.</span>}
           </div>
         </div>
         

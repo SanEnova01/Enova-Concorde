@@ -57,7 +57,7 @@ const handleCopyEmailTemplate = () => {
       </div>
     `;
 
-    const plainText = `Buenos dias,\n\nSe creó un ticket de atención para este requerimiento.\n\nLes avisare apenas tengamos alguna actualización.\n\nRecordar enviarnos siempre las solicitudes a estos correos:\n\n• Atención General: soporte@enova.agency\n• Jefatura de Área: santiago@enova.agency\n\nSaludos!\nENOVA AGENCY`;
+    const plainText = `Hola!,\n\nSe creó un ticket de atención para este requerimiento.\n\nLes avisare apenas tengamos alguna actualización.\n\nRecordar enviarnos siempre las solicitudes a estos correos:\n\n• Atención General: soporte@enova.agency\n• Jefatura de Área: santiago@enova.agency\n\nSaludos!\nENOVA AGENCY`;
 
     try {
       const blobHtml = new Blob([htmlContent], { type: 'text/html' });
