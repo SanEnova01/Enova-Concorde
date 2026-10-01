@@ -25,8 +25,19 @@ function AnalisisReportGenerator() {
   const fmtPct = (v) => (v * 100).toFixed(2).replace('.', ',') + '%';
   const txt = (v) => (!v || String(v).trim() === '') ? 'No identificado' : String(v).trim();
   const dateFmt = (d) => {
+    if (!d) return '';
     const p = String(d).split('-');
-    return p.length === 3 ? `${p[2]} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(p[1])-1]}` : d;
+    if (p.length === 3) {
+      const year = parseInt(p[0]);
+      const monthIndex = parseInt(p[1]) - 1;
+      const day = p[2];
+      // Genera la abreviatura real según la fecha del CSV (Ene, Feb, Mar, Abr, May, Jun, Jul, Ago, Sep, Oct, Nov, Dic)
+      const dateObj = new Date(year, monthIndex, parseInt(day));
+      const monthName = dateObj.toLocaleString('es-ES', { month: 'short' });
+      const monthCapitalized = monthName.charAt(0).toUpperCase() + monthName.slice(1).replace('.', '');
+      return `${day} ${monthCapitalized}`;
+    }
+    return d;
   };
 
   const dict = { 'mobile': 'Móvil (Mobile)', 'desktop': 'Escritorio (Desktop)', 'tablet': 'Tablet', 'other': 'Otro' };
