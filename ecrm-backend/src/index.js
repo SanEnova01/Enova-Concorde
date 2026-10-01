@@ -187,8 +187,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       { expiresIn: '12h' }
     );
 
-    // 🌟 REGISTRAMOS LA ÚLTIMA CONEXIÓN DEL USUARIO EN LA BD
-    await db('users').where({ id: user.id }).update({ updated_at: db.fn.now() }).catch(() => {});
+    // 🌟 REGISTRAMOS EL ÚLTIMO LOGIN REAL EN LA BD
+    await db('users').where({ id: user.id }).update({ last_login: db.fn.now() }).catch(() => {});
 
     res.status(200).json({
       success: true,
@@ -363,7 +363,6 @@ app.use('/api/manual-reviews', verificarToken, require('./routes/reviews'));
 app.use('/api/daily-reviews', verificarToken, require('./routes/manualReviews'));
 app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 app.use('/api/ai', verificarToken, require('./routes/ai'));
-app.use('/api/manual-reviews', verificarToken, require('./routes/manualReviews'));
 app.use('/api/quotes', verificarToken, require('./routes/quotes'));
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE SHOPIFY
@@ -527,40 +526,45 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
     if (!userName) {
       return res.json({
         success: true,
-        data: { myStores: [], totalTickets: 0, openTickets: 0, resolvedTickets: 0, lastActivity: user.updated_at || user.created_at || new Date() }
+        data: { myStores: [], totalTickets: 0, openTickets: 0, resolvedTickets: 0, lastActivity: user.last_login || user.created_at || new Date() }
       });
     }
 
-    // 🌟 FIX: Usamos el método seguro .where de Knex con 'ilike' en lugar de whereRaw
     let assignedStores = [];
     try {
-      assignedStores = await db('stores')
-        .where('assigned_to', 'ilike', `%${userName}%`)
-        .select('id', 'name', 'plan_type');
-    } catch (e) { console.error("Aviso DB Stores:", e.message); }
+      const allStores = await db('stores').select('id', 'name', 'plan_type', 'assigned_to');
+      assignedStores = allStores.filter(store => {
+         if(!store.assigned_to) return false;
+         const assignees = String(store.assigned_to).toLowerCase().split(',').map(s => s.trim());
+         return assignees.includes(userName.toLowerCase());
+      });
+    } catch (e) { console.error("Aviso BD Stores:", e.message); }
 
     let assignedTickets = [];
     try {
-      assignedTickets = await db('tickets')
-        .where('assigned_to', 'ilike', `%${userName}%`)
-        .select('id', 'status', 'created_at', 'updated_at');
-    } catch (e) { console.error("Aviso DB Tickets:", e.message); }
+      const allTickets = await db('tickets').select('id', 'status', 'created_at', 'updated_at', 'assigned_to');
+      assignedTickets = allTickets.filter(ticket => {
+         if(!ticket.assigned_to) return false;
+         const assignees = String(ticket.assigned_to).toLowerCase().split(',').map(s => s.trim());
+         return assignees.includes(userName.toLowerCase());
+      });
+    } catch (e) { console.error("Aviso BD Tickets:", e.message); }
 
     const openTickets = assignedTickets.filter(t => t.status !== 'CLOSED' && t.status !== 'RESOLVED').length;
     const resolvedTickets = assignedTickets.filter(t => t.status === 'CLOSED' || t.status === 'RESOLVED').length;
 
-    // 🌟 FIX: Usamos el updated_at que ahora se guarda en el login, o el ticket más reciente
-    let lastActivity = user.updated_at || user.created_at || new Date();
+    // 🌟 EXTRAE LA FECHA DE LAST_LOGIN O EL ÚLTIMO TICKET MODIFICADO
+    let lastActivity = user.last_login || user.created_at || new Date();
     const userLastTime = new Date(lastActivity).getTime();
 
     if (assignedTickets.length > 0) {
       const sortedTickets = assignedTickets.sort((a, b) => {
         const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
         const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
-        return dateB - dateA;
+        return dateB - dateA; // Orden descendente
       });
       const lastTicketTime = new Date(sortedTickets[0].updated_at || sortedTickets[0].created_at).getTime();
-      
+
       if (lastTicketTime > userLastTime) {
         lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at;
       }
