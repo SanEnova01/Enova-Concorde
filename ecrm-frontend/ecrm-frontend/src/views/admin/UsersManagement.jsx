@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import crmApi from '../../api/crmApi';
 
 const FormInput = ({ label, type = "text", value, onChange, placeholder, required = false, description }) => (
@@ -23,6 +23,9 @@ function UsersManagement() {
   
   const [userStats, setUserStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
+
+  // 🌟 ESTADO PARA BÚSQUEDA PREDICTIVA DE TIENDAS
+  const [storeSearch, setStoreSearch] = useState('');
 
   const initialFormState = { name: '', email: '', password: '', role: 'client' };
   const [formData, setFormData] = useState(initialFormState);
@@ -63,6 +66,18 @@ function UsersManagement() {
     return r === 'client';
   });
 
+  // 🌟 FILTRADO PREDICTIVO DE TIENDAS
+  const filteredStoresToAssign = useMemo(() => {
+    const query = storeSearch.toLowerCase().trim();
+    if (!query) return allStores;
+    return allStores.filter(store => {
+      const nameMatch = store.name && store.name.toLowerCase().includes(query);
+      const idMatch = store.id && String(store.id).toLowerCase().includes(query);
+      const planMatch = store.plan_type && store.plan_type.toLowerCase().includes(query);
+      return nameMatch || idMatch || planMatch;
+    });
+  }, [allStores, storeSearch]);
+
   const handleOpenForm = (user = null) => {
     if (user) {
       setIsEditing(true);
@@ -78,6 +93,7 @@ function UsersManagement() {
 
   const handleOpenStats = async (user) => {
     setCurrentUser(user);
+    setStoreSearch('');
     setShowStatsModal(true);
     setLoadingStats(true);
     try {
@@ -96,9 +112,9 @@ function UsersManagement() {
     }
   };
 
-  // 🌟 FUNCIÓN PARA ASIGNAR / DESASIGNAR TIENDAS AL USUARIO DESDE EL MODAL
+  // 🌟 CAMBIO INDIVIDUAL DE TIENDA
   const handleToggleStoreAssignment = async (store) => {
-    if (!currentUser) return;
+    if (!currentUser || isSubmitting) return;
     const userName = currentUser.name;
     const currentAssignees = store.assigned_to 
       ? store.assigned_to.split(',').map(s => s.trim()).filter(Boolean)
@@ -132,11 +148,52 @@ function UsersManagement() {
     }
   };
 
+  // 🌟 ACCIÓN MASIVA (BULK ASSIGN) PARA ASIGNAR/DESASIGNAR CIENTOS DE TIENDAS EN LOTE
+  const handleBulkAssign = async (storesToUpdate, shouldAssign) => {
+    if (!currentUser || storesToUpdate.length === 0 || isSubmitting) return;
+    const userName = currentUser.name;
+    setIsSubmitting(true);
+
+    try {
+      await Promise.all(
+        storesToUpdate.map(store => {
+          const currentAssignees = store.assigned_to
+            ? store.assigned_to.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+          
+          const isAssigned = currentAssignees.some(a => a.toLowerCase() === userName.toLowerCase());
+
+          if (shouldAssign && !isAssigned) {
+            const newAssignees = [...currentAssignees, userName].join(', ');
+            return crmApi.put(`/stores/${store.id}`, { assigned_to: newAssignees });
+          } else if (!shouldAssign && isAssigned) {
+            const newAssignees = currentAssignees.filter(a => a.toLowerCase() !== userName.toLowerCase()).join(', ');
+            return crmApi.put(`/stores/${store.id}`, { assigned_to: newAssignees });
+          }
+          return Promise.resolve();
+        })
+      );
+
+      await fetchStores();
+      const res = await crmApi.get(`/users/${currentUser.id}/stats`);
+      if (res.data?.success) {
+        const stats = res.data.data;
+        stats.lastActivity = stats.lastActivity ? new Date(stats.lastActivity) : new Date();
+        setUserStats(stats);
+      }
+    } catch (err) {
+      alert("Error procesando la asignación masiva de tiendas.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const closeModals = () => {
     setShowFormModal(false);
     setShowStatsModal(false);
     setCurrentUser(null);
     setUserStats(null);
+    setStoreSearch('');
   };
 
   const handleDelete = async (id, name) => {
@@ -295,7 +352,7 @@ function UsersManagement() {
 
       {showStatsModal && currentUser && (
         <div className="crm-modal-mask" onClick={closeModals}>
-          <div className="crm-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
+          <div className="crm-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px', width: '90%' }}>
             <div style={{ borderBottom: '2px solid #111', paddingBottom: '16px', marginBottom: '20px' }}>
               <h2 style={{ margin: 0, fontWeight: '900', fontSize: '24px' }}>{currentUser.name}</h2>
               <p style={{ margin: '4px 0 0 0', color: '#666', fontSize: '13px' }}>{currentUser.email} • {String(currentUser.role).toUpperCase()}</p>
@@ -329,7 +386,7 @@ function UsersManagement() {
                   </div>
                 </div>
 
-                {/* 🌟 GESTIÓN COMPLETA DE ASIGNACIÓN DE TIENDAS */}
+                {/* 🌟 GESTIÓN DE TIENDAS CON BÚSQUEDA PREDICTIVA Y ACCIONES MASIVAS */}
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <h3 style={{ fontSize: '14px', fontWeight: '900', margin: 0 }}>
@@ -348,6 +405,7 @@ function UsersManagement() {
                           🏢 {store.name}
                           <button 
                             onClick={() => handleToggleStoreAssignment(store)} 
+                            disabled={isSubmitting}
                             style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontWeight: 'bold', fontSize: '14px', lineHeight: 1 }}
                             title="Desasignar tienda"
                           >
@@ -358,31 +416,80 @@ function UsersManagement() {
                     </div>
                   )}
 
+                  {/* 🔍 PANEL DE BÚSQUEDA PREDICTIVA Y SELECCIÓN EN LOTE */}
                   <div style={{ backgroundColor: '#f9fafb', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                    <label className="crm-stat-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                      ➕ Asignar / Desasignar Tiendas del Catálogo:
-                    </label>
-                    <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {allStores.map(store => {
-                        const isAssigned = (store.assigned_to || '')
-                          .split(',')
-                          .map(s => s.trim().toLowerCase())
-                          .includes(currentUser.name.toLowerCase());
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                      <label className="crm-stat-label" style={{ fontWeight: 'bold', margin: 0 }}>
+                        ➕ Buscar y Asignar Tiendas ({allStores.length} en catálogo):
+                      </label>
 
-                        return (
-                          <label key={store.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', padding: '4px 0' }}>
-                            <input 
-                              type="checkbox"
-                              checked={isAssigned}
-                              onChange={() => handleToggleStoreAssignment(store)}
-                              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                            />
-                            <span style={{ fontWeight: isAssigned ? 'bold' : 'normal', color: isAssigned ? '#111' : '#4b5563' }}>
-                              {store.name} <span style={{ fontSize: '10px', color: '#9ca3af' }}>({store.plan_type || 'SIN PLAN'})</span>
-                            </span>
-                          </label>
-                        );
-                      })}
+                      {filteredStoresToAssign.length > 0 && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => handleBulkAssign(filteredStoresToAssign, true)}
+                            style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#111', color: '#FFD700', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            title="Asignar todas las tiendas que coinciden con la búsqueda actual"
+                          >
+                            + Asignar {filteredStoresToAssign.length} visibles
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => handleBulkAssign(filteredStoresToAssign, false)}
+                            style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            title="Desasignar todas las tiendas que coinciden con la búsqueda actual"
+                          >
+                            - Quitar {filteredStoresToAssign.length} visibles
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <input 
+                      type="text"
+                      placeholder="🔍 Escribe para buscar tienda por nombre, ID o plan (ej. GO, Escale, #102)..."
+                      value={storeSearch}
+                      onChange={(e) => setStoreSearch(e.target.value)}
+                      className="crm-input-text"
+                      style={{ marginBottom: '10px', width: '100%', boxSizing: 'border-box' }}
+                    />
+
+                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {filteredStoresToAssign.length === 0 ? (
+                        <span style={{ fontSize: '12px', color: '#9ca3af', padding: '12px', textAlign: 'center' }}>
+                          No se encontraron tiendas que coincidan con "{storeSearch}"
+                        </span>
+                      ) : (
+                        filteredStoresToAssign.slice(0, 100).map(store => {
+                          const isAssigned = (store.assigned_to || '')
+                            .split(',')
+                            .map(s => s.trim().toLowerCase())
+                            .includes(currentUser.name.toLowerCase());
+
+                          return (
+                            <label key={store.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', backgroundColor: isAssigned ? '#edf2f7' : 'transparent' }}>
+                              <input 
+                                type="checkbox"
+                                checked={isAssigned}
+                                disabled={isSubmitting}
+                                onChange={() => handleToggleStoreAssignment(store)}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                              />
+                              <span style={{ fontWeight: isAssigned ? 'bold' : 'normal', color: isAssigned ? '#111' : '#4b5563' }}>
+                                {store.name} <span style={{ fontSize: '10px', color: '#6b7280' }}>({store.id} • {store.plan_type || 'SIN PLAN'})</span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+
+                      {filteredStoresToAssign.length > 100 && (
+                        <span style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center', padding: '6px 0', borderTop: '1px solid #e5e7eb' }}>
+                          ℹ️ Mostrando 100 de {filteredStoresToAssign.length} coincidencias. Escribe más en el buscador para afinar.
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
