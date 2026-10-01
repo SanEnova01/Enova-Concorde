@@ -163,10 +163,8 @@ function AdminLayout({ children }) {
         <div className="crm-sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>
       )}
 
-      <div className={`crm-sidebar ${isMobileMenuOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100vh' }}>
-        
-        {/* 🌟 ÁREA CON SCROLLBAR PARA EL MENÚ 🌟 */}
-        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, paddingBottom: '16px' }}>
+      <div className={`crm-sidebar ${isMobileMenuOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100vh', overflowY: 'auto' }}>
+        <div>
           <div className="crm-logo-box" style={{ borderBottom: 'none', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <img 
@@ -315,8 +313,7 @@ function AdminLayout({ children }) {
           </nav>
         </div>
 
-        {/* PIE DE SIDENAV (FIJO EN LA PARTE INFERIOR) */}
-        <div style={{ padding: '16px', borderTop: '1px dashed #111111', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, backgroundColor: '#1c1c1c' }}>
+        <div style={{ padding: '16px', borderTop: '1px dashed #111111', display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#1c1c1c' }}>
           {userRole === 'super admin' && (
             <button onClick={openTerminal} className="crm-btn-black" style={{ width: '100%', padding: '8px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Terminal size={14} /> System Console <span style={{opacity: 0.7, fontSize: '10px'}}>(Ctrl + \)</span>
@@ -461,7 +458,6 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* 🌟 RUTA DE REPORTES GA4 AGREGADA AQUI 🌟 */}
         <Route path="/admin/analisis-reportes" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><AnalisisReportGenerator /></AdminLayout>
