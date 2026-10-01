@@ -187,8 +187,9 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       { expiresIn: '12h' }
     );
 
-    // 🌟 REGISTRAMOS EL ÚLTIMO LOGIN REAL EN LA BD
+    // 🌟 REGISTRAMOS EL ÚLTIMO LOGIN REAL EN LA BD Y EL EVENTO EN AUDITORÍA
     await db('users').where({ id: user.id }).update({ last_login: db.fn.now() }).catch(() => {});
+    await logActivity(req, 'INICIO_SESION', `Inicio de sesión exitoso de ${user.name} (${user.email})`);
 
     res.status(200).json({
       success: true,
@@ -499,27 +500,45 @@ app.get('/api/external/woocommerce-status', async (req, res) => {
 });
 
 // ==========================================
-// NUEVAS RUTAS: GESTIÓN COMPLETA DE USUARIOS
+// NUEVAS RUTAS: GESTIÓN COMPLETA DE USUARIOS & AUDITORÍA
 // ==========================================
 
-// 1. Obtener lista de admins (Debe ir antes que /:id para no chocar)
+// 0. 🌟 NUEVO ENDPOINT: HISTORIAL DE LOGS (EXCLUSIVO SUPER ADMIN)
+app.get('/api/audit-logs', verificarToken, async (req, res) => {
+  try {
+    const userRole = String(req.adminUser.role || '').toLowerCase().trim();
+    if (userRole !== 'super admin') {
+      return res.status(403).json({ success: false, error: 'Acceso denegado. Exclusivo para Super Admin.' });
+    }
+
+    const logs = await db('audit_logs')
+      .orderBy('created_at', 'desc')
+      .limit(500);
+
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    console.error("Error consultando audit_logs:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 1. Obtener lista de admins
 app.get('/api/users/admins', verificarToken, async (req, res) => {
   try {
     const admins = await db('users')
       .whereRaw('LOWER(role) IN (?, ?)', ['admin', 'super admin'])
-      .select('id', 'name', 'email', 'role'); // Retiramos created_at explícito
+      .select('id', 'name', 'email', 'role');
     res.json({ success: true, data: admins });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// 2. ENDPOINT ESTADÍSTICAS DE USUARIO (SIN ERRORES 500)
+// 2. ENDPOINT ESTADÍSTICAS DE USUARIO
 app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
   try {
     const userId = req.params.id;
     
-    // 1. Buscar usuario
     const user = await db('users').where({ id: userId }).first();
     if (!user) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
@@ -527,7 +546,6 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
 
     const userName = String(user.name || '').trim();
 
-    // 2. Consultar tiendas asignadas
     let assignedStores = [];
     if (userName) {
       try {
@@ -540,7 +558,6 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
       }
     }
 
-    // 3. Consultar tickets asignados (solo usando columnas existentes en la tabla)
     let assignedTickets = [];
     if (userName) {
       try {
@@ -553,11 +570,9 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
       }
     }
 
-    // 4. Calcular contadores
     const openTickets = assignedTickets.filter(t => t.status !== 'CLOSED' && t.status !== 'RESOLVED').length;
     const resolvedTickets = assignedTickets.filter(t => t.status === 'CLOSED' || t.status === 'RESOLVED').length;
 
-    // 5. Determinar la fecha de última actividad
     let lastActivity = user.last_login || user.created_at || new Date();
     const userLastTime = new Date(lastActivity).getTime();
 
@@ -589,14 +604,14 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
     return res.status(500).json({ success: false, error: 'Error del servidor: ' + error.message });
   }
 });
-// 3. Listar usuarios (🌟 FIX: Extraemos todo de forma segura)
+
+// 3. Listar usuarios
 app.get('/api/users', verificarToken, async (req, res) => {
   try {
     if (String(req.adminUser.role).toLowerCase() !== 'super admin') {
       return res.status(403).json({ success: false, error: 'Permiso denegado.' });
     }
     const users = await db('users').select('*');
-    // Limpiamos la contraseña antes de enviar al frontend por seguridad
     const safeUsers = users.map(u => {
       delete u.password;
       return u;
@@ -606,10 +621,57 @@ app.get('/api/users', verificarToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-// 4. Actualizar usuario
+
+// 4. Crear usuario (Con Auditoría)
+app.post('/api/users', verificarToken, async (req, res) => {
+  try {
+    if (String(req.adminUser.role).toLowerCase() !== 'super admin') {
+      return res.status(403).json({ success: false, error: 'Permiso denegado. Solo el super admin puede crear cuentas.' });
+    }
+
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ success: false, error: 'Todos los campos son obligatorios.' });
+    }
+
+    const rolesValidos = ['super admin', 'admin', 'client'];
+    if (!rolesValidos.includes(role)) {
+      return res.status(400).json({ success: false, error: 'El rol seleccionado no es válido.' });
+    }
+
+    const usuarioExiste = await db('users')
+      .where({ name: String(name).trim() })
+      .orWhere({ email: String(email).toLowerCase().trim() })
+      .first();
+
+    if (usuarioExiste) {
+      return res.status(400).json({ success: false, error: 'El nombre de usuario o correo ya se encuentra registrado.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await db('users').insert({
+      name: String(name).trim(),
+      email: String(email).toLowerCase().trim(),
+      password: hashedPassword,
+      role: role
+    });
+
+    await logActivity(req, 'CREAR_USUARIO', `Cuenta creada para ${name} (${email}) con rol [${role}]`);
+
+    res.status(201).json({ success: true, message: 'Cuenta creada exitosamente.' });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Error interno del servidor al registrar usuario.' });
+  }
+});
+
+// 5. Actualizar usuario (Con Auditoría)
 app.put('/api/users/:id', verificarToken, async (req, res) => {
   try {
-    if (req.adminUser.role !== 'super admin') {
+    if (String(req.adminUser.role).toLowerCase() !== 'super admin') {
       return res.status(403).json({ success: false, error: 'Permiso denegado.' });
     }
     const { id } = req.params;
@@ -626,20 +688,24 @@ app.put('/api/users/:id', verificarToken, async (req, res) => {
     }
 
     await db('users').where({ id }).update(updateData);
+    await logActivity(req, 'EDITAR_USUARIO', `Usuario ID ${id} (${name}) actualizado`);
+
     res.json({ success: true, message: 'Usuario actualizado exitosamente' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// 5. Eliminar usuario
+// 6. Eliminar usuario (Con Auditoría)
 app.delete('/api/users/:id', verificarToken, async (req, res) => {
   try {
-    if (req.adminUser.role !== 'super admin') {
+    if (String(req.adminUser.role).toLowerCase() !== 'super admin') {
       return res.status(403).json({ success: false, error: 'Permiso denegado.' });
     }
     const { id } = req.params;
     await db('users').where({ id }).del();
+    await logActivity(req, 'ELIMINAR_USUARIO', `Se eliminó al usuario con ID ${id}`);
+
     res.json({ success: true, message: 'Usuario eliminado del sistema' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
