@@ -1,7 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
+const handleCopyEmailTemplate = () => {
+    const textToCopy = `Buenos dias,
 
+Se creó un ticket de atención para este requerimiento.
+
+Les avisare apenas tengamos alguna actualización.
+
+Recordar enviarnos siempre las solicitudes a estos correos:
+
+Atención General: soporte@enova.agency
+Jefatura de Área: santiago@enova.agency
+
+Saludos!`;
+
+    navigator.clipboard.writeText(textToCopy)
+      .then(() => alert('¡Plantilla copiada al portapapeles! 📧'))
+      .catch(() => alert('Error al intentar copiar al portapapeles.'));
+  };
 const SmallAnalogOdometer = ({ value, digits = 4 }) => {
   const paddedValue = String(value).padStart(digits, '0');
   return (
@@ -345,9 +362,20 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
     <div>
       {/* CABECERA Y CONTROLES */}
       <div className="crm-actions-bar" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
           <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Gestión de Tickets</h1>
-          <button onClick={() => setShowCreateModal(true)} className="crm-btn-black">Nuevo Ticket</button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button 
+              type="button"
+              onClick={handleCopyEmailTemplate} 
+              className="crm-btn-border" 
+              title="Copiar respuesta rápida para cliente"
+              style={{ padding: '8px 12px', fontSize: '16px', cursor: 'pointer' }}
+            >
+              📧
+            </button>
+            <button onClick={() => setShowCreateModal(true)} className="crm-btn-black">Nuevo Ticket</button>
+          </div>
         </div>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end', borderBottom: '2px solid #e5e7eb', paddingBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
