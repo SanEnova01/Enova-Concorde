@@ -514,50 +514,67 @@ app.get('/api/users/admins', verificarToken, async (req, res) => {
   }
 });
 
-// 2. 🌟 NUEVO ENDPOINT: Estadísticas de usuario para el Perfil
+// 2. ENDPOINT ESTADÍSTICAS DE USUARIO (SIN ERRORES 500)
 app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
   try {
     const userId = req.params.id;
-    const user = await db('users').where({ id: userId }).first();
     
-    if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
-
-    const userName = String(user.name || '').trim();
-    if (!userName) {
-      return res.json({
-        success: true,
-        data: { myStores: [], totalTickets: 0, openTickets: 0, resolvedTickets: 0, lastActivity: user.last_login || user.created_at || new Date() }
-      });
+    // 1. Buscar usuario
+    const user = await db('users').where({ id: userId }).first();
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
 
-    // Consulta SQL directa a Stores (usando ILIKE para ignorar mayúsculas)
-    const assignedStores = await db('stores')
-      .whereRaw('assigned_to ILIKE ?', [`%${userName}%`])
-      .select('id', 'name', 'plan_type')
-      .catch(err => { throw new Error(`Error en tabla stores: ${err.message}`); });
+    const userName = String(user.name || '').trim();
 
-    // Consulta SQL directa a Tickets
-    const assignedTickets = await db('tickets')
-      .whereRaw('assigned_to ILIKE ?', [`%${userName}%`])
-      .select('id', 'status', 'created_at', 'updated_at')
-      .catch(err => { throw new Error(`Error en tabla tickets: ${err.message}`); });
+    // 2. Consultar tiendas asignadas
+    let assignedStores = [];
+    if (userName) {
+      try {
+        assignedStores = await db('stores')
+          .whereNotNull('assigned_to')
+          .andWhereRaw('LOWER("assigned_to") LIKE LOWER(?)', [`%${userName}%`])
+          .select('id', 'name', 'plan_type');
+      } catch (e) {
+        console.error("Aviso BD Stores:", e.message);
+      }
+    }
 
+    // 3. Consultar tickets asignados (solo usando columnas existentes en la tabla)
+    let assignedTickets = [];
+    if (userName) {
+      try {
+        assignedTickets = await db('tickets')
+          .whereNotNull('assigned_to')
+          .andWhereRaw('LOWER("assigned_to") LIKE LOWER(?)', [`%${userName}%`])
+          .select('id', 'status', 'created_at');
+      } catch (e) {
+        console.error("Aviso BD Tickets:", e.message);
+      }
+    }
+
+    // 4. Calcular contadores
     const openTickets = assignedTickets.filter(t => t.status !== 'CLOSED' && t.status !== 'RESOLVED').length;
     const resolvedTickets = assignedTickets.filter(t => t.status === 'CLOSED' || t.status === 'RESOLVED').length;
 
+    // 5. Determinar la fecha de última actividad
     let lastActivity = user.last_login || user.created_at || new Date();
     const userLastTime = new Date(lastActivity).getTime();
 
     if (assignedTickets.length > 0) {
-      const sortedTickets = assignedTickets.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
-      const lastTicketTime = new Date(sortedTickets[0].updated_at || sortedTickets[0].created_at).getTime();
-      
+      const sortedTickets = assignedTickets.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
+      const lastTicketTime = new Date(sortedTickets[0].created_at || 0).getTime();
+
       if (lastTicketTime > userLastTime) {
-        lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at;
+        lastActivity = sortedTickets[0].created_at;
       }
     }
 
-    res.json({
+    return res.status(200).json({
       success: true,
       data: {
         myStores: assignedStores,
@@ -568,8 +585,8 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error obteniendo stats de usuario:", error.message);
-    res.status(500).json({ success: false, error: error.message });
+    console.error("Error crítico obteniendo stats:", error);
+    return res.status(500).json({ success: false, error: 'Error del servidor: ' + error.message });
   }
 });
 // 3. Listar usuarios (🌟 FIX: Extraemos todo de forma segura)
