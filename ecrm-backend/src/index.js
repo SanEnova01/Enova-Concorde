@@ -517,27 +517,40 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
   try {
     const userId = req.params.id;
     const user = await db('users').where({ id: userId }).first();
+    
     if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
 
-    const userNameLower = user.name.toLowerCase();
+    const userName = String(user.name || '').trim();
+    if (!userName) {
+      return res.json({
+        success: true,
+        data: { myStores: [], totalTickets: 0, openTickets: 0, resolvedTickets: 0, lastActivity: user.created_at || new Date() }
+      });
+    }
 
-    // Tiendas Asignadas
+    // Tiendas Asignadas (Con COALESCE para evitar crash por nulos)
     const assignedStores = await db('stores')
-      .whereRaw('LOWER(assigned_to) LIKE ?', [`%${userNameLower}%`])
-      .select('id', 'name', 'plan_type');
+      .whereRaw("COALESCE(assigned_to, '') ILIKE ?", [`%${userName}%`])
+      .select('id', 'name', 'plan_type')
+      .catch(() => []);
 
-    // Tickets Asignados
+    // Tickets Asignados (Con COALESCE para evitar crash por nulos)
     const assignedTickets = await db('tickets')
-      .whereRaw('LOWER(assigned_to) LIKE ?', [`%${userNameLower}%`])
-      .select('id', 'status', 'created_at', 'updated_at');
+      .whereRaw("COALESCE(assigned_to, '') ILIKE ?", [`%${userName}%`])
+      .select('id', 'status', 'created_at', 'updated_at')
+      .catch(() => []);
 
     const openTickets = assignedTickets.filter(t => t.status !== 'CLOSED' && t.status !== 'RESOLVED').length;
     const resolvedTickets = assignedTickets.filter(t => t.status === 'CLOSED' || t.status === 'RESOLVED').length;
 
     let lastActivity = user.created_at || new Date();
     if (assignedTickets.length > 0) {
-      const sortedTickets = assignedTickets.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
-      lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at;
+      const sortedTickets = assignedTickets.sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
+        const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
+      lastActivity = sortedTickets[0].updated_at || sortedTickets[0].created_at || lastActivity;
     }
 
     res.json({
@@ -552,10 +565,9 @@ app.get('/api/users/:id/stats', verificarToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error obteniendo stats de usuario:", error);
-    res.status(500).json({ success: false, error: 'Error calculando métricas.' });
+    res.status(500).json({ success: false, error: 'Error calculando métricas: ' + error.message });
   }
 });
-
 // 3. Listar usuarios (🌟 FIX: Traemos created_at para evitar Invalid Date)
 app.get('/api/users', verificarToken, async (req, res) => {
   try {

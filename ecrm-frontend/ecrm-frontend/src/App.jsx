@@ -126,7 +126,7 @@ function AdminLayout({ children }) {
     },
 
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
-    { path: '/admin/usuarios', label: 'Crear Cuentas', allowed: ['super admin'] }
+    { path: '/admin/usuarios', label: 'Gestionar Usuarios', allowed: ['super admin'] }
   ];
   
   const visibleNavItems = allNavItems.filter(item => item.allowed.includes(userRole));
