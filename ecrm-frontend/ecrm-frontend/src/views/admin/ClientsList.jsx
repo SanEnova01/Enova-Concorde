@@ -74,13 +74,18 @@ function ClientsList() {
   useEffect(() => {
     let result = [...clients];
     
-    // 🌟 FILTRAR MIS TIENDAS ASIGNADAS
+    // 🌟 FILTRAR MIS TIENDAS ASIGNADAS (FIX: Con validación de usuario y dependencias completas)
     if (showMyStoresOnly) {
-      result = result.filter(c => {
-        if (!c.assigned_to) return false;
-        const asignados = String(c.assigned_to).toLowerCase().split(',').map(s => s.trim());
-        return asignados.some(a => a.includes(currentUser.toLowerCase()) || currentUser.toLowerCase().includes(a));
-      });
+      if (!currentUser || !currentUser.trim()) {
+        result = [];
+      } else {
+        const userLower = currentUser.toLowerCase().trim();
+        result = result.filter(c => {
+          if (!c.assigned_to) return false;
+          const asignados = String(c.assigned_to).toLowerCase().split(',').map(s => s.trim());
+          return asignados.some(a => a.includes(userLower) || userLower.includes(a));
+        });
+      }
     }
 
     // Filtrar por Plan
@@ -122,14 +127,12 @@ function ClientsList() {
       if (priorityA !== priorityB) {
         return priorityA - priorityB;
       }
-      // Si tienen el mismo plan, se ordenan alfabéticamente
       return (a.name || '').localeCompare(b.name || '');
     });
     
     setFilteredClients(result);
     setCurrentPage(1);
-  }, [planFilter, techFilter, searchQuery, clients]);
-
+  }, [planFilter, techFilter, searchQuery, clients, showMyStoresOnly, currentUser]); // 🌟 FIX: showMyStoresOnly y currentUser agregados
   // RESOLUTOR DE LOGO
   const getLogoUrl = (url) => {
     if (!url) return '';
