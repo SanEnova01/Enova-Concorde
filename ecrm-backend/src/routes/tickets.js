@@ -149,7 +149,7 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    await TicketRepository.delete(id);
+    await db('tickets').where({ id }).del();
 
     if (req.logActivity) {
       req.logActivity(
