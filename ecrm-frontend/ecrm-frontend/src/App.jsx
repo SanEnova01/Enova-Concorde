@@ -24,6 +24,8 @@ import PublicAuditReport from './views/public/PublicAuditReport';
 import AdminAuditRequests from './views/admin/AdminAuditRequests';    
 
 import ConcordeAnalyzerView from './views/admin/ConcordeAnalyzerView';
+import AnalisisReportGenerator from './views/admin/AnalisisReportGenerator';
+
 // Autenticación y Protección
 import Login from './views/admin/Login';
 import ReportGenerator from './views/admin/ReportGenerator';
@@ -107,7 +109,8 @@ function AdminLayout({ children }) {
       subItems: [
         { path: '/admin/auditorias', label: 'Concorde Radar' },
         { path: '/admin/analyzer', label: 'Concorde Analyzer' },
-        { path: '/admin/reportes', label: 'Generador de reportes' },
+        { path: '/admin/reportes', label: 'Reporte Tecnico Mensual' },
+        { path: '/admin/analisis-reportes', label: 'Reporte Analytics' },
         { path: '/admin/extractor', label: 'Extractor de Imágenes' },
         { path: '/admin/knowledge', label: 'Base de Conocimiento IA' }
       ]
