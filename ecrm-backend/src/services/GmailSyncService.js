@@ -663,6 +663,9 @@ ${quickSolutionText}`;
           task_type: aiData.task_type
         });
 
+        // 🌟 DISPARADOR DEL CORREO AUTOMÁTICO HTML
+        await this.sendAutoReplyInThread(threadId, lastMessage);
+
         await this.moverAProcesados(
           threadId,
           lastMessage.labelIds
@@ -683,7 +686,112 @@ ${quickSolutionText}`;
       this.isProcessing = false;
     }
   }
+// 🌟 NUEVO MÉTODO: AUTO-RESPUESTA HTML EN LA MISMA CADENA
+  async sendAutoReplyInThread(threadId, lastMessage) {
+    try {
+      const headers = lastMessage.payload?.headers || [];
 
+      // Extraer datos del mensaje original para asegurar que se agrupe en la misma cadena
+      const messageId = headers.find(h => h.name.toLowerCase() === 'message-id')?.value;
+      const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
+      const replyTo = headers.find(h => h.name.toLowerCase() === 'reply-to')?.value;
+      const from = headers.find(h => h.name.toLowerCase() === 'from')?.value;
+      
+      const recipient = replyTo || from;
+      if (!recipient) return;
+
+      const replySubject = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
+
+      // EL HTML CON EL DISEÑO DE CONCORDE
+      const htmlContent = `
+      <div style="background-color: #F1F0EA; padding: 20px; font-family: Arial, Helvetica, sans-serif; color: #111111;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #FFFFFF; border: 3px solid #000000; box-shadow: 5px 5px 0px #000000; border-collapse: collapse;">
+          <!-- ENCABEZADO CONCORDE -->
+          <tr>
+            <td style="padding: 16px 20px; border-bottom: 3px solid #000000; background-color: #F1F0EA;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="left" valign="middle">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; color: #000000;">ENOVA AGENCY</h2>
+                    <p style="margin: 2px 0 0 0; font-size: 10px; color: #555555; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">Soporte Web // Concorde Radar</p>
+                  </td>
+                  <td align="right" valign="middle">
+                    <span style="background-color: #000000; color: #FFFFFF; padding: 4px 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; display: inline-block;">TICKET GENERADO</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CUERPO DEL MENSAJE -->
+          <tr>
+            <td style="padding: 24px 20px;">
+              <p style="margin: 0 0 12px 0; font-size: 14px; font-weight: bold;">Buenos días,</p>
+              <p style="margin: 0 0 12px 0; font-size: 13.5px; line-height: 1.5;">Se creó un ticket de atención para este requerimiento.</p>
+              <p style="margin: 0 0 16px 0; font-size: 13.5px; line-height: 1.5;">Les avisaré apenas tengamos alguna actualización.</p>
+
+              <!-- CAJA DE REQUISITO DE CORREOS -->
+              <div style="background-color: #F1F0EA; border: 2px solid #000000; padding: 14px; margin-bottom: 20px; box-shadow: 3px 3px 0px #000000;">
+                <p style="margin: 0 0 10px 0; font-size: 11px; font-weight: 900; text-transform: uppercase; color: #000000;">Recordar enviarnos siempre las solicitudes a estos correos:</p>
+                
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 12.5px;">
+                  <tr>
+                    <td style="padding-bottom: 6px; font-weight: bold;">• Atención General:</td>
+                    <td style="padding-bottom: 6px; text-align: right;">
+                      <a href="mailto:soporte@enova.agency" style="color: #000000; font-weight: 900; text-decoration: underline;">soporte@enova.agency</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight: bold;">• Jefatura de Área:</td>
+                    <td style="text-align: right;">
+                      <a href="mailto:santiago@enova.agency" style="color: #000000; font-weight: 900; text-decoration: underline;">santiago@enova.agency</a>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <p style="margin: 0; font-size: 13.5px; font-weight: bold;">Saludos,</p>
+              <p style="margin: 2px 0 0 0; font-size: 12px; font-weight: 900; text-transform: uppercase;">Equipo de Soporte // ENOVA AGENCY</p>
+            </td>
+          </tr>
+        </table>
+      </div>
+      `;
+
+      // Formato crudo compatible con Gmail API para HTML
+      const rawMessageLines = [
+        `To: ${recipient}`,
+        `Subject: ${replySubject}`,
+        `In-Reply-To: ${messageId}`,
+        `References: ${messageId}`,
+        `MIME-Version: 1.0`,
+        `Content-Type: text/html; charset="UTF-8"`,
+        `Content-Transfer-Encoding: base64`,
+        ``,
+        Buffer.from(htmlContent).toString('base64')
+      ];
+
+      const rawMessage = rawMessageLines.join('\r\n');
+      const encodedMessage = Buffer.from(rawMessage)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      // Envío de la respuesta
+      await this.gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: encodedMessage,
+          threadId: threadId
+        }
+      });
+
+      console.log(`✉️ [Auto-Reply] HTML enviado exitosamente al hilo: ${threadId}`);
+    } catch (error) {
+      console.error('❌ [Error Auto-Reply]:', error.message);
+    }
+  }
   async moverAProcesados(
     threadId,
     currentLabelIds = []
