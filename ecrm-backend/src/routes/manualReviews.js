@@ -29,7 +29,7 @@ router.get('/monthly', async (req, res) => {
   }
 });
 
-// 🔵 POST: Guardar el Check Diario (con firma) y bloquear duplicados
+// 🔵 POST: Guardar el Check Diario (con firma) y registrar en Auditoría
 router.post('/register', async (req, res) => {
   try {
     const { store_id, date, reviewer_name } = req.body;
@@ -38,19 +38,24 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Faltan parámetros.' });
     }
 
-    // Verificar si ya se registró hoy
     const exists = await db('store_daily_reviews').where({ store_id, review_date: date }).first();
     
     if (exists) {
       return res.status(400).json({ success: false, error: 'La tienda ya fue verificada el día de hoy.' });
     }
 
-    // Registrar
     await db('store_daily_reviews').insert({ 
         store_id, 
         review_date: date,
         reviewer_name 
     });
+
+    if (req.logActivity) {
+      req.logActivity(
+        'REGISTRO_DIARIO', 
+        `Verificación diaria completada para la tienda "${store_id}" por ${reviewer_name}`
+      );
+    }
 
     res.json({ success: true, message: 'Revisión diaria registrada exitosamente' });
   } catch (error) {

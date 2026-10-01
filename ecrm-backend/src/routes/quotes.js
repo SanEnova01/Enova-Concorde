@@ -218,6 +218,13 @@ router.post('/generate', checkSuperAdmin, async (req, res) => {
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();
 
+    if (req.logActivity) {
+      req.logActivity(
+        'GENERAR_COTIZACION', 
+        `Cotización comercial generada para "${nombre_comercial}" (${razon_social}) por USD ${monto}`
+      );
+    }
+
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="cotizacion_${nombre_comercial || 'enova'}.pdf"`,
@@ -257,6 +264,13 @@ router.put('/:id', checkSuperAdmin, async (req, res) => {
 
     if (!updatedQuote) {
       return res.status(404).json({ success: false, error: 'Cotización no encontrada.' });
+    }
+
+    if (req.logActivity) {
+      req.logActivity(
+        'ACTUALIZAR_COTIZACION', 
+        `Cotización ID ${id} actualizada a estado [${status}] - Factura: ${factura_id || 'N/A'}`
+      );
     }
 
     res.json({ success: true, data: updatedQuote });

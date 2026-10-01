@@ -11,10 +11,39 @@ const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
 const TicketRepository = require('./repositories/TicketRepository');
 const app = express();
 
+// 🌟 AUTO-CREACIÓN DE LA TABLA AUDIT_LOGS EN POSTGRESQL
+db.schema.hasTable('audit_logs').then(exists => {
+  if (!exists) {
+    return db.schema.createTable('audit_logs', table => {
+      table.increments('id').primary();
+      table.string('user_name').nullable();
+      table.string('user_email').nullable();
+      table.string('action').notNullable();
+      table.text('details').nullable();
+      table.string('ip_address').nullable();
+      table.timestamp('created_at').defaultTo(db.fn.now());
+    }).then(() => console.log('✅ Tabla audit_logs inicializada correctamente en PostgreSQL'));
+  }
+}).catch(err => console.error("Error verificando tabla audit_logs:", err.message));
 
-
-
-
+// 🌟 HELPER BASE DE REGISTRO DE AUDITORÍA
+const logActivity = async (req, action, details = '') => {
+  try {
+    const user = req.adminUser || {};
+    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const ip = String(rawIp).split(',')[0].trim();
+    
+    await db('audit_logs').insert({
+      user_name: user.name || req.body?.email || req.body?.username || 'Sistema/Anónimo',
+      user_email: user.email || req.body?.email || 'sistema@enova.agency',
+      action: action,
+      details: typeof details === 'object' ? JSON.stringify(details) : String(details),
+      ip_address: ip
+    });
+  } catch (e) {
+    console.error("Error guardando audit_log:", e.message);
+  }
+};
 
 app.set('trust proxy', 1);
 
@@ -44,7 +73,11 @@ const generalLimiter = rateLimit({
     error: 'Has superado el límite de actividad para tu cuenta. Por favor, espera unos minutos antes de continuar.' 
   }
 });
-
+// 🌟 MIDDLEWARE GLOBAL DE AUDITORÍA
+app.use((req, res, next) => {
+  req.logActivity = (action, details) => logActivity(req, action, details);
+  next();
+});
 app.use(generalLimiter);
 
 const loginLimiter = rateLimit({
@@ -210,48 +243,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'API del CRM seguro y operativo.' });
 });
 
-app.post('/api/users', verificarToken, async (req, res) => {
-  try {
-    if (req.adminUser.role !== 'super admin') {
-      return res.status(403).json({ success: false, error: 'Permiso denegado. Solo el super admin puede crear cuentas.' });
-    }
-
-    const { name, email, password, role } = req.body;
-
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ success: false, error: 'Todos los campos son obligatorios.' });
-    }
-
-    const rolesValidos = ['super admin', 'admin', 'client'];
-    if (!rolesValidos.includes(role)) {
-      return res.status(400).json({ success: false, error: 'El rol seleccionado no es válido.' });
-    }
-
-    const usuarioExiste = await db('users')
-      .where({ name: String(name).trim() })
-      .orWhere({ email: String(email).toLowerCase().trim() })
-      .first();
-
-    if (usuarioExiste) {
-      return res.status(400).json({ success: false, error: 'El nombre de usuario o correo ya se encuentra registrado.' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await db('users').insert({
-      name: String(name).trim(),
-      email: String(email).toLowerCase().trim(),
-      password: hashedPassword,
-      role: role
-    });
-
-    res.status(201).json({ success: true, message: 'Cuenta creada exitosamente.' });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: 'Error interno del servidor al registrar usuario.' });
-  }
-});
 
 app.post(['/api/upload', '/upload'], verificarToken, upload.single('logo'), (req, res) => {
   try {
@@ -711,18 +702,7 @@ app.delete('/api/users/:id', verificarToken, async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-// GET: Obtener lista de usuarios Administradores para asignación de tickets
-app.get('/api/users/admins', verificarToken, async (req, res) => {
-  try {
-    const admins = await db('users')
-      .whereIn('role', ['admin', 'super admin'])
-      .select('id', 'name', 'email', 'role');
-    res.json({ success: true, data: admins });
-  } catch (error) {
-    console.error("Error obteniendo administradores:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+
 // ==========================================
 // SERVIR FRONTEND REAL
 // ==========================================

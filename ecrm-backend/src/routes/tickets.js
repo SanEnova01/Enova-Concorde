@@ -1,14 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // <-- CORRECCIÓN 1: Importante para que no falle el DELETE
+const db = require('../config/db');
 const TicketRepository = require('../repositories/TicketRepository');
 
-// POST: Crear un nuevo ticket
+// POST: Crear un nuevo ticket (Con Auditoría)
 router.post('/', async (req, res) => {
   try {
     const ticketData = req.body;
 
-    // Validación básica de campos obligatorios
     if (!ticketData.name || !ticketData.store_id || !ticketData.task_type) {
       return res.status(400).json({ 
         success: false, 
@@ -17,6 +16,14 @@ router.post('/', async (req, res) => {
     }
 
     const result = await TicketRepository.create(ticketData);
+
+    if (req.logActivity) {
+      req.logActivity(
+        'CREAR_TICKET', 
+        `Ticket "${result.serial_number || result.id}" (${ticketData.name}) creado para la tienda "${ticketData.store_id}"`
+      );
+    }
+
     res.status(201).json({ success: true, data: result });
   } catch (error) {
     console.error("Error capturado en backend:", error);
@@ -24,12 +31,10 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET: Listar todos los tickets (Soporta filtro ?is_apolo_sync=true)
+// GET: Listar todos los tickets
 router.get('/', async (req, res) => {
   try {
     const filters = {};
-
-    // Capturar si envían el filtro por URL (ej: ?is_apolo_sync=true)
     if (req.query.is_apolo_sync === 'true' || req.query.is_apolo_sync === true) {
       filters.is_apolo_sync = true;
     }
@@ -41,12 +46,11 @@ router.get('/', async (req, res) => {
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 });
-// PATCH: Actualizar el estado de un ticket (Kanban drag&drop)
+
+// PATCH: Actualizar el estado de un ticket en Kanban (Con Auditoría)
 router.patch('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // 🌟 AHORA EXTRAE LA ASIGNACIÓN EN LUGAR DE DESCARTARLA
     const { status, assigned_to, assignee } = req.body;
 
     const validStatuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
@@ -58,14 +62,18 @@ router.patch('/:id/status', async (req, res) => {
       });
     }
 
-    // Unifica el nombre de la variable para el repositorio
     const finalAssignee = assigned_to !== undefined ? assigned_to : assignee;
-    
-    // Envía el dato a la base de datos
     const result = await TicketRepository.updateStatus(id, status, finalAssignee);
     
     if (!result) {
       return res.status(404).json({ success: false, error: 'Ticket no encontrado.' });
+    }
+
+    if (req.logActivity) {
+      req.logActivity(
+        'CAMBIAR_ESTADO_TICKET', 
+        `Ticket ID ${id} (${result.serial_number || ''}) cambió a estado [${status}]${finalAssignee ? ` - Asignado a: ${finalAssignee}` : ''}`
+      );
     }
 
     res.status(200).json({ success: true, data: result });
@@ -75,8 +83,7 @@ router.patch('/:id/status', async (req, res) => {
   }
 });
 
-// CORRECCIÓN 2: Ruta PUT agregada para solucionar el error 404 al guardar la edición
-// PUT y PATCH: Actualizar datos de un ticket
+// PUT: Actualizar datos de un ticket (Con Auditoría)
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -84,6 +91,14 @@ router.put('/:id', async (req, res) => {
     if (!updatedTicket) {
       return res.status(404).json({ success: false, error: 'Ticket no encontrado.' });
     }
+
+    if (req.logActivity) {
+      req.logActivity(
+        'EDITAR_TICKET', 
+        `Ticket ID ${id} (${updatedTicket.serial_number || ''}) actualizado. Responsable: ${updatedTicket.assigned_to || 'Sin asignar'}`
+      );
+    }
+
     res.status(200).json({ success: true, data: updatedTicket });
   } catch (error) {
     console.error('Error al actualizar ticket:', error);
@@ -98,6 +113,14 @@ router.patch('/:id', async (req, res) => {
     if (!updatedTicket) {
       return res.status(404).json({ success: false, error: 'Ticket no encontrado.' });
     }
+
+    if (req.logActivity) {
+      req.logActivity(
+        'EDITAR_TICKET', 
+        `Ticket ID ${id} (${updatedTicket.serial_number || ''}) actualizado`
+      );
+    }
+
     res.status(200).json({ success: true, data: updatedTicket });
   } catch (error) {
     console.error('Error al actualizar ticket:', error);
@@ -105,12 +128,10 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// DELETE: Borra localmente y en HubSpot
+// DELETE: Borrar ticket (Con Auditoría)
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // 1. Consultar el ticket antes de borrarlo (Ahora sí funciona porque db está importado)
     const ticket = await db('tickets').where({ id }).first();
 
     if (ticket && ticket.description) {
@@ -120,25 +141,22 @@ router.delete('/:id', async (req, res) => {
         const token = process.env.HUBSPOT_ACCESS_TOKEN;
 
         if (token) {
-          // 2. Eliminar el ticket directamente en HubSpot
-          const hsRes = await fetch(`https://api.hubapi.com/crm/v3/objects/tickets/${hsId}`, {
+          await fetch(`https://api.hubapi.com/crm/v3/objects/tickets/${hsId}`, {
             method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Authorization': `Bearer ${token}` }
           });
-
-          if (hsRes.ok) {
-            console.log(`[HubSpot Sync] Ticket ${hsId} eliminado exitosamente de HubSpot.`);
-          } else {
-            console.warn(`[HubSpot Sync] No se pudo borrar en HubSpot (Status: ${hsRes.status}).`);
-          }
         }
       }
     }
 
-    // 3. Eliminar de la base de datos local de Concorde
     await TicketRepository.delete(id);
+
+    if (req.logActivity) {
+      req.logActivity(
+        'ELIMINAR_TICKET', 
+        `Ticket ID ${id} (${ticket?.serial_number || ticket?.name || ''}) fue eliminado permanentemente`
+      );
+    }
 
     return res.json({ 
       success: true, 
@@ -149,7 +167,7 @@ router.delete('/:id', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
-// GET: Obtener todos los mensajes de un ticket específico
+
 router.get('/:id/messages', async (req, res) => {
   try {
     const { id } = req.params;
@@ -164,7 +182,6 @@ router.get('/:id/messages', async (req, res) => {
   }
 });
 
-// POST: Enviar un nuevo mensaje al hilo del ticket
 router.post('/:id/messages', async (req, res) => {
   try {
     const { id } = req.params;
@@ -186,4 +203,5 @@ router.post('/:id/messages', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
 module.exports = router;

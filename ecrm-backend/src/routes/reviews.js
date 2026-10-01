@@ -18,6 +18,13 @@ router.post('/', async (req, res) => {
             observations
         });
 
+        if (req.logActivity) {
+          req.logActivity(
+            'REVISION_TECNICA_MODULOS', 
+            `Control de calidad registrado para la tienda "${store_id}" por ${reviewer_name}`
+          );
+        }
+
         res.json({ success: true, message: 'Revisión guardada correctamente' });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
