@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Terminal } from 'lucide-react'; // 🌟 Importé el ícono Terminal
+import { ShieldCheck, Terminal } from 'lucide-react';
+
 // Componentes Core y Vistas Administrativas
 import AdminDashboard from './views/admin/AdminDashboard';
 import ClientsList from './views/admin/ClientsList';
@@ -11,10 +12,11 @@ import MetricsPage from './views/admin/MetricsPage';
 import UsersManagement from './views/admin/UsersManagement';
 import KnowledgeBase from "./views/admin/KnowledgeBase";
 import ManualReviewForm from './views/admin/ManualReviewForm';
+
 // Vista de Tickets para el Cliente
 import ClientTickets from './views/client/ClientTickets';
-// Cámbialo a la ruta donde realmente lo guardaste:
 import ServerConsole from './views/admin/ServerConsole';
+
 // Vistas Públicas (CoopPilot)
 import CoopPilotReturns from './views/public/CoopPilotReturns';
 import CoopPilotHub from './views/public/CoopPilotHub';
@@ -33,6 +35,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import crmApi from './api/crmApi';
 import ImageExtractorView from './views/admin/ImageExtractorView';
 import QuoteGenerator from './views/admin/QuoteGenerator';
+
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -139,7 +142,6 @@ function AdminLayout({ children }) {
     navigate('/login');
   };
 
-  // 🌟 FUNCIÓN PARA DISPARAR EL EVENTO DE LA CONSOLA DESDE EL BOTÓN
   const openTerminal = () => {
     window.dispatchEvent(new CustomEvent('toggle-terminal'));
   };
@@ -161,8 +163,10 @@ function AdminLayout({ children }) {
         <div className="crm-sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>
       )}
 
-      <div className={`crm-sidebar ${isMobileMenuOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <div>
+      <div className={`crm-sidebar ${isMobileMenuOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100vh' }}>
+        
+        {/* 🌟 ÁREA CON SCROLLBAR PARA EL MENÚ 🌟 */}
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, paddingBottom: '16px' }}>
           <div className="crm-logo-box" style={{ borderBottom: 'none', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <img 
@@ -261,33 +265,33 @@ function AdminLayout({ children }) {
                     {isExpanded && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginLeft: '16px', borderLeft: '2px solid #2d2d2d', paddingLeft: '8px' }}>
                         {item.subItems.map(sub => {
-                      if (sub.external) {
-                        return (
-                          <a
-                            key={sub.path}
-                            href={sub.path}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="crm-link-inactive"
-                            style={{ fontSize: '13px', padding: '8px 12px', textDecoration: 'none' }}
-                          >
-                            ↳ {sub.label} ↗
-                          </a>
-                        );
-                      }
+                          if (sub.external) {
+                            return (
+                              <a
+                                key={sub.path}
+                                href={sub.path}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="crm-link-inactive"
+                                style={{ fontSize: '13px', padding: '8px 12px', textDecoration: 'none' }}
+                              >
+                                ↳ {sub.label} ↗
+                              </a>
+                            );
+                          }
 
-                      const isActive = location.pathname === sub.path;
-                      return (
-                        <Link
-                          key={sub.path}
-                          to={sub.path}
-                          className={isActive ? "crm-link-active" : "crm-link-inactive"}
-                          style={{ fontSize: '13px', padding: '8px 12px' }}
-                        >
-                          ↳ {sub.label}
-                        </Link>
-                      );
-                    })}
+                          const isActive = location.pathname === sub.path;
+                          return (
+                            <Link
+                              key={sub.path}
+                              to={sub.path}
+                              className={isActive ? "crm-link-active" : "crm-link-inactive"}
+                              style={{ fontSize: '13px', padding: '8px 12px' }}
+                            >
+                              ↳ {sub.label}
+                            </Link>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -311,9 +315,8 @@ function AdminLayout({ children }) {
           </nav>
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px dashed #111111', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          
-          {/* 🌟 BOTÓN DE TERMINAL (Solo para super admins) */}
+        {/* PIE DE SIDENAV (FIJO EN LA PARTE INFERIOR) */}
+        <div style={{ padding: '16px', borderTop: '1px dashed #111111', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, backgroundColor: '#1c1c1c' }}>
           {userRole === 'super admin' && (
             <button onClick={openTerminal} className="crm-btn-black" style={{ width: '100%', padding: '8px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Terminal size={14} /> System Console <span style={{opacity: 0.7, fontSize: '10px'}}>(Ctrl + \)</span>
@@ -443,10 +446,6 @@ function App() {
           </ProtectedRoute>
         } />
 
-        <Route path="*" element={
-          isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
-        } />
-
         <Route path="/performance-radar" element={<PublicAuditForm />} />
         <Route path="/reporte/:id" element={<PublicAuditReport />} />
 
@@ -459,6 +458,13 @@ function App() {
         <Route path="/admin/analyzer" element={
           <ProtectedRoute allowedRoles={['super admin', 'admin']}>
             <AdminLayout><ConcordeAnalyzerView /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+        {/* 🌟 RUTA DE REPORTES GA4 AGREGADA AQUI 🌟 */}
+        <Route path="/admin/analisis-reportes" element={
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <AdminLayout><AnalisisReportGenerator /></AdminLayout>
           </ProtectedRoute>
         } />
 
@@ -478,9 +484,12 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="*" element={
+          isClient ? <Navigate to="/admin/clientes/cuentacliente" replace /> : <Navigate to="/login" replace />
+        } />
+
       </Routes>
-      
-      {/* 🌟 AQUÍ INYECTAMOS LA CONSOLA GLOBAL 🌟 */}
+
       <ServerConsole />
     </BrowserRouter>
   );
