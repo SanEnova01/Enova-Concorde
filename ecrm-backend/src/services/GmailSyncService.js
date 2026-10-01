@@ -707,6 +707,9 @@ ${quickSolutionText}`;
       // Combinamos el remitente principal con todos los que estaban en 'To'
       const allTo = [recipient, originalTo].filter(Boolean).join(', ');
 
+      // 🌟 FORZAMOS QUE SOPORTE SIEMPRE ESTÉ EN COPIA (CC)
+      const allCc = [originalCc, 'soporte@enova.agency'].filter(Boolean).join(', ');
+
       const replySubject = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
       
       // 🌟 EXTRAEMOS EL SERIAL O EL ID
@@ -767,10 +770,10 @@ ${quickSolutionText}`;
       </div>
       `;
 
-      // Formato crudo compatible con Gmail API para HTML
+     // Formato crudo compatible con Gmail API para HTML
       const rawMessageLines = [
         `To: ${allTo}`,
-        ...(originalCc ? [`Cc: ${originalCc}`] : []),
+        `Cc: ${allCc}`,
         `Subject: ${replySubject}`,
         `In-Reply-To: ${messageId}`,
         `References: ${messageId}`,
