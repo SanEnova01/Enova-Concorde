@@ -712,6 +712,9 @@ ${quickSolutionText}`;
 
       const replySubject = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
       
+      // 🌟 FIX: Codificamos el asunto en formato MIME UTF-8 seguro para cabeceras
+      const encodedSubject = `=?UTF-8?B?${Buffer.from(replySubject, 'utf-8').toString('base64')}?=`;
+      
       // 🌟 EXTRAEMOS EL SERIAL O EL ID
       const ticketNumber = ticket?.serial_number || ticket?.id || 'GENERADO';
 
@@ -770,18 +773,18 @@ ${quickSolutionText}`;
       </div>
       `;
 
-     // Formato crudo compatible con Gmail API para HTML
+    // Formato crudo compatible con Gmail API para HTML
       const rawMessageLines = [
         `To: ${allTo}`,
         `Cc: ${allCc}`,
-        `Subject: ${replySubject}`,
+        `Subject: ${encodedSubject}`, // <-- Usar el asunto codificado aquí
         `In-Reply-To: ${messageId}`,
         `References: ${messageId}`,
         `MIME-Version: 1.0`,
         `Content-Type: text/html; charset="UTF-8"`,
         `Content-Transfer-Encoding: base64`,
         ``,
-        Buffer.from(htmlContent).toString('base64')
+        Buffer.from(htmlContent, 'utf-8').toString('base64') // <-- Añadir 'utf-8' por seguridad
       ];
 
       const rawMessage = rawMessageLines.join('\r\n');
