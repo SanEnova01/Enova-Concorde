@@ -276,10 +276,23 @@ async function ejecutarAnalisisAutomated() {
                 // 🌟 FIN SIMULACIÓN
 
                 try {
-                    await page.goto(urlLimpia, {
-                        waitUntil: 'load', // 🌟 AHORA ESPERA A LAS IMÁGENES Y RECURSOS
+                    const response = await page.goto(urlLimpia, {
+                        waitUntil: 'load', 
                         timeout: 60000
                     });
+                    
+                    // 🌟 DETECCIÓN DE BLOQUEOS WAF / CLOUDFLARE
+                    const httpStatus = response ? response.status() : 'Desconocido';
+                    const pageTitle = await page.title();
+                    
+                    if (httpStatus === 403 || httpStatus === 503) {
+                        console.warn(`🛑 [BLOQUEO WAF/SERVIDOR] ${urlLimpia} bloqueó al bot (HTTP ${httpStatus}).`);
+                    } else if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('attention required')) {
+                        console.warn(`🛑 [BLOQUEO CAPTCHA] ${urlLimpia} mostró pantalla de verificación humana (Cloudflare).`);
+                    } else {
+                        console.log(`✅ [Navegación OK] HTTP ${httpStatus} | Título: "${pageTitle}"`);
+                    }
+
                 } catch (navError) {
                     console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
                     await page.evaluate(() => window.stop()).catch(() => {});
@@ -1241,10 +1254,23 @@ async function performPuppeteerAnalysis(targetUrl) {
         // 🌟 FIN SIMULACIÓN
 
         try {
-            await page.goto(urlLimpia, {
-                waitUntil: 'load', 
+            const response = await page.goto(urlLimpia, {
+                waitUntil: 'load',
                 timeout: 60000
             });
+
+            // 🌟 DETECCIÓN DE BLOQUEOS WAF / CLOUDFLARE
+            const httpStatus = response ? response.status() : 'Desconocido';
+            const pageTitle = await page.title();
+            
+            if (httpStatus === 403 || httpStatus === 503) {
+                console.warn(`🛑 [BLOQUEO WAF/SERVIDOR] ${urlLimpia} bloqueó al bot (HTTP ${httpStatus}).`);
+            } else if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('attention required')) {
+                console.warn(`🛑 [BLOQUEO CAPTCHA] ${urlLimpia} mostró pantalla de verificación humana (Cloudflare).`);
+            } else {
+                console.log(`✅ [Navegación OK] HTTP ${httpStatus} | Título: "${pageTitle}"`);
+            }
+
         } catch (navError) {
             console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
             await page.evaluate(() => window.stop()).catch(() => {});
