@@ -21,7 +21,18 @@ const RAILWAY_PUPPETEER_ARGS = [
     '--disable-software-rasterizer',
     '--disable-ipc-flooding-protection',
     '--enable-precise-memory-info',
-    '--disable-blink-features=AutomationControlled'
+    '--disable-blink-features=AutomationControlled',
+    '--single-process', // Crucial para entornos con pocos recursos como Railway
+    '--disable-accelerated-2d-canvas',
+    '--disable-background-networking',
+    '--disable-background-timer-throttling',
+    '--disable-client-side-phishing-detection',
+    '--disable-default-apps',
+    '--disable-extensions',
+    '--disable-sync',
+    '--metrics-recording-only',
+    '--mute-audio',
+    '--no-first-run'
 ];
 
 const app = express();
@@ -280,7 +291,9 @@ async function ejecutarAnalisisAutomated() {
 
                 browser = await puppeteer.launch({
                     headless: 'new',
-                    args: RAILWAY_PUPPETEER_ARGS
+                    args: RAILWAY_PUPPETEER_ARGS,
+                    protocolTimeout: 60000, // Extendido a 60 segundos
+                    timeout: 60000 // Extendido a 60 segundos
                 });
 
                 const browserPid =
@@ -288,14 +301,27 @@ async function ejecutarAnalisisAutomated() {
 
                 const page = await browser.newPage();
 
+                // 🌟 SIMULACIÓN REALISTA DE PC (1 Gbps + Latencia Latam)
+                const client = await page.target().createCDPSession();
+                await client.send('Network.enable');
+                await client.send('Network.emulateNetworkConditions', {
+                    offline: false,
+                    latency: 40, // 40ms de latencia natural (Perú -> EE.UU.)
+                    downloadThroughput: (1000 * 1024 * 1024) / 8, // 1 Gbps bajada
+                    uploadThroughput: (1000 * 1024 * 1024) / 8,   // 1 Gbps subida
+                });
+                // Simular un procesador de PC de escritorio (no un Xeon de servidor)
+                await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
+                // 🌟 FIN SIMULACIÓN
+
                 // ====================================================
-                // NAVEGACIÓN NORMAL
+                // NAVEGACIÓN REALISTA
                 // ====================================================
 
                 try {
                     await page.goto(urlLimpia, {
-                        waitUntil: 'domcontentloaded',
-                        timeout: 30000
+                        waitUntil: 'load', // 🌟 AHORA ESPERA A LAS IMÁGENES Y RECURSOS
+                        timeout: 60000
                     });
 
                     // Permitimos que terminen recursos y scripts
@@ -1053,9 +1079,10 @@ async function extractStoreImages(targetUrl) {
             browser =
                 await puppeteer.launch({
                     headless: 'new',
-                    args: RAILWAY_PUPPETEER_ARGS
+                    args: RAILWAY_PUPPETEER_ARGS,
+                    protocolTimeout: 60000,
+                    timeout: 60000
                 });
-
             const page =
                 await browser.newPage();
 
@@ -1476,19 +1503,33 @@ async function performPuppeteerAnalysis(
         browser =
             await puppeteer.launch({
                 headless: 'new',
-                args: RAILWAY_PUPPETEER_ARGS
-            });
+                args: RAILWAY_PUPPETEER_ARGS,
+                protocolTimeout: 60000,
+                timeout: 60000
+            }); 
 
         const page =
             await browser.newPage();
+
+        // 🌟 SIMULACIÓN REALISTA DE PC (1 Gbps + Latencia Latam)
+        const client = await page.target().createCDPSession();
+        await client.send('Network.enable');
+        await client.send('Network.emulateNetworkConditions', {
+            offline: false,
+            latency: 40, // 40ms de latencia natural
+            downloadThroughput: (1000 * 1024 * 1024) / 8, // 1 Gbps
+            uploadThroughput: (1000 * 1024 * 1024) / 8,
+        });
+        await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
+        // 🌟 FIN SIMULACIÓN
 
         try {
             await page.goto(
                 urlLimpia,
                 {
                     waitUntil:
-                        'domcontentloaded',
-                    timeout: 30000
+                        'load', // 🌟 AHORA ESPERA A LAS IMÁGENES Y RECURSOS
+                    timeout: 60000
                 }
             );
 
