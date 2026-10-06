@@ -224,81 +224,43 @@ async function notificarFinalizacion(
 
 async function ejecutarAnalisisAutomated() {
     if (estaEjecutando) {
-        console.log(
-            '⚠️ Ya hay un análisis en curso. Solicitud omitida.'
-        );
-
-        return {
-            success: false,
-            message: 'Un análisis ya se encuentra en ejecución.'
-        };
+        console.log('⚠️ Ya hay un análisis en curso. Solicitud omitida.');
+        return { success: false, message: 'Un análisis ya se encuentra en ejecución.' };
     }
 
     estaEjecutando = true;
-
     const fechaActual = new Date().toISOString();
 
     try {
         const tiendas = await obtenerTiendasFiltradas();
 
         if (tiendas.length === 0) {
-            console.log(
-                '⚠️ No se encontraron tiendas activas para analizar.'
-            );
-
-            return {
-                success: false,
-                message:
-                    'No hay tiendas activas registradas con los planes permitidos.'
-            };
+            console.log('⚠️ No se encontraron tiendas activas para analizar.');
+            return { success: false, message: 'No hay tiendas activas registradas con los planes permitidos.' };
         }
 
-        console.log(
-            `\n▶ [${new Date().toLocaleTimeString()}] INICIANDO ANÁLISIS AUTOMÁTICO EN ${tiendas.length} TIENDAS...`
-        );
+        console.log(`\n▶ [${new Date().toLocaleTimeString()}] INICIANDO ANÁLISIS AUTOMÁTICO EN ${tiendas.length} TIENDAS...`);
 
         let exitosos = 0;
         let fallidos = 0;
 
         for (let i = 0; i < tiendas.length; i++) {
             const web = tiendas[i];
-
             let browser = null;
 
             try {
-                const urlLimpia = normalizarUrl(
-                    web.web || web.url
-                );
-
-                console.log(
-                    `\n🌐 [${i + 1}/${tiendas.length}] Analizando: ${web.name}`
-                );
-
-                console.log(
-                    `🔗 URL: ${urlLimpia}`
-                );
-
-                // ====================================================
-                // LANZAMIENTO NORMAL DE CHROMIUM
-                //
-                // NO HAY:
-                // - CPU throttling
-                // - Network throttling
-                // - Mobile viewport
-                // - iPhone User-Agent
-                // - Cache deshabilitada
-                // ====================================================
+                const urlLimpia = normalizarUrl(web.web || web.url);
+                console.log(`\n🌐 [${i + 1}/${tiendas.length}] Analizando: ${web.name}`);
+                console.log(`🔗 URL: ${urlLimpia}`);
 
                 browser = await puppeteer.launch({
                     headless: 'new',
                     args: RAILWAY_PUPPETEER_ARGS,
-                    protocolTimeout: 60000, // Extendido a 60 segundos
-                    timeout: 60000 // Extendido a 60 segundos
+                    protocolTimeout: 60000,
+                    timeout: 60000
                 });
 
-                const browserPid =
-                    browser.process()?.pid;
-
+                const browserPid = browser.process()?.pid;
                 const page = await browser.newPage();
 
                 // 🌟 SIMULACIÓN REALISTA DE PC (1 Gbps + Latencia Latam)
@@ -306,147 +268,57 @@ async function ejecutarAnalisisAutomated() {
                 await client.send('Network.enable');
                 await client.send('Network.emulateNetworkConditions', {
                     offline: false,
-                    latency: 40, // 40ms de latencia natural (Perú -> EE.UU.)
-                    downloadThroughput: (1000 * 1024 * 1024) / 8, // 1 Gbps bajada
-                    uploadThroughput: (1000 * 1024 * 1024) / 8,   // 1 Gbps subida
+                    latency: 40, 
+                    downloadThroughput: (1000 * 1024 * 1024) / 8, 
+                    uploadThroughput: (1000 * 1024 * 1024) / 8,   
                 });
-                // Simular un procesador de PC de escritorio (no un Xeon de servidor)
                 await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
                 // 🌟 FIN SIMULACIÓN
-
-                // ====================================================
-                // NAVEGACIÓN REALISTA
-                // ====================================================
 
                 try {
                     await page.goto(urlLimpia, {
                         waitUntil: 'load', // 🌟 AHORA ESPERA A LAS IMÁGENES Y RECURSOS
                         timeout: 60000
                     });
-
-                    // Eliminamos la espera de 4 segundos. Al esperar el 'load', 
-                    // pausar más tiempo solo da margen a que la web haga una redirección y rompa el frame.
                 } catch (navError) {
-                    console.warn(
-                        `⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`
-                    );
-
-                    console.warn(
-                        `⚠️ Se intentarán extraer las métricas disponibles.`
-                    );
-
-                    await page
-                        .evaluate(() => window.stop())
-                        .catch(() => {});
+                    console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
+                    await page.evaluate(() => window.stop()).catch(() => {});
                 }
 
                 // ====================================================
-                // MÉTRICAS DEL NAVEGADOR
+                // MÉTRICAS DEL NAVEGADOR (CON BLINDAJE)
                 // ====================================================
-
                 let datosReporte = {};
                 try {
                     datosReporte = await page.evaluate(() => {
-                    const nav =
-                        performance.getEntriesByType(
-                            'navigation'
-                        )[0];
+                        const nav = performance.getEntriesByType('navigation')[0];
+                        const resources = performance.getEntriesByType('resource');
+                        const memory = performance.memory;
+                        let totalBytes = 0;
 
-                    const resources =
-                        performance.getEntriesByType(
-                            'resource'
-                        );
+                        resources.forEach((resource) => {
+                            if (resource.transferSize) {
+                                totalBytes += resource.transferSize;
+                            }
+                        });
 
-                    const memory =
-                        performance.memory;
+                        const currentMs = Math.round(performance.now());
 
-                    let totalBytes = 0;
-
-                    resources.forEach((resource) => {
-                        if (resource.transferSize) {
-                            totalBytes +=
-                                resource.transferSize;
-                        }
+                        return {
+                            redirect: nav ? Math.round(nav.redirectEnd - nav.redirectStart) : 0,
+                            dns: nav ? Math.round(nav.domainLookupEnd - nav.domainLookupStart) : 0,
+                            tcp: nav ? Math.round(nav.connectEnd - nav.connectStart) : 0,
+                            ttfb: nav ? Math.round(nav.responseStart - nav.startTime) : 0,
+                            domInteractive: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
+                            domReady: nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : currentMs / 2,
+                            loadTime: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
+                            peso: (totalBytes / 1024 / 1024).toFixed(2),
+                            peticiones: resources.length + 1,
+                            ramCore: memory ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) : 0
+                        };
                     });
-
-                    const currentMs =
-                        Math.round(
-                            performance.now()
-                        );
-
-                    return {
-                        redirect: nav
-                            ? Math.round(
-                                  nav.redirectEnd -
-                                      nav.redirectStart
-                              )
-                            : 0,
-
-                        dns: nav
-                            ? Math.round(
-                                  nav.domainLookupEnd -
-                                      nav.domainLookupStart
-                              )
-                            : 0,
-
-                        tcp: nav
-                            ? Math.round(
-                                  nav.connectEnd -
-                                      nav.connectStart
-                              )
-                            : 0,
-
-                        ttfb: nav
-                            ? Math.round(
-                                  nav.responseStart -
-                                      nav.startTime
-                              )
-                            : 0,
-
-                        domInteractive: nav
-                            ? Math.round(
-                                  nav.domInteractive -
-                                      nav.startTime
-                              )
-                            : currentMs / 2,
-
-                        domReady: nav
-                            ? Math.round(
-                                  nav.domContentLoadedEventEnd -
-                                      nav.startTime
-                              )
-                            : currentMs / 2,
-
-                        loadTime:
-                            nav &&
-                            nav.loadEventEnd > 0
-                                ? Math.round(
-                                      nav.loadEventEnd -
-                                          nav.startTime
-                                  )
-                                : currentMs,
-
-                        peso: (
-                            totalBytes /
-                            1024 /
-                            1024
-                        ).toFixed(2),
-
-                        peticiones:
-                            resources.length + 1,
-
-                        ramCore: memory
-                            ? (
-                                  memory.usedJSHeapSize /
-                                  1024 /
-                                  1024
-                              ).toFixed(2)
-                            : 0
-                    : 0
-                    };
-                });
                 } catch (evalError) {
-                    console.warn(`⚠️ Error extrayendo métricas (Frame detached): ${evalError.message}`);
+                    console.warn(`⚠️️ Error extrayendo métricas (Frame detached): ${evalError.message}`);
                     datosReporte = {
                         redirect: 0, dns: 0, tcp: 0, ttfb: 0, domInteractive: 0,
                         domReady: 0, loadTime: 0, peso: 0, peticiones: 0, ramCore: 0
@@ -456,221 +328,77 @@ async function ejecutarAnalisisAutomated() {
                 // ====================================================
                 // RAM DEL PROCESO DE CHROMIUM
                 // ====================================================
-
                 let ramTotalMB = 0;
-
                 if (browserPid) {
                     try {
-                        const statsOS =
-                            await pidusage(
-                                browserPid
-                            );
-
-                        ramTotalMB = parseFloat(
-                            (
-                                statsOS.memory /
-                                1024 /
-                                1024
-                            ).toFixed(2)
-                        );
+                        const statsOS = await pidusage(browserPid);
+                        ramTotalMB = parseFloat((statsOS.memory / 1024 / 1024).toFixed(2));
                     } catch (memoryError) {
-                        console.warn(
-                            '⚠️ No se pudo obtener RAM del proceso:',
-                            memoryError.message
-                        );
+                        console.warn('⚠️ No se pudo obtener RAM del proceso:', memoryError.message);
                     }
                 }
-
-                // ====================================================
-                // PAYLOAD
-                // ====================================================
 
                 const payload = {
                     store_id: web.id,
                     date: fechaActual,
-
                     server_status: 'ONLINE',
-
-                    // Antes:
-                    // Auto-Mobile-4G
-                    //
-                    // Ahora:
-                    // Navegador real sin throttling artificial
                     web_flow: 'Real-Browser',
-
-                    redirect_ms:
-                        datosReporte.redirect || 0,
-
-                    dns_ms:
-                        datosReporte.dns || 0,
-
-                    tcp_ms:
-                        datosReporte.tcp || 0,
-
-                    ttfb_ms:
-                        datosReporte.ttfb || 0,
-
-                    dom_interactive_ms:
-                        datosReporte.domInteractive || 0,
-
-                    dom_ms:
-                        datosReporte.domReady || 0,
-
-                    load_ms:
-                        datosReporte.loadTime || 0,
-
-                    total_weight_mb:
-                        parseFloat(
-                            datosReporte.peso || 0
-                        ),
-
-                    total_requests:
-                        parseInt(
-                            datosReporte.peticiones || 0
-                        ),
-
-                    ram_core_mb:
-                        parseFloat(
-                            datosReporte.ramCore || 0
-                        ),
-
-                    ram_total_mb:
-                        ramTotalMB
+                    redirect_ms: datosReporte.redirect || 0,
+                    dns_ms: datosReporte.dns || 0,
+                    tcp_ms: datosReporte.tcp || 0,
+                    ttfb_ms: datosReporte.ttfb || 0,
+                    dom_interactive_ms: datosReporte.domInteractive || 0,
+                    dom_ms: datosReporte.domReady || 0,
+                    load_ms: datosReporte.loadTime || 0,
+                    total_weight_mb: parseFloat(datosReporte.peso || 0),
+                    total_requests: parseInt(datosReporte.peticiones || 0),
+                    ram_core_mb: parseFloat(datosReporte.ramCore || 0),
+                    ram_total_mb: ramTotalMB
                 };
 
-                // ====================================================
-                // ENVIAR AL BACKEND
-                // ====================================================
+                const apiResponse = await enviarMetricasAPI(payload);
 
-                const apiResponse =
-                    await enviarMetricasAPI(
-                        payload
-                    );
+                if (apiResponse.status === 'success') { exitosos++; } else { fallidos++; }
 
-                if (
-                    apiResponse.status ===
-                    'success'
-                ) {
-                    exitosos++;
-                } else {
-                    fallidos++;
-                }
+                console.log(`✔ [${i + 1}/${tiendas.length}] ${web.name} (${web.plan_type})`);
+                console.log(`   Load: ${datosReporte.loadTime}ms`);
+                console.log(`   Peso: ${datosReporte.peso}MB`);
+                console.log(`   Requests: ${datosReporte.peticiones}`);
+                console.log(`   RAM Chromium: ${ramTotalMB}MB`);
 
-                console.log(
-                    `✔ [${i + 1}/${tiendas.length}] ${web.name} (${web.plan_type})`
-                );
-
-                console.log(
-                    `   Load: ${datosReporte.loadTime}ms`
-                );
-
-                console.log(
-                    `   Peso: ${datosReporte.peso}MB`
-                );
-
-                console.log(
-                    `   Requests: ${datosReporte.peticiones}`
-                );
-
-                console.log(
-                    `   RAM Chromium: ${ramTotalMB}MB`
-                );
-
-                console.log(
-                    `   Perfil: Real-Browser`
-                );
             } catch (error) {
-                console.error(
-                    `✖ ${web.name} | ERROR: ${error.message}`
-                );
-
+                console.error(`✖ ${web.name} | ERROR: ${error.message}`);
                 fallidos++;
-
                 await enviarMetricasAPI({
-                    store_id: web.id,
-                    date: fechaActual,
-                    server_status: 'OFFLINE',
-                    web_flow: 'Crash',
-
-                    ram_core_mb: 0,
-                    ram_total_mb: 0,
-
-                    redirect_ms: 0,
-                    dns_ms: 0,
-                    tcp_ms: 0,
-                    ttfb_ms: 0,
-                    dom_interactive_ms: 0,
-                    dom_ms: 0,
-                    load_ms: 0,
-
-                    total_weight_mb: 0,
-                    total_requests: 0
+                    store_id: web.id, date: fechaActual, server_status: 'OFFLINE', web_flow: 'Crash',
+                    ram_core_mb: 0, ram_total_mb: 0, redirect_ms: 0, dns_ms: 0, tcp_ms: 0, ttfb_ms: 0,
+                    dom_interactive_ms: 0, dom_ms: 0, load_ms: 0, total_weight_mb: 0, total_requests: 0
                 });
             } finally {
-                // ====================================================
-                // CIERRE SEGURO DEL NAVEGADOR
-                // ====================================================
-
                 if (browser) {
-                    try {
-                        await browser.close();
-                    } catch (closeError) {
-                        console.warn(
-                            '⚠️ Error cerrando navegador:',
-                            closeError.message
-                        );
+                    try { await browser.close(); } catch (closeError) {
+                        console.warn('⚠️ Error cerrando navegador:', closeError.message);
                     }
                 }
             }
 
-            try {
-                pidusage.clear();
-            } catch (e) {}
+            try { pidusage.clear(); } catch (e) {}
 
-            // ====================================================
-            // COOLDOWN
-            // ====================================================
-
-            console.log(
-                '⏳ [Cooldown] Esperando 15 segundos antes de la siguiente tienda...'
-            );
-
-            await new Promise((resolve) =>
-                setTimeout(resolve, 15000)
-            );
+            console.log('⏳ [Cooldown] Esperando 15 segundos antes de la siguiente tienda...');
+            await new Promise((resolve) => setTimeout(resolve, 15000));
         }
 
-        console.log(
-            '\n✅ ANÁLISIS FINALIZADO.'
-        );
+        console.log('\n✅ ANÁLISIS FINALIZADO.');
+        await notificarFinalizacion(tiendas.length, exitosos, fallidos, fechaActual);
 
-        await notificarFinalizacion(
-            tiendas.length,
-            exitosos,
-            fallidos,
-            fechaActual
-        );
-
-        return {
-            success: true,
-            message:
-                'Análisis finalizado exitosamente'
-        };
+        return { success: true, message: 'Análisis finalizado exitosamente' };
     } catch (error) {
-        console.error(
-            '❌ Error general del análisis:',
-            error.message
-        );
-
-        return {
-            success: false,
-            message: error.message
-        };
+        console.error('❌ Error general del análisis:', error.message);
+        return { success: false, message: error.message };
     } finally {
         estaEjecutando = false;
     }
 }
-
 // ============================================================
 // 5. HEARTBEAT
 // ============================================================
@@ -1486,173 +1214,67 @@ app.post(
 // 13. PUPPETEER - ANÁLISIS INDIVIDUAL
 // ============================================================
 
-async function performPuppeteerAnalysis(
-    targetUrl
-) {
-    const urlLimpia =
-        normalizarUrl(
-            targetUrl
-        );
-
+async function performPuppeteerAnalysis(targetUrl) {
+    const urlLimpia = normalizarUrl(targetUrl);
     let browser = null;
 
     try {
-        // ========================================================
-        // CHROMIUM NORMAL
-        //
-        // SIN:
-        // - CPU THROTTLING
-        // - NETWORK THROTTLING
-        // - MOBILE VIEWPORT
-        // - IPHONE USER AGENT
-        // - CACHE DISABLED
-        // ========================================================
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: RAILWAY_PUPPETEER_ARGS,
+            protocolTimeout: 60000,
+            timeout: 60000
+        });
 
-        browser =
-            await puppeteer.launch({
-                headless: 'new',
-                args: RAILWAY_PUPPETEER_ARGS,
-                protocolTimeout: 60000,
-                timeout: 60000
-            }); 
-
-        const page =
-            await browser.newPage();
+        const page = await browser.newPage();
 
         // 🌟 SIMULACIÓN REALISTA DE PC (1 Gbps + Latencia Latam)
         const client = await page.target().createCDPSession();
         await client.send('Network.enable');
         await client.send('Network.emulateNetworkConditions', {
             offline: false,
-            latency: 40, // 40ms de latencia natural
-            downloadThroughput: (1000 * 1024 * 1024) / 8, // 1 Gbps
+            latency: 40,
+            downloadThroughput: (1000 * 1024 * 1024) / 8,
             uploadThroughput: (1000 * 1024 * 1024) / 8,
         });
         await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
         // 🌟 FIN SIMULACIÓN
 
         try {
-            await page.goto(
-                urlLimpia,
-                {
-                    waitUntil:
-                        'load', // 🌟 AHORA ESPERA A LAS IMÁGENES Y RECURSOS
-                    timeout: 60000
-                }
-            );
-
-            // Espera de 4s eliminada para evitar detached frames
+            await page.goto(urlLimpia, {
+                waitUntil: 'load', 
+                timeout: 60000
+            });
         } catch (navError) {
-            console.warn(
-                `⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`
-            );
-
-            await page
-                .evaluate(
-                    () =>
-                        window.stop()
-                )
-                .catch(() => {});
+            console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
+            await page.evaluate(() => window.stop()).catch(() => {});
         }
 
         let pageMetrics = {};
         try {
-            pageMetrics = await page.evaluate(
-                () => {
-                    const nav =
-                        performance.getEntriesByType(
-                            'navigation'
-                        )[0];
+            pageMetrics = await page.evaluate(() => {
+                const nav = performance.getEntriesByType('navigation')[0];
+                const resources = performance.getEntriesByType('resource');
+                const memory = performance.memory;
+                let totalBytes = 0;
 
-                    const resources =
-                        performance.getEntriesByType(
-                            'resource'
-                        );
+                resources.forEach((resource) => {
+                    if (resource.transferSize) {
+                        totalBytes += resource.transferSize;
+                    }
+                });
 
-                    const memory =
-                        performance.memory;
+                const currentMs = Math.round(performance.now());
 
-                    let totalBytes = 0;
-
-                    resources.forEach(
-                        (resource) => {
-                            if (
-                                resource.transferSize
-                            ) {
-                                totalBytes +=
-                                    resource.transferSize;
-                            }
-                        }
-                    );
-
-                    const currentMs =
-                        Math.round(
-                            performance.now()
-                        );
-
-                    return {
-                        load_ms:
-                            nav &&
-                            nav.loadEventEnd >
-                                0
-                                ? Math.round(
-                                      nav.loadEventEnd -
-                                          nav.startTime
-                                  )
-                                : currentMs,
-
-                        dom_interactive_ms:
-                            nav
-                                ? Math.round(
-                                      nav.domInteractive -
-                                          nav.startTime
-                                  )
-                                : currentMs /
-                                  2,
-
-                        ram_total_mb:
-                            memory
-                                ? parseFloat(
-                                      (
-                                          memory.totalJSHeapSize /
-                                          1024 /
-                                          1024
-                                      ).toFixed(
-                                          2
-                                      )
-                                  )
-                                : 0,
-
-                        ram_core_mb:
-                            memory
-                                ? parseFloat(
-                                      (
-                                          memory.usedJSHeapSize /
-                                          1024 /
-                                          1024
-                                      ).toFixed(
-                                          2 
-                                      )
-                                  )
-                                : 0,
-
-                        total_requests:
-                            resources.length +
-                            1,
-
-                        total_weight_mb:
-                            parseFloat(
-                                (
-                                    totalBytes /
-                                    1024 /
-                                    1024
-                                ).toFixed(
-                                    2
-                                )
-                            )
-                    };
-                }
-            );
+                return {
+                    load_ms: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
+                    dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
+                    ram_total_mb: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
+                    ram_core_mb: memory ? parseFloat((memory.usedJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
+                    total_requests: resources.length + 1,
+                    total_weight_mb: parseFloat((totalBytes / 1024 / 1024).toFixed(2))
+                };
+            });
         } catch (evalError) {
             console.warn(`⚠️ Error extrayendo métricas individuales (Frame detached): ${evalError.message}`);
             pageMetrics = {
@@ -1663,37 +1285,20 @@ async function performPuppeteerAnalysis(
 
         return {
             url: urlLimpia,
-
-            load_ms:
-                pageMetrics.load_ms,
-
-            dom_ms:
-                pageMetrics.dom_interactive_ms,
-
-            ram_total_mb:
-                pageMetrics.ram_total_mb,
-
-            ram_core_mb:
-                pageMetrics.ram_core_mb,
-
-            total_requests:
-                pageMetrics.total_requests,
-
-            total_weight_mb:
-                pageMetrics.total_weight_mb,
-
-            web_flow:
-                'Real-Browser'
+            load_ms: pageMetrics.load_ms,
+            dom_ms: pageMetrics.dom_interactive_ms,
+            ram_total_mb: pageMetrics.ram_total_mb,
+            ram_core_mb: pageMetrics.ram_core_mb,
+            total_requests: pageMetrics.total_requests,
+            total_weight_mb: pageMetrics.total_weight_mb,
+            web_flow: 'Real-Browser'
         };
     } finally {
         if (browser) {
             try {
                 await browser.close();
             } catch (closeError) {
-                console.warn(
-                    '⚠️ Error cerrando navegador:',
-                    closeError.message
-                );
+                console.warn('⚠️ Error cerrando navegador:', closeError.message);
             }
         }
     }
