@@ -324,10 +324,8 @@ async function ejecutarAnalisisAutomated() {
                         timeout: 60000
                     });
 
-                    // Permitimos que terminen recursos y scripts
-                    await new Promise((resolve) =>
-                        setTimeout(resolve, 4000)
-                    );
+                    // Eliminamos la espera de 4 segundos. Al esperar el 'load', 
+                    // pausar más tiempo solo da margen a que la web haga una redirección y rompa el frame.
                 } catch (navError) {
                     console.warn(
                         `⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`
@@ -346,7 +344,9 @@ async function ejecutarAnalisisAutomated() {
                 // MÉTRICAS DEL NAVEGADOR
                 // ====================================================
 
-                const datosReporte = await page.evaluate(() => {
+                let datosReporte = {};
+                try {
+                    datosReporte = await page.evaluate(() => {
                     const nav =
                         performance.getEntriesByType(
                             'navigation'
@@ -442,8 +442,16 @@ async function ejecutarAnalisisAutomated() {
                                   1024
                               ).toFixed(2)
                             : 0
+                    : 0
                     };
                 });
+                } catch (evalError) {
+                    console.warn(`⚠️ Error extrayendo métricas (Frame detached): ${evalError.message}`);
+                    datosReporte = {
+                        redirect: 0, dns: 0, tcp: 0, ttfb: 0, domInteractive: 0,
+                        domReady: 0, loadTime: 0, peso: 0, peticiones: 0, ramCore: 0
+                    };
+                }
 
                 // ====================================================
                 // RAM DEL PROCESO DE CHROMIUM
@@ -1533,13 +1541,7 @@ async function performPuppeteerAnalysis(
                 }
             );
 
-            await new Promise(
-                (resolve) =>
-                    setTimeout(
-                        resolve,
-                        4000
-                    )
-            );
+            // Espera de 4s eliminada para evitar detached frames
         } catch (navError) {
             console.warn(
                 `⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`
@@ -1553,8 +1555,9 @@ async function performPuppeteerAnalysis(
                 .catch(() => {});
         }
 
-        const pageMetrics =
-            await page.evaluate(
+        let pageMetrics = {};
+        try {
+            pageMetrics = await page.evaluate(
                 () => {
                     const nav =
                         performance.getEntriesByType(
@@ -1650,6 +1653,13 @@ async function performPuppeteerAnalysis(
                     };
                 }
             );
+        } catch (evalError) {
+            console.warn(`⚠️ Error extrayendo métricas individuales (Frame detached): ${evalError.message}`);
+            pageMetrics = {
+                load_ms: 0, dom_interactive_ms: 0, ram_total_mb: 0,
+                ram_core_mb: 0, total_requests: 0, total_weight_mb: 0
+            };
+        }
 
         return {
             url: urlLimpia,
