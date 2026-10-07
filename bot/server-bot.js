@@ -264,7 +264,7 @@ async function ejecutarAnalisisAutomated() {
                 const page = await browser.newPage();
                 
                 // 🌟 CAMUFLAJE CHROME + FIRMA DEL BOT
-await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 EnovaConcordeBot/1.0');
+                await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 EnovaConcordeBot/1.0');
 
                 // 🌟 SIMULACIÓN REALISTA DE PC (1 Gbps + Latencia Latam)
                 const client = await page.target().createCDPSession();
@@ -298,43 +298,47 @@ await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5
 
                 } catch (navError) {
                     console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
-                    await page.evaluate(() => window.stop()).catch(() => {});
+                    // ELIMINADO window.stop() A PROPÓSITO PARA EVITAR 'FRAME DETACHED'
                 }
 
                 // ====================================================
-                // MÉTRICAS DEL NAVEGADOR (CON BLINDAJE)
+                // MÉTRICAS DEL NAVEGADOR (CON BLINDAJE Y TIMEOUT PROPIO)
                 // ====================================================
                 let datosReporte = {};
                 try {
-                    datosReporte = await page.evaluate(() => {
-                        const nav = performance.getEntriesByType('navigation')[0];
-                        const resources = performance.getEntriesByType('resource');
-                        const memory = performance.memory;
-                        let totalBytes = 0;
+                    // Promise.race asegura que evaluar el DOM no se quede colgado
+                    datosReporte = await Promise.race([
+                        page.evaluate(() => {
+                            const nav = performance.getEntriesByType('navigation')[0];
+                            const resources = performance.getEntriesByType('resource');
+                            const memory = performance.memory;
+                            let totalBytes = 0;
 
-                        resources.forEach((resource) => {
-                            if (resource.transferSize) {
-                                totalBytes += resource.transferSize;
-                            }
-                        });
+                            resources.forEach((resource) => {
+                                if (resource.transferSize) {
+                                    totalBytes += resource.transferSize;
+                                }
+                            });
 
-                        const currentMs = Math.round(performance.now());
+                            const currentMs = Math.round(performance.now());
 
-                        return {
-                            redirect: nav ? Math.round(nav.redirectEnd - nav.redirectStart) : 0,
-                            dns: nav ? Math.round(nav.domainLookupEnd - nav.domainLookupStart) : 0,
-                            tcp: nav ? Math.round(nav.connectEnd - nav.connectStart) : 0,
-                            ttfb: nav ? Math.round(nav.responseStart - nav.startTime) : 0,
-                            domInteractive: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
-                            domReady: nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : currentMs / 2,
-                            loadTime: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
-                            peso: (totalBytes / 1024 / 1024).toFixed(2),
-                            peticiones: resources.length + 1,
-                            ramCore: memory ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) : 0
-                        };
-                    });
+                            return {
+                                redirect: nav ? Math.round(nav.redirectEnd - nav.redirectStart) : 0,
+                                dns: nav ? Math.round(nav.domainLookupEnd - nav.domainLookupStart) : 0,
+                                tcp: nav ? Math.round(nav.connectEnd - nav.connectStart) : 0,
+                                ttfb: nav ? Math.round(nav.responseStart - nav.startTime) : 0,
+                                domInteractive: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
+                                domReady: nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : currentMs / 2,
+                                loadTime: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
+                                peso: (totalBytes / 1024 / 1024).toFixed(2),
+                                peticiones: resources.length + 1,
+                                ramCore: memory ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) : 0
+                            };
+                        }),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (10s) - Bucle detectado')), 10000))
+                    ]);
                 } catch (evalError) {
-                    console.warn(`⚠️️ Error extrayendo métricas (Frame detached): ${evalError.message}`);
+                    console.warn(`⚠ Error extrayendo métricas (Detached/Timeout): ${evalError.message}`);
                     datosReporte = {
                         redirect: 0, dns: 0, tcp: 0, ttfb: 0, domInteractive: 0,
                         domReady: 0, loadTime: 0, peso: 0, peticiones: 0, ramCore: 0
@@ -1245,7 +1249,7 @@ async function performPuppeteerAnalysis(targetUrl) {
         const page = await browser.newPage();
 
         // 🌟 CAMUFLAJE CHROME + FIRMA DEL BOT
-await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 EnovaConcordeBot/1.0');
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 EnovaConcordeBot/1.0');
 
         // 🌟 SIMULACIÓN REALISTA DE PC (1 Gbps + Latencia Latam)
         const client = await page.target().createCDPSession();
@@ -1279,36 +1283,40 @@ await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5
 
         } catch (navError) {
             console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
-            await page.evaluate(() => window.stop()).catch(() => {});
+            // ELIMINADO window.stop() A PROPÓSITO
         }
 
         let pageMetrics = {};
         try {
-            pageMetrics = await page.evaluate(() => {
-                const nav = performance.getEntriesByType('navigation')[0];
-                const resources = performance.getEntriesByType('resource');
-                const memory = performance.memory;
-                let totalBytes = 0;
+            // Promise.race asegura que evaluar el DOM no se quede colgado
+            pageMetrics = await Promise.race([
+                page.evaluate(() => {
+                    const nav = performance.getEntriesByType('navigation')[0];
+                    const resources = performance.getEntriesByType('resource');
+                    const memory = performance.memory;
+                    let totalBytes = 0;
 
-                resources.forEach((resource) => {
-                    if (resource.transferSize) {
-                        totalBytes += resource.transferSize;
-                    }
-                });
+                    resources.forEach((resource) => {
+                        if (resource.transferSize) {
+                            totalBytes += resource.transferSize;
+                        }
+                    });
 
-                const currentMs = Math.round(performance.now());
+                    const currentMs = Math.round(performance.now());
 
-                return {
-                    load_ms: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
-                    dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
-                    ram_total_mb: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
-                    ram_core_mb: memory ? parseFloat((memory.usedJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
-                    total_requests: resources.length + 1,
-                    total_weight_mb: parseFloat((totalBytes / 1024 / 1024).toFixed(2))
-                };
-            });
+                    return {
+                        load_ms: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
+                        dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
+                        ram_total_mb: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
+                        ram_core_mb: memory ? parseFloat((memory.usedJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
+                        total_requests: resources.length + 1,
+                        total_weight_mb: parseFloat((totalBytes / 1024 / 1024).toFixed(2))
+                    };
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (10s) - Bucle detectado')), 10000))
+            ]);
         } catch (evalError) {
-            console.warn(`⚠️ Error extrayendo métricas individuales (Frame detached): ${evalError.message}`);
+            console.warn(`⚠️ Error extrayendo métricas individuales (Detached/Timeout): ${evalError.message}`);
             pageMetrics = {
                 load_ms: 0, dom_interactive_ms: 0, ram_total_mb: 0,
                 ram_core_mb: 0, total_requests: 0, total_weight_mb: 0
@@ -1346,15 +1354,15 @@ app.listen(PORT, () => {
     );
 
     console.log(
-        '🌐 Perfil de medición: Real-Browser'
+        '🌐 Perfil de medición: Real-Browser (1Gbps, Latencia simulada 40ms)'
     );
 
     console.log(
-        '🚫 CPU throttling: DESACTIVADO'
+        '🚫 CPU throttling: ACTIVADO (Nivel PC)'
     );
 
     console.log(
-        '🚫 Network throttling: DESACTIVADO'
+        '🚫 Network throttling: ACTIVADO'
     );
 
     console.log(
