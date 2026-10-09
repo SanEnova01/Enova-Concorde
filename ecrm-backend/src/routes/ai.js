@@ -72,18 +72,34 @@ Responde ÚNICAMENTE en JSON válido con la siguiente estructura:
   "subtext": "Un comentario de 1 o 2 oraciones indicando las tareas críticas pendientes o resaltando la actividad de los clientes."
 }`;
 
-    const { text } = await generateText({
+const { text, usage } = await generateText({
       model: vercelGateway('openai/gpt-4o-mini'),
       system: 'Eres el copiloto inteligente del CRM Concorde. Tu trabajo es dar reportes ultraconcisos y profesionales al super admin.',
       prompt: promptText
     });
+
+    // 🌟 CONSUMO EXACTO DE TOKENS OBTENIDO DE LA API
+    const promptTokens = usage?.promptTokens || 0;
+    const completionTokens = usage?.completionTokens || 0;
+    const totalTokens = usage?.totalTokens || 0;
+
+    // Costo estimado exacto para gpt-4o-mini ($0.150 por 1M de entrada, $0.600 por 1M de salida)
+    const estimatedCostUsd = ((promptTokens / 1000000) * 0.150) + ((completionTokens / 1000000) * 0.600);
+
+    console.log(`📊 [AI Usage] Entrada: ${promptTokens} | Salida: ${completionTokens} | Total: ${totalTokens} | Costo: $${estimatedCostUsd.toFixed(6)} USD`);
 
     const cleanJson = text.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsedAiData = JSON.parse(cleanJson);
 
     return res.json({
       success: true,
-      data: parsedAiData
+      data: parsedAiData,
+      usage: {
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        estimated_cost_usd: parseFloat(estimatedCostUsd.toFixed(6))
+      }
     });
 
   } catch (error) {

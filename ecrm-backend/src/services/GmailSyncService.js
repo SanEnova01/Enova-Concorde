@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const TicketRepository = require('../repositories/TicketRepository');
 const db = require('../config/db');
+const cron = require('node-cron'); 
 
 class GmailSyncService {
   constructor() {
@@ -23,10 +24,15 @@ class GmailSyncService {
     this.isProcessing = false;
     this.processedLabelId = null;
 
-    console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
+console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
 
     setTimeout(() => this.processTaggedEmails(), 2000);
     setInterval(() => this.processTaggedEmails(), 2000);
+
+    // 🌟 PROGRAMAR REPORTE DIARIO DE IA EN LA CONSOLA (8:00 AM LIMA)
+    cron.schedule('0 8 * * *', () => {
+      this.printDailyAIReport();
+    }, { timezone: 'America/Lima' });
   }
 
   cleanEmailAddress(rawFrom) {
@@ -380,7 +386,7 @@ HISTORIAL COMPLETO DE LA CONVERSACIÓN:
 ${fullConversation}
 `;
 
-      const { text } =
+const { text, usage } =
         await generateText({
           model:
             vercelGateway(
@@ -391,12 +397,28 @@ ${fullConversation}
           prompt: userPrompt
         });
 
+      // 🌟 GUARDAR CONSUMO DE IA EN BD
+      if (usage) {
+        const costUsd = ((usage.promptTokens / 1000000) * 0.150) + ((usage.completionTokens / 1000000) * 0.600);
+        try {
+          await db('ai_usage_logs').insert({
+            module: 'GMAIL_SYNC',
+            prompt_tokens: usage.promptTokens,
+            completion_tokens: usage.completionTokens,
+            total_tokens: usage.totalTokens,
+            cost_usd: costUsd,
+            created_at: new Date()
+          });
+        } catch (e) {
+          console.warn('⚠️ No se pudo registrar log de IA:', e.message);
+        }
+      }
+
       const responseText =
         text
           .replace(/```json/gi, '')
           .replace(/```/g, '')
           .trim();
-
       return JSON.parse(responseText);
 
     } catch (e) {
@@ -427,7 +449,35 @@ ${fullConversation}
       return dummyData;
     }
   }
+// 🌟 FUNCIÓN PARA IMPRIMIR EL REPORTE DIARIO EN CONSOLA
+  async printDailyAIReport() {
+    try {
+      const ayerInicio = new Date();
+      ayerInicio.setDate(ayerInicio.getDate() - 1);
+      ayerInicio.setHours(0, 0, 0, 0);
 
+      const ayerFin = new Date();
+      ayerFin.setDate(ayerFin.getDate() - 1);
+      ayerFin.setHours(23, 59, 59, 999);
+
+      const totalResult = await db('ai_usage_logs').sum('total_tokens as tokens').sum('cost_usd as usd').first();
+      const ayerResult = await db('ai_usage_logs').sum('total_tokens as tokens').sum('cost_usd as usd').whereBetween('created_at', [ayerInicio, ayerFin]).first();
+
+      const ayerUSD = parseFloat(ayerResult.usd || 0).toFixed(6);
+      const ayerTok = parseInt(ayerResult.tokens || 0);
+      const totalUSD = parseFloat(totalResult.usd || 0).toFixed(6);
+      const totalTok = parseInt(totalResult.tokens || 0);
+
+      console.log('\n======================================');
+      console.log('🤖 REPORTE DE CONSUMO DE IA (GMAIL TRIAGE)');
+      console.log('======================================');
+      console.log(`📅 Gastado Ayer: $${ayerUSD} USD (${ayerTok} tokens)`);
+      console.log(`📈 Gasto Total Histórico: $${totalUSD} USD (${totalTok} tokens)`);
+      console.log('======================================\n');
+    } catch (e) {
+      console.warn('⚠️ Error generando reporte de IA en consola:', e.message);
+    }
+  }
   async processTaggedEmails() {
     if (this.isProcessing) {
       return;
