@@ -29,12 +29,17 @@ console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
     setTimeout(() => this.processTaggedEmails(), 2000);
     setInterval(() => this.processTaggedEmails(), 2000);
 
-    // 🌟 PROGRAMAR REPORTE DIARIO DE IA EN LA CONSOLA (8:00 AM LIMA)
+// 🌟 PROGRAMAR REPORTE DIARIO DE IA EN LA CONSOLA (8:00 AM LIMA)
     cron.schedule('0 8 * * *', () => {
       this.printDailyAIReport();
     }, { timezone: 'America/Lima' });
-  }
 
+    // 🌟 IMPRIMIR REPORTE INMEDIATAMENTE AL INICIAR EL SERVIDOR
+    // Damos 3 segundos de gracia para asegurar que la BD esté lista
+    setTimeout(() => {
+      this.printDailyAIReport();
+    }, 3000);
+  }
   cleanEmailAddress(rawFrom) {
     const match =
       rawFrom.match(/<([^>]+)>/) ||
