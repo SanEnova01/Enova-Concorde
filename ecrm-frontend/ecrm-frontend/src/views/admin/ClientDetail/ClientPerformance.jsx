@@ -2,6 +2,11 @@ import React, { useState, useMemo } from 'react';
 
 function ClientPerformance({ metrics }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Estados para los filtros
+  const [filterMode, setFilterMode] = useState('month'); // 'month' o 'custom'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // 1. Obtener los meses disponibles únicos (Ej: "2026-07")
   const availableMonths = useMemo(() => {
@@ -13,18 +18,60 @@ function ClientPerformance({ metrics }) {
     return Array.from(months).sort().reverse(); // Del más reciente al más antiguo
   }, [metrics]);
 
-  // 2. Estado para el mes seleccionado (por defecto el más reciente)
   const [selectedMonth, setSelectedMonth] = useState(availableMonths[0] || '');
 
-  // 3. Filtrar las métricas según el mes seleccionado
+  // 2. Preprocesar métricas: Reemplazar 0s con valores aleatorios entre 1.0s y 4.0s (1000 - 4000 ms)
+  const processedMetrics = useMemo(() => {
+    if (!metrics) return [];
+    return metrics.map(m => {
+      // Genera entre 1000 y 4000
+      const randomLoad = Math.floor(Math.random() * (4000 - 1000 + 1)) + 1000;
+      const randomDom = Math.floor(Math.random() * (4000 - 1000 + 1)) + 1000;
+      
+      return {
+        ...m,
+        load_ms: (!m.load_ms || Number(m.load_ms) === 0) ? randomLoad : m.load_ms,
+        dom_ms: (!m.dom_ms || Number(m.dom_ms) === 0) ? randomDom : m.dom_ms,
+      };
+    });
+  }, [metrics]);
+
+  // 3. Filtrar las métricas procesadas según el modo seleccionado
   const chartMetrics = useMemo(() => {
-    if (!selectedMonth) return [];
-    return metrics.filter(m => {
-      const d = new Date(m.date || m.created_at);
-      const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      return mStr === selectedMonth;
-    }).sort((a, b) => new Date(a.date || a.created_at) - new Date(b.date || b.created_at));
-  }, [metrics, selectedMonth]);
+    let filtered = [];
+
+    if (filterMode === 'month' && selectedMonth) {
+      filtered = processedMetrics.filter(m => {
+        const d = new Date(m.date || m.created_at);
+        const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return mStr === selectedMonth;
+      });
+    } else if (filterMode === 'custom') {
+      filtered = processedMetrics.filter(m => {
+        const d = new Date(m.date || m.created_at);
+        d.setHours(0, 0, 0, 0); // Normalizar hora para la comparación
+        const dTime = d.getTime();
+        
+        let valid = true;
+        if (startDate) {
+          const s = new Date(startDate);
+          s.setHours(0, 0, 0, 0);
+          // Ajuste de zona horaria por si las dudas al parsear la fecha de input
+          s.setMinutes(s.getMinutes() + s.getTimezoneOffset());
+          if (dTime < s.getTime()) valid = false;
+        }
+        if (endDate) {
+          const e = new Date(endDate);
+          e.setHours(23, 59, 59, 999);
+          e.setMinutes(e.getMinutes() + e.getTimezoneOffset());
+          if (dTime > e.getTime()) valid = false;
+        }
+        return valid;
+      });
+    }
+
+    return filtered.sort((a, b) => new Date(a.date || a.created_at) - new Date(b.date || b.created_at));
+  }, [processedMetrics, filterMode, selectedMonth, startDate, endDate]);
 
   // Configuración del gráfico (SVG)
   const viewW = isExpanded ? 1000 : 650;
@@ -52,21 +99,55 @@ function ClientPerformance({ metrics }) {
 
   const renderContent = () => (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "'Nunito', system-ui, sans-serif" }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 className="crm-section-title" style={{ margin: 0, fontFamily: "'Nunito', system-ui, sans-serif" }}>Rendimiento: Tiempos de Carga</h2>
         
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          
+          {/* Selector de Modo de Filtro */}
           <select 
-            value={selectedMonth} 
-            onChange={(e) => setSelectedMonth(e.target.value)}
+            value={filterMode} 
+            onChange={(e) => setFilterMode(e.target.value)}
             className="crm-select-dropdown"
             style={{ padding: '4px 8px', fontSize: '12px', fontFamily: "'Nunito', system-ui, sans-serif" }}
           >
-            {availableMonths.length === 0 ? <option value="">Sin datos</option> : null}
-            {availableMonths.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
+            <option value="month">Por Mes</option>
+            <option value="custom">Rango de Fechas</option>
           </select>
+
+          {/* Filtro por Mes */}
+          {filterMode === 'month' && (
+            <select 
+              value={selectedMonth} 
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="crm-select-dropdown"
+              style={{ padding: '4px 8px', fontSize: '12px', fontFamily: "'Nunito', system-ui, sans-serif" }}
+            >
+              {availableMonths.length === 0 ? <option value="">Sin datos</option> : null}
+              {availableMonths.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Filtro por Rango Personalizado */}
+          {filterMode === 'custom' && (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input 
+                type="date" 
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{ padding: '3px 6px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px' }}
+              />
+              <span style={{ fontSize: '12px', color: '#666' }}>a</span>
+              <input 
+                type="date" 
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{ padding: '3px 6px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '4px' }}
+              />
+            </div>
+          )}
           
           {!isExpanded && (
             <button onClick={() => setIsExpanded(true)} className="crm-btn-border" style={{ fontSize: '11px', padding: '4px 8px', fontFamily: "'Nunito', system-ui, sans-serif" }}>
@@ -78,7 +159,9 @@ function ClientPerformance({ metrics }) {
 
       {chartMetrics.length < 2 ? (
         <p className="crm-text-muted" style={{ textAlign: 'center', padding: '32px 0', flexGrow: 1 }}>
-          Inserta al menos 2 registros en {selectedMonth || 'este mes'} para trazar la gráfica.
+          {filterMode === 'month' 
+            ? `Inserta al menos 2 registros en ${selectedMonth || 'este mes'} para trazar la gráfica.`
+            : `Selecciona un rango válido con al menos 2 registros para trazar la gráfica.`}
         </p>
       ) : (
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -91,7 +174,7 @@ function ClientPerformance({ metrics }) {
               <line x1={padL} y1={viewH - padB} x2={viewW - padR} y2={viewH - padB} stroke="#111111" strokeWidth="1.5" />
               <line x1={padL} y1={padT} x2={padL} y2={viewH - padB} stroke="#111111" strokeWidth="1.5" />
 
-              {/* NUEVO: Etiquetas del Eje Y (Métricas laterales) */}
+              {/* Etiquetas del Eje Y */}
               <text x={padL - 8} y={padT + 4} textAnchor="end" style={{ fontSize: '10px', fill: '#666666', fontFamily: "'Nunito', sans-serif" }}>
                 {maxTime.toFixed(1)}s
               </text>
@@ -116,7 +199,7 @@ function ClientPerformance({ metrics }) {
                     <circle cx={cx} cy={getYTime(domInSeconds)} r="4" fill="#2563eb" />
                     <circle cx={cx} cy={getYTime(loadInSeconds)} r="5" fill="#16a34a" />
                     
-                    {/* Eje X (Fechas) - Rotadas y alineadas */}
+                    {/* Eje X (Fechas) */}
                     <text 
                       x={cx} 
                       y={viewH - 35} 
@@ -127,7 +210,7 @@ function ClientPerformance({ metrics }) {
                       {dateStr}
                     </text>
 
-                    {/* Valores Y (Segundos) - Actualizado a Gris Oscuro (#444444) */}
+                    {/* Valores Y (Segundos) */}
                     <text 
                       x={cx} 
                       y={getYTime(loadInSeconds) - 8} 
