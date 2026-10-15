@@ -253,13 +253,13 @@ async function ejecutarAnalisisAutomated() {
                 console.log(`\n🌐 [${i + 1}/${tiendas.length}] Analizando: ${web.name}`);
                 console.log(`🔗 URL: ${urlLimpia}`);
 
+                console.log(`[INFO] Lanzando navegador para ${web.name}...`);
                 browser = await puppeteer.launch({
                     headless: 'new',
                     args: RAILWAY_PUPPETEER_ARGS,
-                    protocolTimeout: 60000,
-                    timeout: 60000
+                    protocolTimeout: 180000, // 3 Minutos
+                    timeout: 180000 
                 });
-
                 const browserPid = browser.process()?.pid;
                 const page = await browser.newPage();
                 
@@ -279,9 +279,10 @@ async function ejecutarAnalisisAutomated() {
                 // 🌟 FIN SIMULACIÓN
 
                 try {
+                    console.log(`[INFO] Navegando a ${urlLimpia} (esperando hasta 3 minutos)...`);
                     const response = await page.goto(urlLimpia, {
                         waitUntil: 'load', 
-                        timeout: 60000
+                        timeout: 180000
                     });
                     
                     // 🌟 DETECCIÓN DE BLOQUEOS WAF / CLOUDFLARE
@@ -296,11 +297,15 @@ async function ejecutarAnalisisAutomated() {
                         console.log(`✅ [Navegación OK] HTTP ${httpStatus} | Título: "${pageTitle}"`);
                     }
 
-                } catch (navError) {
-                    console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
-                    // ELIMINADO window.stop() A PROPÓSITO PARA EVITAR 'FRAME DETACHED'
+             } catch (navError) {
+                    console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Forzando parada de red segura...`);
+                    try {
+                        // Detener la red vía CDP es mucho más seguro y evita el "Frame detached"
+                        await client.send('Page.stopLoading');
+                        // Dar 2 segundos para que los scripts pendientes terminen y el DOM se estabilice
+                        await new Promise((resolve) => setTimeout(resolve, 2000));
+                    } catch (stopError) {}
                 }
-
                 // ====================================================
                 // MÉTRICAS DEL NAVEGADOR (CON BLINDAJE Y TIMEOUT PROPIO)
                 // ====================================================
@@ -335,8 +340,7 @@ async function ejecutarAnalisisAutomated() {
                                 ramCore: memory ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) : 0
                             };
                         }),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (10s) - Bucle detectado')), 10000))
-                    ]);
+new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (30s) - Bucle detectado')), 30000))                    ]);
                 } catch (evalError) {
                     console.warn(`⚠ Error extrayendo métricas (Detached/Timeout): ${evalError.message}`);
                     datosReporte = {
@@ -1239,11 +1243,12 @@ async function performPuppeteerAnalysis(targetUrl) {
     let browser = null;
 
     try {
+        console.log(`[INFO] Iniciando navegador en análisis individual para: ${targetUrl}`);
         browser = await puppeteer.launch({
             headless: 'new',
             args: RAILWAY_PUPPETEER_ARGS,
-            protocolTimeout: 60000,
-            timeout: 60000
+            protocolTimeout: 180000, // 3 Minutos
+            timeout: 180000
         });
 
         const page = await browser.newPage();
@@ -1264,11 +1269,11 @@ async function performPuppeteerAnalysis(targetUrl) {
         // 🌟 FIN SIMULACIÓN
 
         try {
+            console.log(`[INFO] Navegando a ${urlLimpia} (esperando hasta 3 minutos)...`);
             const response = await page.goto(urlLimpia, {
                 waitUntil: 'load',
-                timeout: 60000
+                timeout: 180000
             });
-
             // 🌟 DETECCIÓN DE BLOQUEOS WAF / CLOUDFLARE
             const httpStatus = response ? response.status() : 'Desconocido';
             const pageTitle = await page.title();
@@ -1282,8 +1287,11 @@ async function performPuppeteerAnalysis(targetUrl) {
             }
 
         } catch (navError) {
-            console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}.`);
-            // ELIMINADO window.stop() A PROPÓSITO
+            console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Forzando parada de red segura...`);
+            try {
+                await client.send('Page.stopLoading');
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+            } catch (stopError) {}
         }
 
         let pageMetrics = {};
@@ -1313,8 +1321,7 @@ async function performPuppeteerAnalysis(targetUrl) {
                         total_weight_mb: parseFloat((totalBytes / 1024 / 1024).toFixed(2))
                     };
                 }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (10s) - Bucle detectado')), 10000))
-            ]);
+new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (30s) - Bucle detectado')), 30000))            ]);
         } catch (evalError) {
             console.warn(`⚠️ Error extrayendo métricas individuales (Detached/Timeout): ${evalError.message}`);
             pageMetrics = {
@@ -1334,14 +1341,15 @@ async function performPuppeteerAnalysis(targetUrl) {
             web_flow: 'Real-Browser'
         };
     } finally {
-        if (browser) {
-            try {
-                await browser.close();
-            } catch (closeError) {
-                console.warn('⚠️ Error cerrando navegador:', closeError.message);
+                if (browser) {
+                    try { 
+                        await browser.close(); 
+                        console.log(`[INFO] Navegador cerrado correctamente para ${urlLimpia || 'tienda'}.`);
+                    } catch (closeError) {
+                        console.warn('⚠️ Error cerrando navegador:', closeError.message);
+                    }
+                }
             }
-        }
-    }
 }
 
 // ============================================================
