@@ -280,9 +280,9 @@ async function ejecutarAnalisisAutomated() {
 
                 let navegacionCompleta = true;
                 try {
-                    console.log(`[INFO] Navegando a ${urlLimpia} (esperando hasta 3 minutos)...`);
+                    console.log(`[INFO] Navegando a ${urlLimpia} (esperando estabilización de red)...`);
                     const response = await page.goto(urlLimpia, {
-                        waitUntil: 'load', 
+                        waitUntil: 'networkidle2', // 🌟 IGNORA PÍXELES INFINITOS
                         timeout: 180000
                     });
                     
@@ -1269,9 +1269,9 @@ async function performPuppeteerAnalysis(targetUrl) {
 
         let navegacionCompleta = true;
         try {
-            console.log(`[INFO] Navegando a ${urlLimpia} (esperando hasta 3 minutos)...`);
+            console.log(`[INFO] Navegando a ${urlLimpia} (esperando estabilización de red)...`);
             const response = await page.goto(urlLimpia, {
-                waitUntil: 'load',
+                waitUntil: 'networkidle2', // 🌟 IGNORA PÍXELES INFINITOS
                 timeout: 180000
             });
             const httpStatus = response ? response.status() : 'Desconocido';
