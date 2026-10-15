@@ -130,36 +130,47 @@ async function extraerMetricasEstables(page, timeoutMs = 60000, stableMs = 2000,
                 };
             });
 
-            bestSample = sample.metrics;
-
             if (page.mainFrame() !== frame) {
-                previousDocumentKey = null; stableSince = 0; continue;
+                previousDocumentKey = null;
+                stableSince = 0;
+                bestSample = null;
+                continue;
             }
 
             const documentKey = JSON.stringify([sample.url, sample.timeOrigin]);
+
+            if (frame !== previousFrame || documentKey !== previousDocumentKey) {
+                previousFrame = frame;
+                previousDocumentKey = documentKey;
+                stableSince = Date.now();
+                bestSample = sample.metrics;
+            } else {
+                bestSample = sample.metrics;
+            }
+
             const loaded = sample.readyState === 'complete' || sample.readyState === 'interactive';
 
-            if (!loaded) {
-                previousDocumentKey = null; stableSince = 0;
-            } else if (frame !== previousFrame || documentKey !== previousDocumentKey) {
-                previousFrame = frame; previousDocumentKey = documentKey; stableSince = Date.now();
-            } else if (Date.now() - stableSince >= stableMs) {
+            if (loaded && Date.now() - stableSince >= stableMs) {
                 return sample.metrics;
             }
 
-            // ESCAPE DE EMERGENCIA: Si pasan 15 segundos y hay datos parciales, los devuelve
+            // Fallback de 15 segundos: retorna la muestra del documento actual
             if (Date.now() - startTime > 15000 && bestSample) {
-                console.log('⚠️ [Fallback] La tienda no se estabilizó en 15s. Retornando datos parciales seguros.');
+                console.log('⚠️ [Fallback 15s] La tienda no completó evento load. Retornando métricas acumuladas.');
                 return bestSample;
             }
 
         } catch (error) {
             if (!isTransientNavigationError(error)) throw error;
-            lastTransientError = error; previousFrame = null; previousDocumentKey = null; stableSince = 0;
+            lastTransientError = error;
+            previousFrame = null;
+            previousDocumentKey = null;
+            stableSince = 0;
+            bestSample = null;
         }
         await sleep(pollMs);
     }
-    
+
     if (bestSample) return bestSample;
     throw new Error('No se obtuvo un documento estable dentro del plazo.', { cause: lastTransientError });
 }
@@ -433,12 +444,11 @@ async function ejecutarAnalisisAutomated() {
                     dom_interactive_ms: datosReporte.domInteractive,
                     dom_ms: datosReporte.domReady,
                     load_ms: datosReporte.loadTime,
-                    total_weight_mb: datosReporte.peso ? parseFloat(datosReporte.peso) : null,
+                    total_weight_mb: datosReporte.peso != null ? parseFloat(datosReporte.peso) : null,
                     total_requests: datosReporte.peticiones,
-                    ram_core_mb: datosReporte.ramCore ? parseFloat(datosReporte.ramCore) : null,
-                    ram_total_mb: ramTotalMB || (datosReporte.ramTotal ? parseFloat(datosReporte.ramTotal) : null)
+                    ram_core_mb: datosReporte.ramCore != null ? parseFloat(datosReporte.ramCore) : null,
+                    ram_total_mb: ramTotalMB != null ? ramTotalMB : (datosReporte.ramTotal != null ? parseFloat(datosReporte.ramTotal) : null)
                 };
-
                 const apiResponse = await enviarMetricasAPI(payload);
 
                 if (apiResponse.status === 'success') { exitosos++; } else { fallidos++; }
@@ -1370,10 +1380,10 @@ async function performPuppeteerAnalysis(targetUrl) {
             url: urlLimpia,
             load_ms: pageMetrics.loadTime,
             dom_ms: pageMetrics.domInteractive,
-            ram_total_mb: pageMetrics.ramTotal ? parseFloat(pageMetrics.ramTotal) : null,
-            ram_core_mb: pageMetrics.ramCore ? parseFloat(pageMetrics.ramCore) : null,
+            ram_total_mb: pageMetrics.ramTotal != null ? parseFloat(pageMetrics.ramTotal) : null,
+            ram_core_mb: pageMetrics.ramCore != null ? parseFloat(pageMetrics.ramCore) : null,
             total_requests: pageMetrics.peticiones,
-            total_weight_mb: pageMetrics.peso ? parseFloat(pageMetrics.peso) : null,
+            total_weight_mb: pageMetrics.peso != null ? parseFloat(pageMetrics.peso) : null,
             web_flow: 'Real-Browser',
             status: pageMetrics.loadTime === null ? 'measurement_failed' : 'success'
         };
