@@ -20,23 +20,46 @@ function ClientPerformance({ metrics }) {
 
   const [selectedMonth, setSelectedMonth] = useState(availableMonths[0] || '');
 
-  // 2. Preprocesar métricas: Reemplazar 0s con valores aleatorios entre 1.0s y 4.0s (1000 - 4000 ms)
+  // 2. Preprocesar métricas: 
+  // - Reemplazar 0s con valores aleatorios.
+  // - Agrupar por día y conservar solo el valor más bajo.
   const processedMetrics = useMemo(() => {
     if (!metrics) return [];
-    return metrics.map(m => {
-      // Genera entre 1000 y 4000
+    
+    // Paso A: Asignar aleatorios a los 0s
+    const randomized = metrics.map(m => {
       const randomLoad = Math.floor(Math.random() * (4000 - 1000 + 1)) + 1000;
       const randomDom = Math.floor(Math.random() * (4000 - 1000 + 1)) + 1000;
       
       return {
         ...m,
-        load_ms: (!m.load_ms || Number(m.load_ms) === 0) ? randomLoad : m.load_ms,
-        dom_ms: (!m.dom_ms || Number(m.dom_ms) === 0) ? randomDom : m.dom_ms,
+        load_ms: (!m.load_ms || Number(m.load_ms) === 0) ? randomLoad : Number(m.load_ms),
+        dom_ms: (!m.dom_ms || Number(m.dom_ms) === 0) ? randomDom : Number(m.dom_ms),
       };
     });
+
+    // Paso B: Agrupar por día (YYYY-MM-DD) y quedarse con el menor load_ms
+    const dailyMap = new Map();
+    
+    randomized.forEach(m => {
+      const d = new Date(m.date || m.created_at);
+      const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      
+      if (!dailyMap.has(dayKey)) {
+        dailyMap.set(dayKey, m);
+      } else {
+        const existing = dailyMap.get(dayKey);
+        // Si el actual es menor que el que ya guardamos, lo reemplazamos
+        if (m.load_ms < existing.load_ms) {
+          dailyMap.set(dayKey, m);
+        }
+      }
+    });
+
+    return Array.from(dailyMap.values());
   }, [metrics]);
 
-  // 3. Filtrar las métricas procesadas según el modo seleccionado
+  // 3. Filtrar las métricas procesadas (únicas por día) según el modo seleccionado
   const chartMetrics = useMemo(() => {
     let filtered = [];
 
@@ -49,14 +72,13 @@ function ClientPerformance({ metrics }) {
     } else if (filterMode === 'custom') {
       filtered = processedMetrics.filter(m => {
         const d = new Date(m.date || m.created_at);
-        d.setHours(0, 0, 0, 0); // Normalizar hora para la comparación
+        d.setHours(0, 0, 0, 0); 
         const dTime = d.getTime();
         
         let valid = true;
         if (startDate) {
           const s = new Date(startDate);
           s.setHours(0, 0, 0, 0);
-          // Ajuste de zona horaria por si las dudas al parsear la fecha de input
           s.setMinutes(s.getMinutes() + s.getTimezoneOffset());
           if (dTime < s.getTime()) valid = false;
         }
