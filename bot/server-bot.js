@@ -401,23 +401,17 @@ async function ejecutarAnalisisAutomated() {
                     datosReporte = await extraerMetricasEstables(page, 60000, 2000, 500);
                     console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
                 } catch (evalError) {
-                    console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Inyectando datos dummie buenos.`);
+                    console.warn(`❌ Error definitivo de extracción: ${evalError.message}`);
                     datosReporte = {
-                        redirect: 45, dns: 20, tcp: 35, ttfb: 150, 
-                        domInteractive: Math.floor(Math.random() * (2500 - 1500 + 1)) + 1500,
-                        domReady: Math.floor(Math.random() * (3000 - 1800 + 1)) + 1800, 
-                        loadTime: Math.floor(Math.random() * (4500 - 2500 + 1)) + 2500, 
-                        peso: (Math.random() * (3.5 - 1.5) + 1.5).toFixed(2), 
-                        peticiones: Math.floor(Math.random() * (85 - 45 + 1)) + 45, 
-                        ramCore: (Math.random() * (45 - 25) + 25).toFixed(2), 
-                        ramTotal: (Math.random() * (60 - 35) + 35).toFixed(2)
+                        redirect: null, dns: null, tcp: null, ttfb: null, domInteractive: null,
+                        domReady: null, loadTime: null, peso: null, peticiones: null, ramCore: null, ramTotal: null
                     };
                 }
 
                 // ====================================================
                 // RAM DEL PROCESO DE CHROMIUM
                 // ====================================================
-                let ramTotalMB = 0;
+                let ramTotalMB = null;
                 if (browserPid) {
                     try {
                         const statsOS = await pidusage(browserPid);
@@ -430,19 +424,19 @@ async function ejecutarAnalisisAutomated() {
                 const payload = {
                     store_id: web.id,
                     date: fechaActual,
-                    server_status: 'ONLINE',
+                    server_status: datosReporte.loadTime === null ? 'MEASUREMENT_FAILED' : 'ONLINE',
                     web_flow: 'Real-Browser',
-                    redirect_ms: datosReporte.redirect || 0,
-                    dns_ms: datosReporte.dns || 0,
-                    tcp_ms: datosReporte.tcp || 0,
-                    ttfb_ms: datosReporte.ttfb || 0,
-                    dom_interactive_ms: datosReporte.domInteractive || 0,
-                    dom_ms: datosReporte.domReady || 0,
-                    load_ms: datosReporte.loadTime || 0,
-                    total_weight_mb: parseFloat(datosReporte.peso || 0),
-                    total_requests: parseInt(datosReporte.peticiones || 0),
-                    ram_core_mb: parseFloat(datosReporte.ramCore || 0),
-                    ram_total_mb: ramTotalMB
+                    redirect_ms: datosReporte.redirect,
+                    dns_ms: datosReporte.dns,
+                    tcp_ms: datosReporte.tcp,
+                    ttfb_ms: datosReporte.ttfb,
+                    dom_interactive_ms: datosReporte.domInteractive,
+                    dom_ms: datosReporte.domReady,
+                    load_ms: datosReporte.loadTime,
+                    total_weight_mb: datosReporte.peso ? parseFloat(datosReporte.peso) : null,
+                    total_requests: datosReporte.peticiones,
+                    ram_core_mb: datosReporte.ramCore ? parseFloat(datosReporte.ramCore) : null,
+                    ram_total_mb: ramTotalMB || (datosReporte.ramTotal ? parseFloat(datosReporte.ramTotal) : null)
                 };
 
                 const apiResponse = await enviarMetricasAPI(payload);
@@ -1365,28 +1359,23 @@ async function performPuppeteerAnalysis(targetUrl) {
             pageMetrics = await extraerMetricasEstables(page, 60000, 2000, 500);
             console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
         } catch (evalError) {
-            console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Inyectando datos dummie buenos.`);
+            console.warn(`❌ Error definitivo de extracción: ${evalError.message}`);
             pageMetrics = {
-                redirect: 45, dns: 20, tcp: 35, ttfb: 150, 
-                domInteractive: Math.floor(Math.random() * (2500 - 1500 + 1)) + 1500,
-                domReady: Math.floor(Math.random() * (3000 - 1800 + 1)) + 1800, 
-                loadTime: Math.floor(Math.random() * (4500 - 2500 + 1)) + 2500, 
-                peso: (Math.random() * (3.5 - 1.5) + 1.5).toFixed(2), 
-                peticiones: Math.floor(Math.random() * (85 - 45 + 1)) + 45, 
-                ramCore: (Math.random() * (45 - 25) + 25).toFixed(2), 
-                ramTotal: (Math.random() * (60 - 35) + 35).toFixed(2)
+                redirect: null, dns: null, tcp: null, ttfb: null, domInteractive: null,
+                domReady: null, loadTime: null, peso: null, peticiones: null, ramCore: null, ramTotal: null
             };
         }
 
         return {
             url: urlLimpia,
-            load_ms: pageMetrics.loadTime || 0,
-            dom_ms: pageMetrics.domInteractive || 0,
-            ram_total_mb: pageMetrics.ramTotal || 0,
-            ram_core_mb: pageMetrics.ramCore || 0,
-            total_requests: pageMetrics.peticiones || 0,
-            total_weight_mb: pageMetrics.peso || 0,
-            web_flow: 'Real-Browser'
+            load_ms: pageMetrics.loadTime,
+            dom_ms: pageMetrics.domInteractive,
+            ram_total_mb: pageMetrics.ramTotal ? parseFloat(pageMetrics.ramTotal) : null,
+            ram_core_mb: pageMetrics.ramCore ? parseFloat(pageMetrics.ramCore) : null,
+            total_requests: pageMetrics.peticiones,
+            total_weight_mb: pageMetrics.peso ? parseFloat(pageMetrics.peso) : null,
+            web_flow: 'Real-Browser',
+            status: pageMetrics.loadTime === null ? 'measurement_failed' : 'success'
         };
     } finally {
                 if (browser) {
