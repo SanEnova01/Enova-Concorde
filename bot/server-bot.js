@@ -133,7 +133,9 @@ async function extraerMetricasEstables(page, timeoutMs = 60000, stableMs = 2000,
             }
 
             const documentKey = JSON.stringify([sample.url, sample.timeOrigin]);
-            const loaded = sample.readyState === 'complete' && sample.loadEventEnd > 0;
+            
+            // 🌟 CAMBIO CLAVE: Aceptar la página si ya es interactiva, aunque no alcance el "complete" por scripts rotos
+            const loaded = sample.readyState === 'complete' || sample.readyState === 'interactive';
 
             if (!loaded) {
                 previousDocumentKey = null; stableSince = 0;
