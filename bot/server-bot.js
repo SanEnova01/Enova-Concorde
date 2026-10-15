@@ -76,6 +76,81 @@ function normalizarUrl(targetUrl) {
 }
 
 // ============================================================
+// HELPERS DE ESTABILIDAD DE NAVEGACIÓN (ANTI-DETACHED FRAME)
+// ============================================================
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function isTransientNavigationError(error) {
+    return /Attempted to use detached Frame|Execution context was destroyed|Cannot find context with specified id|Navigating frame was detached/i
+        .test(String(error?.message ?? error));
+}
+
+async function extraerMetricasEstables(page, timeoutMs = 60000, stableMs = 2000, pollMs = 500) {
+    const deadline = Date.now() + timeoutMs;
+    let previousFrame = null;
+    let previousDocumentKey = null;
+    let stableSince = 0;
+    let lastTransientError = null;
+
+    while (Date.now() < deadline) {
+        if (page.isClosed()) throw new Error('La página se cerró durante la medición.');
+
+        try {
+            const frame = page.mainFrame();
+            const sample = await frame.evaluate(() => {
+                const nav = performance.getEntriesByType('navigation')[0];
+                const resources = performance.getEntriesByType('resource');
+                const memory = performance.memory;
+                let totalBytes = 0;
+
+                resources.forEach(r => { if (r.transferSize) totalBytes += r.transferSize; });
+                const currentMs = Math.round(performance.now());
+
+                return {
+                    url: location.href,
+                    timeOrigin: performance.timeOrigin,
+                    readyState: document.readyState,
+                    loadEventEnd: nav ? nav.loadEventEnd : 0,
+                    metrics: {
+                        redirect: nav ? Math.round(nav.redirectEnd - nav.redirectStart) : 0,
+                        dns: nav ? Math.round(nav.domainLookupEnd - nav.domainLookupStart) : 0,
+                        tcp: nav ? Math.round(nav.connectEnd - nav.connectStart) : 0,
+                        ttfb: nav ? Math.round(nav.responseStart - nav.startTime) : 0,
+                        domInteractive: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
+                        domReady: nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : currentMs / 2,
+                        loadTime: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
+                        peso: (totalBytes / 1024 / 1024).toFixed(2),
+                        peticiones: resources.length + 1,
+                        ramCore: memory ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) : 0,
+                        ramTotal: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0
+                    }
+                };
+            });
+
+            if (page.mainFrame() !== frame) {
+                previousDocumentKey = null; stableSince = 0; continue;
+            }
+
+            const documentKey = JSON.stringify([sample.url, sample.timeOrigin]);
+            const loaded = sample.readyState === 'complete' && sample.loadEventEnd > 0;
+
+            if (!loaded) {
+                previousDocumentKey = null; stableSince = 0;
+            } else if (frame !== previousFrame || documentKey !== previousDocumentKey) {
+                previousFrame = frame; previousDocumentKey = documentKey; stableSince = Date.now();
+            } else if (Date.now() - stableSince >= stableMs) {
+                return sample.metrics;
+            }
+        } catch (error) {
+            if (!isTransientNavigationError(error)) throw error;
+            lastTransientError = error; previousFrame = null; previousDocumentKey = null; stableSince = 0;
+        }
+        await sleep(pollMs);
+    }
+    throw new Error('No se obtuvo un documento estable dentro del plazo.', { cause: lastTransientError });
+}
+// ============================================================
 // 1. OBTENER TIENDAS DESDE LA BD DE CONCORDE
 // ============================================================
 
@@ -278,73 +353,45 @@ async function ejecutarAnalisisAutomated() {
                 await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
                 // 🌟 FIN SIMULACIÓN
 
-                let navegacionCompleta = true;
+                // ====================================================
+                // NAVEGACIÓN Y EXTRACCIÓN ESTABLE
+                // ====================================================
+                let datosReporte = {};
+                
+                page.on('framenavigated', frame => {
+                    if (frame === page.mainFrame()) console.log(`🔄 [DOM] El frame principal navegó o se recargó a: ${frame.url()}`);
+                });
+
                 try {
-                    console.log(`[INFO] Navegando a ${urlLimpia} (esperando estabilización de red)...`);
-                    const response = await page.goto(urlLimpia, {
-                        waitUntil: 'networkidle2', // 🌟 IGNORA PÍXELES INFINITOS
-                        timeout: 180000
-                    });
+                    console.log(`[INFO] Navegando a ${urlLimpia}...`);
+                    const response = await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 60000 });
                     
                     const httpStatus = response ? response.status() : 'Desconocido';
                     const pageTitle = await page.title();
                     
                     if (httpStatus === 403 || httpStatus === 503) {
-                        console.warn(`🛑 [BLOQUEO WAF/SERVIDOR] ${urlLimpia} bloqueó al bot (HTTP ${httpStatus}).`);
-                    } else if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('attention required')) {
-                        console.warn(`🛑 [BLOQUEO CAPTCHA] ${urlLimpia} mostró pantalla de verificación humana (Cloudflare).`);
+                        console.warn(`🛑 [BLOQUEO WAF/SERVIDOR] HTTP ${httpStatus}.`);
+                    } else if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare')) {
+                        console.warn(`🛑 [BLOQUEO CAPTCHA] Pantalla Cloudflare.`);
                     } else {
                         console.log(`✅ [Navegación OK] HTTP ${httpStatus} | Título: "${pageTitle}"`);
                     }
 
                 } catch (navError) {
-                    navegacionCompleta = false;
-                    console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Dejando el Frame intacto...`);
+                    if (!isTransientNavigationError(navError)) {
+                        console.warn(`⚠️ [Timeout/Navegación] ${navError.message}`);
+                    }
                 }
 
-                // ====================================================
-                // MÉTRICAS DEL NAVEGADOR (CON BLINDAJE Y TIMEOUT PROPIO)
-                // ====================================================
-                let datosReporte = {};
                 try {
-                    if (!navegacionCompleta) {
-                        await new Promise((resolve) => setTimeout(resolve, 3000));
-                    }
-                    
-                    datosReporte = await Promise.race([
-                        page.evaluate(() => {
-                            const nav = performance.getEntriesByType('navigation')[0];
-                            const resources = performance.getEntriesByType('resource');
-                            const memory = performance.memory;
-                            let totalBytes = 0;
-
-                            resources.forEach((resource) => {
-                                if (resource.transferSize) {
-                                    totalBytes += resource.transferSize;
-                                }
-                            });
-
-                            const currentMs = Math.round(performance.now());
-
-                            return {
-                                redirect: nav ? Math.round(nav.redirectEnd - nav.redirectStart) : 0,
-                                dns: nav ? Math.round(nav.domainLookupEnd - nav.domainLookupStart) : 0,
-                                tcp: nav ? Math.round(nav.connectEnd - nav.connectStart) : 0,
-                                ttfb: nav ? Math.round(nav.responseStart - nav.startTime) : 0,
-                                domInteractive: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
-                                domReady: nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : currentMs / 2,
-                                loadTime: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
-                                peso: (totalBytes / 1024 / 1024).toFixed(2),
-                                peticiones: resources.length + 1,
-                                ramCore: memory ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) : 0
-                            };
-                        }),
-new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (30s) - Bucle detectado')), 30000))                    ]);
+                    console.log(`[INFO] Analizando DOM en bucle hasta estabilización...`);
+                    datosReporte = await extraerMetricasEstables(page, 60000, 2000, 500);
+                    console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
                 } catch (evalError) {
-                    console.warn(`⚠ Error extrayendo métricas (Detached/Timeout): ${evalError.message}`);
+                    console.warn(`❌ Error definitivo de extracción: ${evalError.message}`);
                     datosReporte = {
                         redirect: 0, dns: 0, tcp: 0, ttfb: 0, domInteractive: 0,
-                        domReady: 0, loadTime: 0, peso: 0, peticiones: 0, ramCore: 0
+                        domReady: 0, loadTime: 0, peso: 0, peticiones: 0, ramCore: 0, ramTotal: 0
                     };
                 }
 
@@ -1267,76 +1314,53 @@ async function performPuppeteerAnalysis(targetUrl) {
         await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
         // 🌟 FIN SIMULACIÓN
 
-        let navegacionCompleta = true;
+        let pageMetrics = {};
+        
+        page.on('framenavigated', frame => {
+            if (frame === page.mainFrame()) console.log(`🔄 [DOM] El frame principal navegó o se recargó a: ${frame.url()}`);
+        });
+
         try {
-            console.log(`[INFO] Navegando a ${urlLimpia} (esperando estabilización de red)...`);
-            const response = await page.goto(urlLimpia, {
-                waitUntil: 'networkidle2', // 🌟 IGNORA PÍXELES INFINITOS
-                timeout: 180000
-            });
+            console.log(`[INFO] Navegando a ${urlLimpia}...`);
+            const response = await page.goto(urlLimpia, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            
             const httpStatus = response ? response.status() : 'Desconocido';
             const pageTitle = await page.title();
             
             if (httpStatus === 403 || httpStatus === 503) {
-                console.warn(`🛑 [BLOQUEO WAF/SERVIDOR] ${urlLimpia} bloqueó al bot (HTTP ${httpStatus}).`);
-            } else if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare') || pageTitle.toLowerCase().includes('attention required')) {
-                console.warn(`🛑 [BLOQUEO CAPTCHA] ${urlLimpia} mostró pantalla de verificación humana (Cloudflare).`);
+                console.warn(`🛑 [BLOQUEO WAF/SERVIDOR] HTTP ${httpStatus}.`);
+            } else if (pageTitle.toLowerCase().includes('just a moment') || pageTitle.toLowerCase().includes('cloudflare')) {
+                console.warn(`🛑 [BLOQUEO CAPTCHA] Pantalla Cloudflare.`);
             } else {
                 console.log(`✅ [Navegación OK] HTTP ${httpStatus} | Título: "${pageTitle}"`);
             }
 
         } catch (navError) {
-            navegacionCompleta = false;
-            console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Dejando el Frame intacto...`);
+            if (!isTransientNavigationError(navError)) {
+                console.warn(`⚠️ [Timeout/Navegación] ${navError.message}`);
+            }
         }
 
-        let pageMetrics = {};
         try {
-            if (!navegacionCompleta) {
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-            }
-
-            pageMetrics = await Promise.race([
-                page.evaluate(() => {
-                    const nav = performance.getEntriesByType('navigation')[0];
-                    const resources = performance.getEntriesByType('resource');
-                    const memory = performance.memory;
-                    let totalBytes = 0;
-
-                    resources.forEach((resource) => {
-                        if (resource.transferSize) {
-                            totalBytes += resource.transferSize;
-                        }
-                    });
-
-                    const currentMs = Math.round(performance.now());
-
-                    return {
-                        load_ms: nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : currentMs,
-                        dom_interactive_ms: nav ? Math.round(nav.domInteractive - nav.startTime) : currentMs / 2,
-                        ram_total_mb: memory ? parseFloat((memory.totalJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
-                        ram_core_mb: memory ? parseFloat((memory.usedJSHeapSize / 1024 / 1024).toFixed(2)) : 0,
-                        total_requests: resources.length + 1,
-                        total_weight_mb: parseFloat((totalBytes / 1024 / 1024).toFixed(2))
-                    };
-                }),
-new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de extracción (30s) - Bucle detectado')), 30000))            ]);
+            console.log(`[INFO] Analizando DOM en bucle hasta estabilización...`);
+            pageMetrics = await extraerMetricasEstables(page, 60000, 2000, 500);
+            console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
         } catch (evalError) {
-            console.warn(`⚠️ Error extrayendo métricas individuales (Detached/Timeout): ${evalError.message}`);
+            console.warn(`❌ Error definitivo de extracción: ${evalError.message}`);
             pageMetrics = {
-                load_ms: 0, dom_interactive_ms: 0, ram_total_mb: 0,
-                ram_core_mb: 0, total_requests: 0, total_weight_mb: 0
+                redirect: 0, dns: 0, tcp: 0, ttfb: 0, domInteractive: 0,
+                domReady: 0, loadTime: 0, peso: 0, peticiones: 0, ramCore: 0, ramTotal: 0
             };
         }
 
         return {
             url: urlLimpia,
-            load_ms: pageMetrics.load_ms,
-            dom_ms: pageMetrics.dom_interactive_ms,
-            ram_total_mb: pageMetrics.ram_total_mb,
-            ram_core_mb: pageMetrics.ram_core_mb,
-            total_requests: pageMetrics.total_requests,
-            total_weight_mb: pageMetrics.total_weight_mb,
+            load_ms: pageMetrics.loadTime || 0,
+            dom_ms: pageMetrics.domInteractive || 0,
+            ram_total_mb: pageMetrics.ramTotal || 0,
+            ram_core_mb: pageMetrics.ramCore || 0,
+            total_requests: pageMetrics.peticiones || 0,
+            total_weight_mb: pageMetrics.peso || 0,
             web_flow: 'Real-Browser'
         };
     } finally {
