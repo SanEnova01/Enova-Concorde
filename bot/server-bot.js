@@ -278,6 +278,7 @@ async function ejecutarAnalisisAutomated() {
                 await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
                 // 🌟 FIN SIMULACIÓN
 
+                let navegacionCompleta = true;
                 try {
                     console.log(`[INFO] Navegando a ${urlLimpia} (esperando hasta 3 minutos)...`);
                     const response = await page.goto(urlLimpia, {
@@ -285,7 +286,6 @@ async function ejecutarAnalisisAutomated() {
                         timeout: 180000
                     });
                     
-                    // 🌟 DETECCIÓN DE BLOQUEOS WAF / CLOUDFLARE
                     const httpStatus = response ? response.status() : 'Desconocido';
                     const pageTitle = await page.title();
                     
@@ -297,21 +297,20 @@ async function ejecutarAnalisisAutomated() {
                         console.log(`✅ [Navegación OK] HTTP ${httpStatus} | Título: "${pageTitle}"`);
                     }
 
-             } catch (navError) {
-                    console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Forzando parada de red segura...`);
-                    try {
-                        // Detener la red vía CDP es mucho más seguro y evita el "Frame detached"
-                        await client.send('Page.stopLoading');
-                        // Dar 2 segundos para que los scripts pendientes terminen y el DOM se estabilice
-                        await new Promise((resolve) => setTimeout(resolve, 2000));
-                    } catch (stopError) {}
+                } catch (navError) {
+                    navegacionCompleta = false;
+                    console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Dejando el Frame intacto...`);
                 }
+
                 // ====================================================
                 // MÉTRICAS DEL NAVEGADOR (CON BLINDAJE Y TIMEOUT PROPIO)
                 // ====================================================
                 let datosReporte = {};
                 try {
-                    // Promise.race asegura que evaluar el DOM no se quede colgado
+                    if (!navegacionCompleta) {
+                        await new Promise((resolve) => setTimeout(resolve, 3000));
+                    }
+                    
                     datosReporte = await Promise.race([
                         page.evaluate(() => {
                             const nav = performance.getEntriesByType('navigation')[0];
@@ -1268,13 +1267,13 @@ async function performPuppeteerAnalysis(targetUrl) {
         await client.send('Emulation.setCPUThrottlingRate', { rate: 2 });
         // 🌟 FIN SIMULACIÓN
 
+        let navegacionCompleta = true;
         try {
             console.log(`[INFO] Navegando a ${urlLimpia} (esperando hasta 3 minutos)...`);
             const response = await page.goto(urlLimpia, {
                 waitUntil: 'load',
                 timeout: 180000
             });
-            // 🌟 DETECCIÓN DE BLOQUEOS WAF / CLOUDFLARE
             const httpStatus = response ? response.status() : 'Desconocido';
             const pageTitle = await page.title();
             
@@ -1287,16 +1286,16 @@ async function performPuppeteerAnalysis(targetUrl) {
             }
 
         } catch (navError) {
-            console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Forzando parada de red segura...`);
-            try {
-                await client.send('Page.stopLoading');
-                await new Promise((resolve) => setTimeout(resolve, 2000));
-            } catch (stopError) {}
+            navegacionCompleta = false;
+            console.warn(`⚠️ [Timeout Parcial] La página no terminó de cargar completamente en ${urlLimpia}. Dejando el Frame intacto...`);
         }
 
         let pageMetrics = {};
         try {
-            // Promise.race asegura que evaluar el DOM no se quede colgado
+            if (!navegacionCompleta) {
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
+
             pageMetrics = await Promise.race([
                 page.evaluate(() => {
                     const nav = performance.getEntriesByType('navigation')[0];
