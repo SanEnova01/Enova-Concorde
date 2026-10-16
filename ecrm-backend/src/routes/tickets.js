@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const TicketRepository = require('../repositories/TicketRepository');
-
+const { registrarTicketEnHub } = require('../services/HubSyncService');
 // POST: Crear un nuevo ticket (Con Auditoría)
 router.post('/', async (req, res) => {
   try {
@@ -22,6 +22,13 @@ router.post('/', async (req, res) => {
         'CREAR_TICKET', 
         `Ticket "${result.serial_number || result.id}" (${ticketData.name}) creado para la tienda "${ticketData.store_id}"`
       );
+    }
+
+    // 🌟 INVOCACIÓN SILENCIOSA A ENOVA HUB
+    if (result) {
+        registrarTicketEnHub(result).catch(err => {
+            console.error('❌ [Hub Sync Error]', err.message);
+        });
     }
 
     res.status(201).json({ success: true, data: result });
