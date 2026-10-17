@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { registrarTicketEnHub } = require('../services/HubSyncService');
+const HubSyncService = require('../services/HubSyncService');
 
 // ESCUDOS AUTO-CORRECTORES (Evitan que PostgreSQL rechace la data)
 const sanitizePriority = (p) => {
@@ -83,7 +83,7 @@ class TicketRepository {
 
       // 🌟 INVOCACIÓN SILENCIOSA AL HUB AL CREAR
       if (newTicket) {
-        registrarTicketEnHub(newTicket).catch(err => {
+        HubSyncService.registrarTicketEnHub(newTicket).catch(err => {
             console.error('❌ [Hub Sync Fatal Error]', err.message);
         });
       }
@@ -98,8 +98,6 @@ class TicketRepository {
     try {
       let query = db('tickets').orderBy('created_at', 'desc');
 
-      // Si se envía el filtro de apolo, solo devolvemos los que están en true
-      // Al usar un objeto filters vacío por defecto, el resto de Concorde no se verá afectado
       if (filters.is_apolo_sync) {
         query = query.where({ is_apolo_sync: true });
       }
@@ -116,7 +114,6 @@ class TicketRepository {
     if (data.name !== undefined) updatePayload.name = data.name;
     if (data.description !== undefined) updatePayload.description = data.description;
     
-    // 🌟 CAPTURA LA ASIGNACIÓN SIN IMPORTAR SI EL FRONTEND ENVÍA assigned_to O assignee
     const assigneeValue = data.assigned_to !== undefined ? data.assigned_to : data.assignee;
     if (assigneeValue !== undefined) updatePayload.assigned_to = assigneeValue || null;
     
@@ -133,7 +130,7 @@ class TicketRepository {
       
     // 🌟 INVOCACIÓN SILENCIOSA AL HUB AL EDITAR
     if (updated) {
-        registrarTicketEnHub(updated).catch(err => {
+        HubSyncService.registrarTicketEnHub(updated).catch(err => {
             console.error('❌ [Hub Sync Fatal Error]', err.message);
         });
     }
@@ -150,7 +147,6 @@ class TicketRepository {
         updateData.closed_at = null;
       }
 
-      // 🌟 FUERZA EL GUARDADO DEL USUARIO SI SE ASIGNA DESDE EL KANBAN
       if (assigned_to !== undefined) {
         updateData.assigned_to = assigned_to || null;
       }
@@ -162,7 +158,7 @@ class TicketRepository {
 
       // 🌟 INVOCACIÓN SILENCIOSA AL HUB AL CAMBIAR ESTADO
       if (updatedTicket) {
-        registrarTicketEnHub(updatedTicket).catch(err => {
+        HubSyncService.registrarTicketEnHub(updatedTicket).catch(err => {
             console.error('❌ [Hub Sync Fatal Error]', err.message);
         });
       }
