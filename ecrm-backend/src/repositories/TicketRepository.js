@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { registrarTicketEnHub } = require('../services/HubSyncService');
 
 // ESCUDOS AUTO-CORRECTORES (Evitan que PostgreSQL rechace la data)
 const sanitizePriority = (p) => {
@@ -80,6 +81,13 @@ class TicketRepository {
         return insertedTicket;
       });
 
+      // 🌟 INVOCACIÓN SILENCIOSA AL HUB AL CREAR
+      if (newTicket) {
+        registrarTicketEnHub(newTicket).catch(err => {
+            console.error('❌ [Hub Sync Fatal Error]', err.message);
+        });
+      }
+
       return newTicket;
     } catch (error) {
       throw new Error('Error al crear el ticket: ' + error.message);
@@ -123,6 +131,13 @@ class TicketRepository {
       .update(updatePayload)
       .returning('*');
       
+    // 🌟 INVOCACIÓN SILENCIOSA AL HUB AL EDITAR
+    if (updated) {
+        registrarTicketEnHub(updated).catch(err => {
+            console.error('❌ [Hub Sync Fatal Error]', err.message);
+        });
+    }
+
     return updated;
   }
 
@@ -144,6 +159,14 @@ class TicketRepository {
         .where({ id })
         .update(updateData)
         .returning('*');
+
+      // 🌟 INVOCACIÓN SILENCIOSA AL HUB AL CAMBIAR ESTADO
+      if (updatedTicket) {
+        registrarTicketEnHub(updatedTicket).catch(err => {
+            console.error('❌ [Hub Sync Fatal Error]', err.message);
+        });
+      }
+
       return updatedTicket;
     } catch (error) {
       throw new Error('Error al actualizar el estado: ' + error.message);
