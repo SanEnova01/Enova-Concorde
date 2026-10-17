@@ -1,74 +1,171 @@
-const crypto = require('crypto');
+const db = require('../config/db');
+const { registrarTicketEnHub } = require('../services/HubSyncService');
 
-// ============================================================
-// 🛑 SWITCH DE EMERGENCIA (KILL SWITCH)
-// Cambia a "false" para detener la creación de tickets en el Hub
-// ============================================================
-const ENABLE_HUB_SYNC = true;
+// ESCUDOS AUTO-CORRECTORES (Evitan que PostgreSQL rechace la data)
+const sanitizePriority = (p) => {
+  if (!p) return 'MEDIUM';
+  const upper = String(p).toUpperCase();
+  if (upper.includes('BAJA') || upper === 'LOW') return 'LOW';
+  if (upper.includes('MEDIA') || upper === 'MEDIUM') return 'MEDIUM';
+  if (upper.includes('ALTA') || upper === 'HIGH') return 'HIGH';
+  if (upper.includes('CRITIC') || upper === 'CRITICAL') return 'CRITICAL';
+  return 'MEDIUM';
+};
 
-const HUB_API_URL = 'https://hub.enova.agency/api/concorde/v1';
-const HUB_SECRET = process.env.CONCORDE_WEBHOOK_SECRET || '2513d3ea23a3be89dc9a871cc973e5437d322a58397441496f2f4ca0581bcc7b';
+const sanitizeTaskType = (t) => {
+  if (!t) return 'CONSULTA';
+  const upper = String(t).toUpperCase();
+  if (upper.includes('BUG')) return 'BUG_FIX';
+  if (upper.includes('INTERNA')) return 'TASK_INTERNA';
+  if (upper.includes('CAMBIO')) return 'CAMBIO';
+  return 'CONSULTA'; 
+};
 
-async function registrarTicketEnHub(ticketDB) {
-    // Si el switch está apagado, salimos en silencio sin romper nada
-    if (!ENABLE_HUB_SYNC) {
-        console.log('⏸️ [Hub Sync] Sincronización desactivada por el switch de emergencia.');
-        return null;
+class TicketRepository {
+  // 🌟 AHORA DETERMINA EL PREFIJO DEPENDIENDO SI ES B2B (SOP) O B2C (HUB)
+  static async generateSerialNumber(isB2C = false) {
+    const year = new Date().getFullYear();
+    const prefix = isB2C ? 'HUB' : 'SOP';
+
+    const lastTicket = await db('tickets')
+      .where('serial_number', 'like', `${prefix}-${year}-%`)
+      .orderBy('created_at', 'desc')
+      .first();
+
+    let nextNumber = 1;
+    if (lastTicket) {
+      const parts = lastTicket.serial_number.split('-');
+      if (parts.length >= 3) {
+        nextNumber = parseInt(parts[2], 10) + 1;
+      }
     }
 
-    if (!ticketDB || !ticketDB.id) return null;
+    const paddedNumber = nextNumber.toString().padStart(4, '0');
+    return `${prefix}-${year}-${paddedNumber}`;
+  }
 
-    // Construimos la descripción inyectando el texto y el emoji al final
-    const descripcionOriginal = ticketDB.description || "Sin descripción";
-    const descripcionConFirma = `${descripcionOriginal}\n\n✈️ Importado de Concorde`;
-
-    const payload = {
-        dry_run: false,
-        ticket: {
-            id: ticketDB.id,
-            serial_number: ticketDB.serial_number,
-            name: ticketDB.name,
-            status: ticketDB.status || "OPEN",
-            priority: ticketDB.priority || "MEDIUM",
-            description: descripcionConFirma,
-            store_id: ticketDB.store_id,
-            assigned_to_email: ticketDB.assigned_to || ticketDB.assigned_to_email || null,
-            task_type: ticketDB.task_type || "CAMBIO",
-            created_at: ticketDB.created_at || new Date().toISOString(),
-            updated_at: ticketDB.updated_at || ticketDB.created_at || new Date().toISOString()
-        }
-    };
-
-    const bodyStr = JSON.stringify(payload);
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signature = crypto.createHmac('sha256', HUB_SECRET)
-        .update(`${timestamp}.${bodyStr}`)
-        .digest('hex');
-
+  static async create(ticketData) {
     try {
-        const response = await fetch(`${HUB_API_URL}/tickets`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Enova-Timestamp': timestamp,
-                'X-Enova-Signature': `sha256=${signature}`
-            },
-            body: bodyStr
-        });
-        
-        const json = await response.json().catch(() => null);
-        
-        if (response.ok && json?.ok) {
-            console.log(`✅ [Hub Sync] Tarea vinculada en el Hub para ${ticketDB.serial_number}.`);
-            return json;
-        } else {
-            console.error(`❌ [Hub Sync] Error del Hub (HTTP ${response.status}):`, json);
-            return null;
+      const isB2C = !!ticketData.is_b2c;
+      // 👈 Genera el serial pasando la bandera de B2C
+      const serial_number = await this.generateSerialNumber(isB2C);
+      
+      const validPriority = sanitizePriority(ticketData.priority);
+      const validTaskType = sanitizeTaskType(ticketData.task_type);
+
+      let finalStoreId = ticketData.store_id;
+      if (!finalStoreId || finalStoreId === 'null') {
+        // 🌟 FIX: Asignar al buzón central por defecto, nunca a un cliente al azar
+        finalStoreId = 'enova.agency';
+      }
+
+      const newTicket = await db.transaction(async (trx) => {
+        const [insertedTicket] = await trx('tickets').insert({
+          serial_number,
+          name: ticketData.name || 'Ticket Automático',
+          description: ticketData.description || null,
+          store_id: finalStoreId,
+          priority: validPriority,
+          task_type: validTaskType,
+          status: 'OPEN',
+          assigned_to: ticketData.assigned_to || null,
+          is_b2c: isB2C
+        }).returning('*');
+
+        if (finalStoreId) {
+          await trx('stores')
+            .where({ id: finalStoreId })
+            .increment('ticket_count', 1);
         }
+
+        return insertedTicket;
+      });
+
+      // 🌟 INVOCACIÓN AL HUB: Al CREAR un ticket (Manual o Automático)
+      if (newTicket) {
+        registrarTicketEnHub(newTicket).catch(err => console.error('❌ [Hub Sync]', err.message));
+      }
+
+      return newTicket;
     } catch (error) {
-        console.error(`❌ [Hub Sync] Falla de red:`, error.message);
-        return null;
+      throw new Error('Error al crear el ticket: ' + error.message);
     }
+  }
+
+  static async getAll(filters = {}) {
+    try {
+      let query = db('tickets').orderBy('created_at', 'desc');
+
+      // Si se envía el filtro de apolo, solo devolvemos los que están en true
+      // Al usar un objeto filters vacío por defecto, el resto de Concorde no se verá afectado
+      if (filters.is_apolo_sync) {
+        query = query.where({ is_apolo_sync: true });
+      }
+
+      return await query;
+    } catch (error) {
+      throw new Error('Error al obtener los tickets: ' + error.message);
+    }
+  }
+
+  static async update(id, data) {
+    const updatePayload = {};
+
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.description !== undefined) updatePayload.description = data.description;
+    
+    // 🌟 CAPTURA LA ASIGNACIÓN SIN IMPORTAR SI EL FRONTEND ENVÍA assigned_to O assignee
+    const assigneeValue = data.assigned_to !== undefined ? data.assigned_to : data.assignee;
+    if (assigneeValue !== undefined) updatePayload.assigned_to = assigneeValue || null;
+    
+    if (data.priority !== undefined) updatePayload.priority = sanitizePriority(data.priority);
+    if (data.task_type !== undefined) updatePayload.task_type = sanitizeTaskType(data.task_type);
+    if (data.store_id !== undefined && data.store_id !== 'null') updatePayload.store_id = data.store_id;
+    
+    if (data.is_apolo_sync !== undefined) updatePayload.is_apolo_sync = data.is_apolo_sync;
+
+    const [updated] = await db('tickets')
+      .where({ id })
+      .update(updatePayload)
+      .returning('*');
+      
+    // 🌟 INVOCACIÓN AL HUB: Al EDITAR datos del ticket
+    if (updated) {
+      registrarTicketEnHub(updated).catch(err => console.error('❌ [Hub Sync]', err.message));
+    }
+
+    return updated;
+  }
+
+  static async updateStatus(id, status, assigned_to) {
+    try {
+      const updateData = { status };
+      if (status === 'CLOSED' || status === 'RESOLVED') {
+        updateData.closed_at = db.fn.now();
+      } else {
+        updateData.closed_at = null;
+      }
+
+      // 🌟 FUERZA EL GUARDADO DEL USUARIO SI SE ASIGNA DESDE EL KANBAN
+      if (assigned_to !== undefined) {
+        updateData.assigned_to = assigned_to || null;
+      }
+
+      const [updatedTicket] = await db('tickets')
+        .where({ id })
+        .update(updateData)
+        .returning('*');
+
+      // 🌟 INVOCACIÓN AL HUB: Al cambiar de ESTADO en el Kanban
+      if (updatedTicket) {
+        registrarTicketEnHub(updatedTicket).catch(err => console.error('❌ [Hub Sync]', err.message));
+      }
+
+      return updatedTicket;
+    } catch (error) {
+      throw new Error('Error al actualizar el estado: ' + error.message);
+    }
+  }
 }
 
-module.exports = { registrarTicketEnHub };
+module.exports = TicketRepository;
