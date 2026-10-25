@@ -21,7 +21,6 @@ const RAILWAY_PUPPETEER_ARGS = [
     '--disable-software-rasterizer',
     '--disable-ipc-flooding-protection',
     '--enable-precise-memory-info',
-    '--disable-blink-features=AutomationControlled',
     '--disable-accelerated-2d-canvas',
     '--disable-background-networking',
     '--disable-background-timer-throttling',
@@ -484,8 +483,11 @@ async function ejecutarAnalisisAutomated() {
                         console.warn('⚠️ Error cerrando navegador:', closeError.message);
                     }
                 }
-                if (browserPid) {
-                    try { process.kill(browserPid, 'SIGKILL'); } catch (e) {}
+                
+                // Intenta obtener el PID directamente desde el navegador si browserPid falló
+                const currentPid = browser ? browser.process()?.pid : null;
+                if (currentPid) {
+                    try { process.kill(currentPid, 'SIGKILL'); } catch (e) {}
                 }
             }
 
@@ -1415,15 +1417,23 @@ async function performPuppeteerAnalysis(targetUrl) {
             status: 'success'
         };
     } finally {
-                if (browser) {
-                    try { 
-                        await browser.close(); 
-                        console.log(`[INFO] Navegador cerrado correctamente para ${urlLimpia || 'tienda'}.`);
-                    } catch (closeError) {
-                        console.warn('⚠️ Error cerrando navegador:', closeError.message);
-                    }
-                }
+        if (browser) {
+            try { 
+                await Promise.race([
+                    browser.close(),
+                    new Promise(resolve => setTimeout(resolve, 5000))
+                ]);
+                console.log(`[INFO] Navegador cerrado correctamente para ${urlLimpia || 'tienda'}.`);
+            } catch (closeError) {
+                console.warn('⚠️ Error cerrando navegador:', closeError.message);
             }
+            
+            const currentPid = browser.process()?.pid;
+            if (currentPid) {
+                try { process.kill(currentPid, 'SIGKILL'); } catch (e) {}
+            }
+        }
+    }
 }
 
 // ============================================================
