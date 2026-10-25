@@ -22,7 +22,6 @@ const RAILWAY_PUPPETEER_ARGS = [
     '--disable-ipc-flooding-protection',
     '--enable-precise-memory-info',
     '--disable-blink-features=AutomationControlled',
-    '--single-process', // Crucial para entornos con pocos recursos como Railway
     '--disable-accelerated-2d-canvas',
     '--disable-background-networking',
     '--disable-background-timer-throttling',
@@ -476,9 +475,17 @@ async function ejecutarAnalisisAutomated() {
                 });
             } finally {
                 if (browser) {
-                    try { await browser.close(); } catch (closeError) {
+                    try {
+                        await Promise.race([
+                            browser.close(),
+                            new Promise(resolve => setTimeout(resolve, 5000))
+                        ]);
+                    } catch (closeError) {
                         console.warn('⚠️ Error cerrando navegador:', closeError.message);
                     }
+                }
+                if (browserPid) {
+                    try { process.kill(browserPid, 'SIGKILL'); } catch (e) {}
                 }
             }
 
@@ -503,6 +510,9 @@ async function ejecutarAnalisisAutomated() {
 // 5. HEARTBEAT
 // ============================================================
 
+let ultimoLogLatido = 0;
+const UNA_HORA = 60 * 60 * 1000;
+
 async function enviarHeartbeat() {
     try {
         const res = await fetch(
@@ -510,8 +520,7 @@ async function enviarHeartbeat() {
             {
                 method: 'POST',
                 headers: {
-                    'Content-Type':
-                        'application/json',
+                    'Content-Type': 'application/json',
                     'x-api-key': API_KEY
                 },
                 body: JSON.stringify({
@@ -521,9 +530,11 @@ async function enviarHeartbeat() {
         );
 
         if (res.ok) {
-            console.log(
-                '💓 [Heartbeat] Latido enviado con éxito al Backend.'
-            );
+            const ahora = Date.now();
+            if (ahora - ultimoLogLatido >= UNA_HORA) {
+                console.log('💓 [Heartbeat] Latido enviado con éxito al Backend (Log por hora).');
+                ultimoLogLatido = ahora;
+            }
         } else {
             console.error(
                 `⚠️ [Heartbeat] Servidor respondió con estado: ${res.status}`
