@@ -5,10 +5,10 @@ const csv = require('csv-parser');
 const streamifier = require('streamifier');
 const nodemailer = require('nodemailer');
 const MetricsRepository = require('../repositories/MetricsRepository');
+const db = require('../config/db');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Configuración Transporter Nodemailer
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587'),
@@ -19,23 +19,18 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// === ESTADO DEL BOT EN MEMORIA ===
 let botStatusInfo = {
   last_heartbeat: null,
   is_running: false
 };
 
 // ======================================================
-// 1. RUTAS ESTÁTICAS DEL BOT Y ACCIONES (DEBEN IR ARRIBA)
+// 1. RUTAS ESTÁTICAS DEL BOT Y ACCIONES
 // ======================================================
 
-// POST: El bot envía su latido
 router.post('/bot-heartbeat', (req, res) => {
-  console.log('🟢 [BACKEND] RECIBÍ UN LATIDO DEL BOT. Datos:', req.body);
-  
   const rawKey = req.headers['x-api-key'] || '';
   if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
-    console.log('🔴 [BACKEND] RECHAZADO: API KEY INCORRECTA');
     return res.status(401).json({ success: false, error: 'API Key no autorizada' });
   }
 
@@ -46,7 +41,6 @@ router.post('/bot-heartbeat', (req, res) => {
   res.json({ success: true, timestamp: botStatusInfo.last_heartbeat });
 });
 
-// GET: El Frontend consulta el estado
 router.get('/bot-status', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
@@ -57,8 +51,6 @@ router.get('/bot-status', (req, res) => {
   const now = new Date();
   const lastBeat = new Date(botStatusInfo.last_heartbeat);
   const diffMinutes = (now - lastBeat) / (1000 * 60);
-
-  // 🌟 Margen de 70 minutos para dar espacio al latido de cada 30 minutos (tolerancia de 2 latidos)
   const isOnline = diffMinutes <= 70;
 
   res.json({
@@ -70,14 +62,9 @@ router.get('/bot-status', (req, res) => {
   });
 });
 
-
-// POST: Ruta para forzar análisis manual
 router.post('/force-run', async (req, res) => {
-  console.log('⚡ [BACKEND] FRONTEND PIDIÓ FORZAR ANÁLISIS');
   try {
     const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
-    console.log(`⚡ [BACKEND] INTENTANDO LLAMAR AL BOT EN: ${BOT_SERVICE_URL}/run-force`);
-    
     const botRes = await fetch(`${BOT_SERVICE_URL}/run-force`, {
       method: 'POST',
       headers: {
@@ -85,25 +72,19 @@ router.post('/force-run', async (req, res) => {
         'x-api-key': 'ENOVA_SECRET_API_KEY_2026'
       }
     });
-
-    console.log(`⚡ [BACKEND] RESPUESTA DEL BOT RECIBIDA. Status: ${botRes.status}`);
     const data = await botRes.json();
     return res.json(data);
   } catch (error) {
-    console.error("🔴 [BACKEND] ERROR FATAL CONECTANDO AL BOT:", error.message);
     res.status(500).json({ success: false, error: 'Error interno: ' + error.message });
   }
 });
 
-// POST: Puente para extraer CSV de imágenes en tiempo real
 router.post('/extract-images', async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ success: false, error: 'La URL es requerida.' });
 
     const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
-    
-    // Llamamos al bot, pidiéndole el archivo
     const botRes = await fetch(`${BOT_SERVICE_URL}/extract-images`, {
       method: 'POST',
       headers: {
@@ -118,20 +99,15 @@ router.post('/extract-images', async (req, res) => {
         return res.status(botRes.status).json(errorData);
     }
 
-    // Leemos el texto del CSV generado en memoria y lo enviamos al cliente
     const csvText = await botRes.text();
     res.header('Content-Type', 'text/csv; charset=utf-8');
     res.attachment(`auditoria_imagenes_${new Date().getTime()}.csv`);
     return res.send(csvText);
-
   } catch (error) {
-    console.error("Error en proxy de imágenes:", error.message);
     res.status(500).json({ success: false, error: 'Error conectando con el motor de extracción.' });
   }
 });
 
-
-// GET: Puente para consultar el progreso de la extracción en tiempo real
 router.get('/extract-progress', async (req, res) => {
   try {
     const { url } = req.query;
@@ -150,12 +126,6 @@ router.get('/extract-progress', async (req, res) => {
   }
 });
 
-
-
-
-
-
-// POST: Notificar fin de análisis automático
 router.post('/notify-completion', async (req, res) => {
   const rawKey = req.headers['x-api-key'] || '';
   if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
@@ -180,31 +150,26 @@ router.post('/notify-completion', async (req, res) => {
               <li><strong>Exitosas:</strong> <span style="color: #16a34a;">${success_count}</span></li>
               <li><strong>Fallidas / Crash:</strong> <span style="color: #dc2626;">${failed_count}</span></li>
             </ul>
-            <p>Puedes revisar el tablero detallado directamente en la plataforma Concorde.</p>
           </div>
         `
       });
     }
     res.json({ success: true, message: 'Notificación procesada' });
   } catch (error) {
-    console.error('Error enviando mail de reporte:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// GET: Métricas agregadas (Diaria, Mensual, Anual)
 router.get('/aggregated', async (req, res) => {
   try {
-    const { store_id, period } = req.query; // period: 'daily' | 'monthly' | 'yearly'
+    const { store_id, period } = req.query;
     const results = await MetricsRepository.getAggregatedMetrics(store_id, period || 'daily');
     res.status(200).json({ success: true, data: results });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, error: 'Error al agrupar métricas' });
   }
 });
 
-// POST: Carga masiva mediante CSV
 router.post('/upload-csv', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
   const results = [];
@@ -236,12 +201,9 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
     });
 });
 
-// 🌟 COLOCADA AQUÍ PARA EVITAR EL ERROR 405 (ANTES DE LAS RUTAS DINÁMICAS)
 router.post('/run-single-client', async (req, res) => {
     try {
         const { store_id, url } = req.body;
-        
-        // Llamar al Bot
         const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
         const botRes = await fetch(`${BOT_SERVICE_URL}/run-single`, {
             method: 'POST',
@@ -255,7 +217,6 @@ router.post('/run-single-client', async (req, res) => {
         const botData = await botRes.json();
         if (!botData.success) throw new Error('Bot error');
 
-        // Formatear para insertar en tabla metrics
         const newMetric = {
             store_id: store_id,
             load_ms: botData.data.load_ms,
@@ -264,20 +225,15 @@ router.post('/run-single-client', async (req, res) => {
             ram_total_mb: botData.data.ram_total_mb,
             total_requests: botData.data.total_requests,
             total_weight_mb: botData.data.total_weight_mb,
-            trigger_type: 'MANUAL'
+            trigger_type: 'MANUAL',
+            html_analysis: botData.data.html_analysis || null
         };
 
-        // Guardar en tabla metrics historica
         const result = await MetricsRepository.create(newMetric);
 
-        // --- INICIO: GENERACIÓN DE TICKET (ANÁLISIS MANUAL) ---
+        // --- GENERACIÓN DE TICKET (ANÁLISIS MANUAL) ---
         try {
-          const db = require('../config/db');
           const TicketRepository = require('../repositories/TicketRepository');
-          
-          console.log(`\n========================================`);
-          console.log(`🤖 [SINGLE-RUN] REVISANDO TICKET PARA: ${store_id}`);
-          
           const ticketExistenteHoy = await db('tickets')
             .where({ store_id: store_id, name: 'Revisión técnica Status diario' })
             .whereRaw("created_at::date = CURRENT_DATE")
@@ -286,8 +242,7 @@ router.post('/run-single-client', async (req, res) => {
           if (!ticketExistenteHoy) {
             const loadSec = ((botData.data.load_ms || 0) / 1000).toFixed(2);
             const ttfbSec = ((botData.data.ttfb_ms || 0) / 1000).toFixed(2);
-
-            const descripcion = `📌 ¿Qué hace esta revisión técnica?\nEste ticket se generó a partir de una ejecución forzada manual desde el panel.\n\n📊 Resultado de la prueba de hoy:\n- Tiempo de carga total: ${loadSec} segundos\n- Tiempo al primer byte (TTFB): ${ttfbSec} segundos\n- Peso de la página: ${botData.data.total_weight_mb || 0} MB\n- Total peticiones: ${botData.data.total_requests || 0}\n- RAM Consumida: ${botData.data.ram_core_mb || 0} MB`;
+            const descripcion = `📌 Este ticket se generó a partir de una ejecución manual.\n\n📊 Resultado:\n- Carga: ${loadSec}s\n- TTFB: ${ttfbSec}s\n- Peso: ${botData.data.total_weight_mb || 0} MB\n- Peticiones: ${botData.data.total_requests || 0}\n- RAM Consumida: ${botData.data.ram_core_mb || 0} MB`;
 
             await TicketRepository.create({
               name: 'Revisión técnica Status diario',
@@ -297,28 +252,119 @@ router.post('/run-single-client', async (req, res) => {
               task_type: 'TASK_INTERNA',
               status: 'CLOSED'
             });
-            console.log(`[SINGLE-RUN] ✅ ¡ÉXITO! Ticket creado en BD (CERRADO) para ${store_id}`);
-          } else {
-            console.log(`[SINGLE-RUN] 🟡 OMITIDO: Ya existe un ticket de revisión hoy para ${store_id}.`);
           }
-          console.log(`========================================\n`);
         } catch (err) {
-          console.error(`\n❌ [SINGLE-RUN - ERROR FATAL EN TICKET]`, err);
-          console.log(`========================================\n`);
+          console.error(`[SINGLE-RUN - ERROR EN TICKET]`, err);
         }
-        // --- FIN: GENERACIÓN DE TICKET ---
 
         res.json({ success: true, data: result });
     } catch (error) {
-        console.error('[ERROR] Single client run:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
 // ======================================================
-// 2. RUTAS DE BÚSQUEDA GENERAL Y DINÁMICAS (HASTA ABAJO)
+// 2. RUTAS DE BÚSQUEDA GENERAL, INGEST (CON IA) Y DINÁMICAS
 // ======================================================
 
-// POST: Registrar métrica individual
+// GET: Obtener Alertas para el Dashboard
+router.get('/alerts', async (req, res) => {
+  try {
+    const alerts = await MetricsRepository.getRecentAlerts();
+    res.status(200).json({ success: true, data: alerts });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 🌟 INGEST PRINCIPAL DEL BOT (AQUÍ OCURRE LA MAGIA DE LA IA A LAS 9 AM)
+router.post('/ingest', async (req, res) => {
+  try {
+    const metricData = req.body;
+    if (!metricData.store_id) return res.status(400).json({ error: 'El campo store_id es obligatorio.' });
+
+    // Si viene la radiografía HTML, es el escaneo de las 9 AM. Disparamos la IA.
+    if (metricData.html_analysis) {
+      const registroAyer = await MetricsRepository.getLastMorningScan(metricData.store_id);
+      
+      if (registroAyer && registroAyer.html_analysis) {
+        const ayer = typeof registroAyer.html_analysis === 'string' ? JSON.parse(registroAyer.html_analysis) : registroAyer.html_analysis;
+        const hoy = typeof metricData.html_analysis === 'string' ? JSON.parse(metricData.html_analysis) : metricData.html_analysis;
+
+        // Importación dinámica Vercel AI SDK
+        const { generateText } = await import('ai');
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        
+        const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY;
+        
+        if (apiKey) {
+          const vercelGateway = createOpenAI({
+            baseURL: 'https://ai-gateway.vercel.sh/v1',
+            apiKey: apiKey,
+          });
+
+          const promptText = `
+Eres el auditor de seguridad y rendimiento de Concorde CRM. 
+Analiza los cambios estructurales en el HTML de la tienda con ID "${metricData.store_id}".
+
+DATOS DEL DÍA ANTERIOR:
+- Nodos DOM: ${ayer.total_dom_nodes}
+- Scripts inyectados: ${ayer.total_scripts}
+- Dominios Externos en Scripts/Iframes: ${ayer.external_domains?.join(', ') || 'Ninguno'}
+
+DATOS DE HOY (9 AM):
+- Nodos DOM: ${hoy.total_dom_nodes}
+- Scripts inyectados: ${hoy.total_scripts}
+- Dominios Externos en Scripts/Iframes: ${hoy.external_domains?.join(', ') || 'Ninguno'}
+- Clases de error en pantalla: ${hoy.error_elements > 0 ? 'Sí (' + hoy.error_elements + ' elementos)' : 'Ninguno'}
+
+REGLAS DE EVALUACIÓN:
+1. Si los nodos DOM cayeron más del 50%, asume que la tienda se rompió (pantalla blanca) -> CRITICAL.
+2. Si los scripts o dominios externos subieron de golpe (ej. +5 nuevos dominios), asume posible inyección maliciosa -> WARNING o CRITICAL.
+3. Si la variación es mínima (±5% en nodos/scripts) y no hay errores, asume que está estable -> INFO.
+
+Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
+{
+  "severity": "INFO" | "WARNING" | "CRITICAL",
+  "type": "PERFORMANCE" | "SECURITY" | "SYSTEM",
+  "message": "Explicación de la anomalía en 1 oración.",
+  "recommendation": "Acción recomendada para el equipo técnico."
+}`;
+
+          try {
+            const { text } = await generateText({
+              model: vercelGateway('openai/gpt-4o-mini'),
+              system: 'Responde siempre en formato JSON puro, sin markdown ni comillas invertidas.',
+              prompt: promptText
+            });
+
+            const cleanJson = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const aiResponse = JSON.parse(cleanJson);
+
+            // Guardar alerta solo si amerita revisión (WARNING o CRITICAL)
+            if (aiResponse.severity !== 'INFO') {
+              await MetricsRepository.createAlert({
+                store_id: metricData.store_id,
+                alert_type: aiResponse.type,
+                severity: aiResponse.severity,
+                message: `${aiResponse.message} Sugerencia: ${aiResponse.recommendation}`,
+                raw_data: JSON.stringify({ ayer, hoy })
+              });
+            }
+          } catch (aiError) {
+            console.error('Error al generar alerta con IA:', aiError.message);
+          }
+        }
+      }
+    }
+
+    const result = await MetricsRepository.create(metricData);
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const metricData = req.body;
@@ -330,7 +376,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET: Obtener todas las métricas
 router.get('/', async (req, res) => {
   try {
     const results = await MetricsRepository.getAll();
@@ -340,7 +385,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET: Obtener métricas por ID de tienda (SIEMPRE DEBE IR AL FINAL DE LOS GETs)
 router.get('/:store_id', async (req, res) => {
   try {
     const storeId = req.params.store_id;

@@ -3,6 +3,7 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const pidusage = require('pidusage');
 const cron = require('node-cron');
+const { escanearEstructuraHtml } = require('./HtmlScanner');
 
 puppeteer.use(StealthPlugin());
 
@@ -317,7 +318,7 @@ async function notificarFinalizacion(
 // 4. ANÁLISIS PRINCIPAL AUTOMATIZADO
 // ============================================================
 
-async function ejecutarAnalisisAutomated() {
+async function ejecutarAnalisisAutomated(isMorningScan = false) {
     if (estaEjecutando) {
         console.log('⚠️ Ya hay un análisis en curso. Solicitud omitida.');
         return { success: false, message: 'Un análisis ya se encuentra en ejecución.' };
@@ -407,6 +408,11 @@ async function ejecutarAnalisisAutomated() {
                     console.log(`[INFO] Analizando DOM en bucle hasta estabilización...`);
                     datosReporte = await extraerMetricasEstables(page, 60000, 2000, 500);
                     console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
+                    
+                    if (isMorningScan) {
+                        const htmlData = await escanearEstructuraHtml(page);
+                        datosReporte.html_analysis = htmlData;
+                    }
                 } catch (evalError) {
                     console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Inyectando métricas dummie numéricas.`);
                     datosReporte = {
@@ -452,7 +458,8 @@ async function ejecutarAnalisisAutomated() {
                     total_weight_mb: parseFloat(datosReporte.peso || 0),
                     total_requests: parseInt(datosReporte.peticiones || 0),
                     ram_core_mb: parseFloat(datosReporte.ramCore || 0),
-                    ram_total_mb: ramTotalMB || parseFloat(datosReporte.ramTotal || 0)
+                    ram_total_mb: ramTotalMB || parseFloat(datosReporte.ramTotal || 0),
+                    html_analysis: datosReporte.html_analysis
                 };
                 const apiResponse = await enviarMetricasAPI(payload);
 
@@ -1244,22 +1251,25 @@ app.get(
 );
 
 // ============================================================
-// 11. CRON
+// 11. CRON (9 AM con HTML, 6 PM sin HTML)
 // ============================================================
 
 cron.schedule(
-    '0 9,18 * * *',
+    '0 9 * * *',
     () => {
-        console.log(
-            '[Cron] Ejecutando análisis automático programado...'
-        );
-
-        ejecutarAnalisisAutomated();
+        console.log('[Cron] Ejecutando análisis automático 9 AM (Con radiografía HTML)...');
+        ejecutarAnalisisAutomated(true);
     },
-    {
-        timezone:
-            'America/Lima'
-    }
+    { timezone: 'America/Lima' }
+);
+
+cron.schedule(
+    '0 18 * * *',
+    () => {
+        console.log('[Cron] Ejecutando análisis automático 6 PM (Solo métricas)...');
+        ejecutarAnalisisAutomated(false);
+    },
+    { timezone: 'America/Lima' }
 );
 
 // ============================================================
@@ -1388,6 +1398,9 @@ async function performPuppeteerAnalysis(targetUrl) {
             console.log(`[INFO] Analizando DOM en bucle hasta estabilización...`);
             pageMetrics = await extraerMetricasEstables(page, 60000, 2000, 500);
             console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
+            
+            const htmlData = await escanearEstructuraHtml(page);
+            pageMetrics.html_analysis = htmlData;
         } catch (evalError) {
             console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Inyectando métricas dummie numéricas.`);
             pageMetrics = {
@@ -1414,7 +1427,8 @@ async function performPuppeteerAnalysis(targetUrl) {
             total_requests: parseInt(pageMetrics.peticiones),
             total_weight_mb: parseFloat(pageMetrics.peso),
             web_flow: 'Real-Browser',
-            status: 'success'
+            status: 'success',
+            html_analysis: pageMetrics.html_analysis
         };
     } finally {
         if (browser) {
@@ -1424,7 +1438,7 @@ async function performPuppeteerAnalysis(targetUrl) {
                     new Promise(resolve => setTimeout(resolve, 5000))
                 ]);
                 console.log(`[INFO] Navegador cerrado correctamente para ${urlLimpia || 'tienda'}.`);
-            } catch (closeError) {
+            } catch (closeError) {  
                 console.warn('⚠️ Error cerrando navegador:', closeError.message);
             }
             

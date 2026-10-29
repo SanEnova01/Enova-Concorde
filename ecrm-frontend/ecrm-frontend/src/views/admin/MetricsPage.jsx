@@ -1,554 +1,258 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Activity, Server, Clock, AlertTriangle, AlertCircle, CheckCircle2, ChevronRight, ActivitySquare } from 'lucide-react';
 import crmApi from '../../api/crmApi';
 
-// 🌟 FUNCIONES EVALUADORAS DE COLOR (SEMAFORIZACIÓN)
 const getLoadColorMs = (ms) => {
-  if (ms === null || ms === undefined) return 'inherit';
+  if (!ms) return '#4b5563';
   const sec = ms / 1000;
-  if (sec < 2.5) return '#16a34a'; // Verde
-  if (sec < 4.0) return '#eab308'; // Amarillo
-  return '#dc2626'; // Rojo
+  if (sec < 2.5) return '#16a34a'; 
+  if (sec < 4.0) return '#eab308'; 
+  return '#dc2626'; 
 };
 
 const getRamColor = (mb) => {
-  if (mb === null || mb === undefined) return 'inherit';
-  if (mb < 150) return '#16a34a'; // Verde
-  if (mb < 300) return '#eab308'; // Amarillo
-  return '#dc2626'; // Rojo
+  if (!mb) return '#4b5563';
+  if (mb < 150) return '#16a34a';
+  if (mb < 300) return '#eab308';
+  return '#dc2626';
 };
 
-function MetricsPage() {
-  const navigate = useNavigate(); // 🌟 HOOK PARA NAVEGACIÓN
-  
+export default function HubMonitorGeneral() {
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState([]);
   const [stores, setStores] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [botStatus, setBotStatus] = useState({ status: 'OFFLINE', minutes_ago: null, is_running: false });
   const [loading, setLoading] = useState(true);
-  const [showPopup, setShowPopup] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-
-  const [activeTab, setActiveTab] = useState('CHARTS'); 
-
-  // Filtros de búsqueda para el historial
-  const [metricsSearchQuery, setMetricsSearchQuery] = useState('');
-  const [filterStartDate, setFilterStartDate] = useState('');
-  const [filterEndDate, setFilterEndDate] = useState('');
-  const [filterStoreId, setFilterStoreId] = useState('ALL');
-
-  const [tableCurrentPage, setTableCurrentPage] = useState(1);
-  const tableItemsPerPage = 10; 
+  const chatBottomRef = useRef(null);
 
   useEffect(() => {
-    setTableCurrentPage(1);
-  }, [metricsSearchQuery, filterStartDate, filterEndDate, filterStoreId]);
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      setIsUploading(true);
-      await crmApi.post('/metrics/upload-csv', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      alert('¡CSV procesado y guardado correctamente!');
-      fetchMetricsData(); 
-    } catch (error) {
-      console.error(error);
-      alert('Error al procesar el archivo CSV.');
-    } finally {
-      setIsUploading(false);
-      e.target.value = null; 
-    }
-  };
-
-  const [chartCurrentPage, setChartCurrentPage] = useState(1);
-  // 🌟 PAGINACIÓN DE TABLERO: 15 (Grid de 5 ancho x 3 alto)
-  const chartStoresPerPage = 15; 
-
-  const [formData, setFormData] = useState({
-    store_id: '',
-    date: new Date().toISOString().split('T')[0], 
-    server_status: 'ONLINE',
-    ram_core_mb: '', 
-    ram_total_mb: '', 
-    web_flow: '',
-    load_s: '', 
-    dom_s: ''   
-  });
-
-  const extraerArreglo = (response) => {
-    if (!response || !response.data) return [];
-    if (Array.isArray(response.data)) return response.data;
-    if (response.data.data && Array.isArray(response.data.data)) return response.data.data;
-    if (response.data.result && Array.isArray(response.data.result)) return response.data.result;
-    return Object.values(response.data).find(val => Array.isArray(val)) || [];
-  };
-
-  const fetchMetricsData = async () => {
-    try {
-      setLoading(true);
-
-      try {
-        const storesRes = await crmApi.get('/stores');
-        const tiendasProcesadas = extraerArreglo(storesRes);
-        setStores(tiendasProcesadas);
-        
-        if (tiendasProcesadas.length > 0) {
-          setFormData(prev => ({ ...prev, store_id: tiendasProcesadas[0].id }));
-        }
-      } catch (e) {
-        console.error("Error al recuperar tiendas:", e);
-      }
-
-      try {
-        const metricsRes = await crmApi.get('/metrics');
-        const metricasProcesadas = extraerArreglo(metricsRes);
-        const sortedMetrics = metricasProcesadas.sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at));
-        setMetrics(sortedMetrics);
-      } catch (e) {
-        console.error("Error al recuperar métricas:", e);
-      }
-
-      setLoading(false);
-    } catch (error) {
-      console.error(error);
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMetricsData();
+    fetchData();
+    const interval = setInterval(fetchData, 60000); 
+    return () => clearInterval(interval);
   }, []);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [alerts]);
 
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.store_id) return;
-
+  const fetchData = async () => {
     try {
-      const dataToSend = {
-        store_id: formData.store_id,
-        date: formData.date, 
-        server_status: formData.server_status,
-        ram_core_mb: parseFloat(formData.ram_core_mb || 0), 
-        ram_total_mb: parseFloat(formData.ram_total_mb || 0), 
-        web_flow: formData.web_flow.trim(),
-        load_s: parseFloat(formData.load_s || 0),   
-        dom_s: parseFloat(formData.dom_s || 0)      
-      };
+      // 1. Obtener status del bot
+      try {
+        const botRes = await crmApi.get('/metrics/bot-status');
+        if (botRes.data.success) {
+          setBotStatus({
+            status: botRes.data.status,
+            minutes_ago: botRes.data.minutes_ago,
+            is_running: botRes.data.is_running
+          });
+        }
+      } catch (e) { console.error("Error status bot", e); }
 
-      const response = await crmApi.post('/metrics', dataToSend);
-      if (response.data.success || response.status === 200 || response.status === 201) {
-        alert('Métricas registradas con éxito.');
-        setShowPopup(false);
-        setFormData(prev => ({ ...prev, ram_core_mb: '', ram_total_mb: '', web_flow: '', load_s: '', dom_s: '' }));
-        fetchMetricsData(); 
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Error al guardar en el servidor.');
+      // 2. Obtener tiendas
+      let tiendasList = [];
+      try {
+        const storeRes = await crmApi.get('/stores');
+        tiendasList = storeRes.data.data || storeRes.data || [];
+        setStores(tiendasList);
+      } catch (e) { console.error("Error tiendas", e); }
+
+      // 3. Obtener métricas históricas
+      try {
+        const metricsRes = await crmApi.get('/metrics');
+        let dataM = metricsRes.data.data || metricsRes.data || [];
+        dataM.sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at));
+        setMetrics(dataM);
+      } catch (e) { console.error("Error métricas", e); }
+
+      // 4. Obtener Alertas Reales de la IA desde la BD
+      try {
+        const alertsRes = await crmApi.get('/metrics/alerts');
+        if (alertsRes.data.success) {
+          // Ordenamos cronológicamente para el chat (más antiguas arriba, nuevas abajo)
+          const dataAlerts = alertsRes.data.data.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          setAlerts(dataAlerts);
+        }
+      } catch (e) { console.error("Error alertas IA", e); }
+
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
     }
   };
 
-  const filteredMetrics = metrics.filter(m => {
-    if (!m) return false;
-    const storeObj = stores.find(s => String(s.id) === String(m.store_id));
-    const nombreTienda = storeObj ? storeObj.name.toLowerCase() : '';
-    const idTienda = m.store_id ? String(m.store_id).toLowerCase() : '';
-    const webFlowText = m.web_flow ? String(m.web_flow).toLowerCase() : '';
-    const query = metricsSearchQuery.toLowerCase().trim();
-
-    const matchesSearch = nombreTienda.includes(query) || idTienda.includes(query) || webFlowText.includes(query);
-    const matchesStore = filterStoreId === 'ALL' || String(m.store_id) === filterStoreId;
-
-    let matchesDate = true;
-    if (m.date || m.created_at) {
-      const metricDate = new Date(m.date || m.created_at).toISOString().split('T')[0];
-      if (filterStartDate && metricDate < filterStartDate) matchesDate = false;
-      if (filterEndDate && metricDate > filterEndDate) matchesDate = false;
-    }
-    return matchesSearch && matchesStore && matchesDate;
-  });
-
-  const indexOfLastTableItem = tableCurrentPage * tableItemsPerPage;
-  const indexOfFirstTableItem = indexOfLastTableItem - tableItemsPerPage;
-  const currentTableMetrics = filteredMetrics.slice(indexOfFirstTableItem, indexOfLastTableItem);
-  const totalTablePages = Math.ceil(filteredMetrics.length / tableItemsPerPage) || 1; 
-
-  const storeChartGroups = stores.map(store => {
+  const activeMonitors = stores.map(store => {
     const storeRecords = metrics.filter(m => String(m.store_id) === String(store.id));
-    
     if (storeRecords.length === 0) return null;
-
-    const validLoad = storeRecords.filter(m => m.load_ms !== null && m.load_ms !== undefined);
-    const validDom = storeRecords.filter(m => m.dom_ms !== null && m.dom_ms !== undefined);
-    const validRamCore = storeRecords.filter(m => m.ram_core_mb !== null && m.ram_core_mb !== undefined);
-    const validRamTotal = storeRecords.filter(m => m.ram_total_mb !== null && m.ram_total_mb !== undefined);
-
-    const avgLoadMs = validLoad.length > 0 ? validLoad.reduce((sum, m) => sum + parseFloat(m.load_ms || 0), 0) / validLoad.length : 0;
-    const avgDomMs = validDom.length > 0 ? validDom.reduce((sum, m) => sum + parseFloat(m.dom_ms || 0), 0) / validDom.length : 0;
-    const avgRamCore = validRamCore.length > 0 ? validRamCore.reduce((sum, m) => sum + parseFloat(m.ram_core_mb || 0), 0) / validRamCore.length : 0;
-    const avgRamTotal = validRamTotal.length > 0 ? validRamTotal.reduce((sum, m) => sum + parseFloat(m.ram_total_mb || 0), 0) / validRamTotal.length : 0;
-
+    
+    const latest = storeRecords[0];
     return {
       id: store.id,
       name: store.name,
-      avgLoadMs,
-      avgDomMs,
-      avgRamCore,
-      avgRamTotal
+      status: latest.server_status || 'ONLINE',
+      loadMs: latest.load_ms,
+      ramTotal: latest.ram_total_mb,
+      ttfb: latest.ttfb_ms,
+      date: latest.date || latest.created_at
     };
-  }).filter(Boolean); 
+  }).filter(Boolean);
 
-  const indexOfLastChartItem = chartCurrentPage * chartStoresPerPage;
-  const indexOfFirstChartItem = indexOfLastChartItem - chartStoresPerPage;
-  const currentChartStores = storeChartGroups.slice(indexOfFirstChartItem, indexOfLastChartItem);
-  const totalChartPages = Math.ceil(storeChartGroups.length / chartStoresPerPage) || 1;
-
-  const renderMiniVu = (value, maxVal, label) => {
-    const safeVal = Number(value) || 0;
-    const angle = Math.min((safeVal / maxVal) * 180, 180) - 90; 
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '85px' }}>
-        <svg viewBox="0 0 100 65" style={{ width: '100%', overflow: 'visible' }}>
-          <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#333" strokeWidth="12" strokeLinecap="round" />
-          <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="url(#vuGradient)" strokeWidth="12" strokeLinecap="round" />
-          
-          <g transform={`rotate(${angle}, 50, 50)`} style={{ transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-            <g style={{ transformOrigin: '50px 50px', animation: 'needleVibrate 0.1s infinite linear alternate' }}>
-              <polygon points="48,50 50,15 52,50" fill="#ffffff" />
-              <circle cx="50" cy="50" r="6" fill="#ffffff" />
-              <circle cx="50" cy="50" r="2" fill="#111111" />
-            </g>
-          </g>
-          <text x="50" y="68" textAnchor="middle" style={{ fontSize: '15px', fontWeight: 'bold', fill: '#FFD700' }}>{Math.round(safeVal)}M</text>
-        </svg>
-        <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#9ca3af', marginTop: '6px', letterSpacing: '1px' }}>{label}</span>
-      </div>
-    );
+  const getSeverityIcon = (severity) => {
+    switch(severity) {
+      case 'CRITICAL': return <AlertTriangle size={16} color="#ef4444" />;
+      case 'WARNING': return <AlertCircle size={16} color="#f59e0b" />;
+      case 'INFO': return <ActivitySquare size={16} color="#3b82f6" />;
+      default: return <ActivitySquare size={16} color="#6b7280" />;
+    }
   };
 
-  if (loading) return <div className="crm-text-loading">Cargando analíticas...</div>;
+  if (loading) return <div className="crm-text-loading" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Sincronizando telemetría del servidor...</div>;
 
   return (
-    <div>
-      <svg style={{ width: 0, height: 0, position: 'absolute' }} aria-hidden="true">
-        <defs>
-          <linearGradient id="vuGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#16a34a" />
-            <stop offset="50%" stopColor="#eab308" />
-            <stop offset="75%" stopColor="#f97316" />
-            <stop offset="100%" stopColor="#dc2626" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <style>
-        {`
-          @keyframes needleVibrate {
-            0% { transform: rotate(-1deg); }
-            25% { transform: rotate(1deg); }
-            50% { transform: rotate(-0.5deg); }
-            75% { transform: rotate(1.5deg); }
-            100% { transform: rotate(0deg); }
-          }
-        `}
-      </style>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#f9fafb', overflow: 'hidden' }}>
+      
+      <div style={{ padding: '16px 24px', backgroundColor: '#ffffff', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '900', color: '#111827', letterSpacing: '-0.5px' }}>Hub General de Monitoreo</h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6b7280' }}>Visión en tiempo real del rendimiento de todas las tiendas de clientes</p>
+        </div>
 
-      <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: '16px' }}>
-        <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Análisis de Rendimiento</h1>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <label className="crm-btn-border" style={{ cursor: 'pointer', opacity: isUploading ? 0.5 : 1 }}>
-            {isUploading ? 'Subiendo...' : 'Cargar CSV Local'}
-            <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileUpload} disabled={isUploading} />
-          </label>
-          <button onClick={() => setShowPopup(true)} className="crm-btn-black">
-            Registro Manual
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', backgroundColor: botStatus.status === 'ONLINE' ? '#ecfdf5' : '#fef2f2', border: `1px solid ${botStatus.status === 'ONLINE' ? '#a7f3d0' : '#fecaca'}`, borderRadius: '6px' }}>
+            <Server size={16} color={botStatus.status === 'ONLINE' ? '#10b981' : '#ef4444'} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: botStatus.status === 'ONLINE' ? '#065f46' : '#991b1b' }}>
+                SCRAPER: {botStatus.status}
+              </span>
+              <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                {botStatus.minutes_ago !== null ? `Último latido hace ${botStatus.minutes_ago} min` : 'Desconectado'}
+              </span>
+            </div>
+          </div>
+          
+          <button onClick={fetchData} className="crm-btn-border" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+            <Activity size={14} /> Refrescar
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #e5e7eb', marginBottom: '24px' }}>
-        <button 
-          onClick={() => setActiveTab('CHARTS')} 
-          style={{ padding: '10px 20px', backgroundColor: activeTab === 'CHARTS' ? '#111' : '#f3f4f6', color: activeTab === 'CHARTS' ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px 6px 0 0', fontWeight: '900', cursor: 'pointer', borderBottom: activeTab === 'CHARTS' ? 'none' : '2px solid #111', marginBottom: '-2px' }}
-        >
-          🎛️ Tablero de Control
-        </button>
-        <button 
-          onClick={() => setActiveTab('HISTORY')} 
-          style={{ padding: '10px 20px', backgroundColor: activeTab === 'HISTORY' ? '#111' : '#f3f4f6', color: activeTab === 'HISTORY' ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px 6px 0 0', fontWeight: '900', cursor: 'pointer', borderBottom: activeTab === 'HISTORY' ? 'none' : '2px solid #111', marginBottom: '-2px' }}
-        >
-          📋 Registros Históricos
-        </button>
-      </div>
-
-      {activeTab === 'CHARTS' && (
-        <div style={{ backgroundColor: '#1a1a1a', padding: '24px', borderRadius: '8px', border: '4px solid #111', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        
+        <div style={{ flex: '1', padding: '24px', overflowY: 'auto', backgroundColor: '#f3f4f6' }}>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #333', paddingBottom: '12px' }}>
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', textTransform: 'uppercase', color: '#e5e7eb', letterSpacing: '1px' }}>
-              Telemetría de Tiendas Activas
-            </h3>
-            <div style={{ display: 'flex', gap: '14px', fontSize: '12px', color: '#9ca3af', fontWeight: 'bold' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ width: '12px', height: '12px', backgroundColor: '#16a34a', borderRadius: '2px' }}></div> Load (s)
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ width: '12px', height: '12px', backgroundColor: '#2563eb', borderRadius: '2px' }}></div> DOM (s)
-              </span>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#374151', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              Nodos de Cliente Activos ({activeMonitors.length})
+            </h2>
           </div>
 
-          {currentChartStores.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#6b7280', padding: '40px 0', fontSize: '14px', fontWeight: 'bold' }}>
-              NO HAY TIENDAS CON MÉTRICAS REGISTRADAS.
-            </div>
-          ) : (
-            // 🌟 GRID ESTRICTO DE 5 COLUMNAS 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
-              {currentChartStores.map(sc => {
-                const avgLoadSec = sc.avgLoadMs / 1000;
-                const avgDomSec = sc.avgDomMs / 1000;
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+            {activeMonitors.map(store => (
+              <div 
+                key={store.id} 
+                onClick={() => navigate(`/admin/clientes/${store.id}`)}
+                style={{ 
+                  backgroundColor: '#ffffff', 
+                  borderRadius: '8px', 
+                  border: '1px solid #e5e7eb', 
+                  padding: '16px', 
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#9ca3af'; e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; }}
+              >
+                <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', color: '#6b7280', fontWeight: 'bold' }}>{store.status}</span>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: store.status === 'ONLINE' ? '#10b981' : '#ef4444' }}></div>
+                </div>
 
-                const hLoad = Math.min((avgLoadSec / 5) * 100, 100);
-                const hDom = Math.min((avgDomSec / 5) * 100, 100);
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: '900', color: '#111827', paddingRight: '60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {store.name}
+                </h3>
 
-                return (
-                  <div 
-                    key={sc.id} 
-                    onClick={() => navigate(`/admin/clientes/${sc.id}`)}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: '2px solid #333', padding: '16px 12px', borderRadius: '8px', backgroundColor: '#222', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'border-color 0.2s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#FFD700'}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = '#333'}
-                  >
-                    
-                    <div style={{ display: 'flex', gap: '16px', height: '100px', alignItems: 'flex-end', justifyContent: 'center', width: '100%', borderBottom: '1px solid #444', paddingBottom: '12px' }}>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '30px', height: '100%', justifyContent: 'flex-end' }}>
-                        <div style={{ height: `${Math.max(hLoad, 6)}%`, backgroundColor: '#16a34a', width: '100%', position: 'relative', borderRadius: '2px 2px 0 0' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e5e7eb', position: 'absolute', top: '-20px', left: '50%', transform: 'translateX(-50%)' }}>
-                            {avgLoadSec.toFixed(1)}s
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '30px', height: '100%', justifyContent: 'flex-end' }}>
-                        <div style={{ height: `${Math.max(hDom, 6)}%`, backgroundColor: '#2563eb', width: '100%', position: 'relative', borderRadius: '2px 2px 0 0' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e5e7eb', position: 'absolute', top: '-20px', left: '50%', transform: 'translateX(-50%)' }}>
-                            {avgDomSec.toFixed(1)}s
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-around', width: '100%', marginTop: '16px', gap: '8px' }}>
-                      {renderMiniVu(sc.avgRamCore, 200, 'RAM CORE')}
-                      {renderMiniVu(sc.avgRamTotal, 500, 'RAM TOTAL')}
-                    </div>
-
-                    <span style={{ fontSize: '12px', marginTop: '16px', textAlign: 'center', fontWeight: 'bold', color: '#FFD700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                      {sc.name}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 'bold' }}>Carga Completa</span>
+                    <span style={{ fontSize: '18px', fontWeight: '900', color: getLoadColorMs(store.loadMs) }}>
+                      {store.loadMs ? (store.loadMs / 1000).toFixed(2) + 's' : '--'}
                     </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
 
-          {totalChartPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', borderTop: '1px solid #333', paddingTop: '16px' }}>
-              <button disabled={chartCurrentPage === 1} onClick={() => setChartCurrentPage(prev => prev - 1)} style={{ backgroundColor: 'transparent', color: '#e5e7eb', border: '1px solid #555', padding: '6px 12px', borderRadius: '4px', cursor: chartCurrentPage === 1 ? 'not-allowed' : 'pointer' }}>Anterior</button>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#9ca3af' }}>Banco de Tiendas: {chartCurrentPage} / {totalChartPages}</span>
-              <button disabled={chartCurrentPage === totalChartPages} onClick={() => setChartCurrentPage(prev => prev + 1)} style={{ backgroundColor: 'transparent', color: '#e5e7eb', border: '1px solid #555', padding: '6px 12px', borderRadius: '4px', cursor: chartCurrentPage === totalChartPages ? 'not-allowed' : 'pointer' }}>Siguiente</button>
-            </div>
-          )}
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 'bold' }}>Memoria RAM</span>
+                    <span style={{ fontSize: '18px', fontWeight: '900', color: getRamColor(store.ramTotal) }}>
+                      {store.ramTotal ? Math.round(store.ramTotal) + 'MB' : '--'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '12px', borderTop: '1px dashed #e5e7eb' }}>
+                  <span style={{ fontSize: '11px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={12}/> Última aud. {new Date(store.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </span>
+                  <ChevronRight size={14} color="#9ca3af" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
 
-      {activeTab === 'HISTORY' && (
-        <div className="crm-card-paper">
-          <h3 className="crm-section-title" style={{ margin: 0, paddingBottom: '16px', border: 'none' }}>Registros Históricos de Rendimiento</h3>
+        <div style={{ width: '400px', backgroundColor: '#ffffff', borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px dotted #111111' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label className="crm-stat-label">Búsqueda (Tienda o Flujo)</label>
-              <input type="text" placeholder="Ej: TiendaCentro" value={metricsSearchQuery} onChange={(e) => setMetricsSearchQuery(e.target.value)} className="crm-input-text" style={{ width: '220px' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label className="crm-stat-label">Tienda</label>
-              <select value={filterStoreId} onChange={(e) => setFilterStoreId(e.target.value)} className="crm-select-dropdown" style={{ width: '200px' }}>
-                <option value="ALL">Todas las tiendas</option>
-                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="crm-stat-label">Desde</label>
-                <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="crm-input-text" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="crm-stat-label">Hasta</label>
-                <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="crm-input-text" />
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', alignItems: 'flex-end', marginLeft: 'auto' }}>
-              <button onClick={() => { setMetricsSearchQuery(''); setFilterStoreId('ALL'); setFilterStartDate(''); setFilterEndDate(''); }} className="crm-btn-border">
-                Limpiar Filtros
-              </button>
-            </div>
+          <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
+            <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Terminal size={16}/> Registro de Alertas IA
+            </h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#6b7280' }}>Detección de anomalías en deltas de rendimiento (9 AM).</p>
           </div>
 
-          <div className="crm-table-container">
-            <table className="crm-table-data">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Tienda / Cliente</th>
-                  <th>RAM Core</th>
-                  <th>RAM Total</th>
-                  <th>Redirect</th>
-                  <th>DNS</th>
-                  <th>TCP</th>
-                  <th>TTFB</th>
-                  <th>DOM</th>
-                  <th>Load</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentTableMetrics.length === 0 ? (
-                  <tr>
-                    <td colSpan="10" className="crm-text-loading">No se encontraron registros indexados en el sistema con esos filtros.</td>
-                  </tr>
-                ) : (
-                  currentTableMetrics.map(m => {
-                    const associatedStore = stores.find(s => String(s.id) === String(m.store_id));
-                    return (
-                      <tr 
-                        key={m.id} 
-                        onClick={() => navigate(`/admin/clientes/${m.store_id}`)}
-                        style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                      >
-                        <td>{m.date ? new Date(m.date).toLocaleDateString() : (m.created_at ? new Date(m.created_at).toLocaleDateString() : '—')}</td>
-                        <td><strong>{associatedStore ? associatedStore.name : m.store_id}</strong></td>
-                        
-                        <td style={{ color: getRamColor(m.ram_core_mb), fontWeight: 'bold' }}>
-                          {m.ram_core_mb !== null && m.ram_core_mb !== undefined ? `${m.ram_core_mb} MB` : '---'}
-                        </td>
-                        <td style={{ color: getRamColor(m.ram_total_mb), fontWeight: 'bold' }}>
-                          {m.ram_total_mb !== null && m.ram_total_mb !== undefined ? `${m.ram_total_mb} MB` : '---'}
-                        </td>
-
-                        <td style={{ color: '#4b5563' }}>{m.redirect_ms !== null && m.redirect_ms !== undefined ? `${m.redirect_ms}ms` : '---'}</td>
-                        <td style={{ color: '#4b5563' }}>{m.dns_ms !== null && m.dns_ms !== undefined ? `${m.dns_ms}ms` : '---'}</td>
-                        <td style={{ color: '#4b5563' }}>{m.tcp_ms !== null && m.tcp_ms !== undefined ? `${m.tcp_ms}ms` : '---'}</td>
-                        <td style={{ color: '#4b5563' }}>{m.ttfb_ms !== null && m.ttfb_ms !== undefined ? `${m.ttfb_ms}ms` : '---'}</td>
-                        
-                        <td style={{ color: getLoadColorMs(m.dom_ms), fontWeight: 'bold' }}>
-                          {m.dom_ms !== null && m.dom_ms !== undefined ? `${(m.dom_ms / 1000).toFixed(3)}s` : '---'}
-                        </td>
-                        <td style={{ color: getLoadColorMs(m.load_ms), fontWeight: 'bold' }}>
-                          {m.load_ms !== null && m.load_ms !== undefined ? `${(m.load_ms / 1000).toFixed(3)}s` : '---'}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#fff' }}>
+            {alerts.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af', textAlign: 'center' }}>
+                <CheckCircle2 size={32} style={{ marginBottom: '8px', opacity: 0.5 }} />
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Sistemas Estables</span>
+                <span style={{ fontSize: '11px' }}>La IA no ha detectado anomalías recientes en el HTML.</span>
+              </div>
+            ) : (
+              alerts.map((alert) => (
+                <div key={alert.id} style={{ display: 'flex', gap: '12px', padding: '12px', backgroundColor: alert.severity === 'CRITICAL' ? '#fef2f2' : alert.severity === 'WARNING' ? '#fffbeb' : '#f0fdf4', border: `1px solid ${alert.severity === 'CRITICAL' ? '#fecaca' : alert.severity === 'WARNING' ? '#fde68a' : '#bbf7d0'}`, borderRadius: '8px' }}>
+                  <div style={{ paddingTop: '2px' }}>
+                    {getSeverityIcon(alert.severity)}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#111827', cursor: 'pointer' }} onClick={() => navigate(`/admin/clientes/${alert.store_id}`)}>
+                        {alert.store_name || `Tienda #${alert.store_id}`}
+                      </span>
+                      <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                        {new Date(alert.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '10px', fontWeight: '900', color: alert.severity === 'CRITICAL' ? '#dc2626' : alert.severity === 'WARNING' ? '#d97706' : '#2563eb' }}>
+                      {alert.alert_type}
+                    </span>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#374151', lineHeight: '1.4' }}>
+                      {alert.message}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={chatBottomRef} />
           </div>
 
-          {totalTablePages > 1 && (
-            <div className="crm-pagination-box" style={{ marginTop: '16px', borderTop: '1px dotted #c8c6c1', paddingTop: '12px' }}>
-              <button disabled={tableCurrentPage === 1} onClick={() => setTableCurrentPage(prev => prev - 1)} className="crm-btn-border">Anterior</button>
-              <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Página {tableCurrentPage} de {totalTablePages}</span>
-              <button disabled={tableCurrentPage === totalTablePages} onClick={() => setTableCurrentPage(prev => prev + 1)} className="crm-btn-border">Siguiente</button>
-            </div>
-          )}
         </div>
-      )}
-
-      {showPopup && (
-        <div className="crm-modal-mask" onClick={() => setShowPopup(false)}>
-          <div className="crm-modal-content" onClick={e => e.stopPropagation()}>
-            <h3 className="crm-section-title" style={{ marginTop: 0 }}>Registro Técnico Diario</h3>
-            
-            <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="crm-stat-label">Tienda / Cliente</label>
-                <select name="store_id" value={formData.store_id} onChange={handleInputChange} className="crm-select-dropdown" required>
-                  {stores.length === 0 ? (
-                    <option value="">Cargando tiendas...</option>
-                  ) : (
-                    stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
-                  )}
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label className="crm-stat-label">Fecha del Registro</label>
-                  <input type="date" name="date" value={formData.date || ''} onChange={handleInputChange} className="crm-input-text" required style={{ width: 'auto' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label className="crm-stat-label">Server Status</label>
-                  <select name="server_status" value={formData.server_status} onChange={handleInputChange} className="crm-select-dropdown">
-                    <option value="ONLINE">ONLINE</option>
-                    <option value="OFFLINE">OFFLINE</option>
-                    <option value="MAINTENANCE">MAINTENANCE</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label className="crm-stat-label">RAM Core (MB)</label>
-                  <input type="number" step="0.01" name="ram_core_mb" value={formData.ram_core_mb} onChange={handleInputChange} className="crm-input-text" placeholder="Ej: 50" required style={{ width: 'auto' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label className="crm-stat-label">RAM Total (MB)</label>
-                  <input type="number" step="0.01" name="ram_total_mb" value={formData.ram_total_mb} onChange={handleInputChange} className="crm-input-text" placeholder="Ej: 250" required style={{ width: 'auto' }} />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label className="crm-stat-label">Web Flow</label>
-                <input type="text" name="web_flow" value={formData.web_flow} onChange={handleInputChange} className="crm-input-text" placeholder="Ej: Ok, Estable..." required style={{ width: 'auto' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label className="crm-stat-label">Load (s)</label>
-                  <input type="number" step="0.001" name="load_s" value={formData.load_s} onChange={handleInputChange} className="crm-input-text" placeholder="Segundos" required style={{ width: 'auto' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label className="crm-stat-label">DOM (s)</label>
-                  <input type="number" step="0.001" name="dom_s" value={formData.dom_s} onChange={handleInputChange} className="crm-input-text" placeholder="Segundos" required style={{ width: 'auto' }} />
-                </div>
-              </div>
-
-              <div className="crm-pagination-box" style={{ marginTop: '16px', justifyContent: 'space-between' }}>
-                <button type="submit" className="crm-btn-black">Guardar Registro</button>
-                <button type="button" onClick={() => setShowPopup(false)} className="crm-btn-red">Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
-
-export default MetricsPage; 

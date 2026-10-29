@@ -4,22 +4,10 @@ class MetricsRepository {
   static async create(metricData) {
     try {
       const {
-        store_id,
-        date,
-        redirect_ms,
-        dns_ms,
-        tcp_ms,
-        ttfb_ms,
-        dom_interactive_ms,
-        dom_ms,
-        load_ms,
-        total_weight_mb,
-        total_requests,
-        ram_core_mb,
-        ram_total_mb,
-        ram_usage,
-        load_s,
-        dom_s
+        store_id, date, redirect_ms, dns_ms, tcp_ms, ttfb_ms,
+        dom_interactive_ms, dom_ms, load_ms, total_weight_mb,
+        total_requests, ram_core_mb, ram_total_mb, ram_usage, load_s, dom_s,
+        html_analysis // 🌟 SE ATRAPA LA RADIOGRAFÍA HTML
       } = metricData;
 
       const [newMetric] = await db('daily_metrics').insert({
@@ -35,67 +23,82 @@ class MetricsRepository {
         total_weight_mb: parseFloat(total_weight_mb) || 0,
         total_requests: parseInt(total_requests) || 0,
         ram_core_mb: parseFloat(ram_core_mb || 0),
-        ram_total_mb: parseFloat(ram_total_mb || ram_usage || 0) 
+        ram_total_mb: parseFloat(ram_total_mb || ram_usage || 0),
+        html_analysis: html_analysis ? JSON.stringify(html_analysis) : null // 🌟 SE GUARDA EN POSTGRES
       }).returning('*');
 
       return newMetric;
     } catch (error) {
-      throw new Error('Error al guardar la métrica en la base de datos: ' + error.message);
+      throw new Error('Error al guardar la métrica: ' + error.message);
     }
   }
 
   static async getAll() {
-    try {
-      return await db('daily_metrics').orderBy('date', 'desc');
-    } catch (error) {
-      throw new Error('Error al obtener todas las métricas: ' + error.message);
-    }
+    return await db('daily_metrics').orderBy('date', 'desc');
   }
 
   static async getAllByStore(storeId) {
+    return await db('daily_metrics').where({ store_id: storeId }).orderBy('date', 'desc');
+  }
+
+  // Se mantiene tu FIX exacto del GROUP BY
+  static async getAggregatedMetrics(storeId, period) {
+    let dateFormat = 'YYYY-MM-DD';
+    if (period === 'monthly') dateFormat = 'YYYY-MM';
+    if (period === 'yearly') dateFormat = 'YYYY';
+
+    let query = db('daily_metrics')
+      .select(
+        db.raw(`TO_CHAR(date, '${dateFormat}') as period_date`),
+        'store_id'
+      )
+      .avg('load_ms as avg_load_ms')
+      .avg('dom_ms as avg_dom_ms')
+      .avg('ram_core_mb as avg_ram_core')
+      .avg('ram_total_mb as avg_ram_total')
+      .avg('ttfb_ms as avg_ttfb_ms')
+      .count('id as total_analyses')
+      .groupByRaw(`TO_CHAR(date, '${dateFormat}'), store_id`)
+      .orderBy('period_date', 'desc');
+
+    if (storeId && storeId !== 'ALL') {
+      query = query.where({ store_id: storeId });
+    }
+    return await query;
+  }
+
+  // ==========================================
+  // NUEVAS FUNCIONES PARA ALERTAS E IA
+  // ==========================================
+  
+  // Obtiene el último escaneo con HTML de una tienda para compararlo
+  static async getLastMorningScan(storeId) {
+    return await db('daily_metrics')
+      .where({ store_id: storeId })
+      .whereNotNull('html_analysis')
+      .orderBy('date', 'desc')
+      .first();
+  }
+
+  static async createAlert(alertData) {
     try {
-      return await db('daily_metrics')
-        .where({ store_id: storeId })
-        .orderBy('date', 'desc');
+      const [newAlert] = await db('system_alerts').insert(alertData).returning('*');
+      return newAlert;
     } catch (error) {
-      throw new Error('Error al obtener las métricas de la tienda: ' + error.message);
+      console.error('Error guardando alerta:', error.message);
+      return null;
     }
   }
 
-  // 🌟 CONSULTAS AGRUPADAS POR PERÍODO (Diario, Mensual, Anual)
-  static async getAggregatedMetrics(storeId, period) {
+  static async getRecentAlerts(limit = 50) {
     try {
-      let dateFormat = 'YYYY-MM-DD';
-      if (period === 'monthly') dateFormat = 'YYYY-MM';
-      if (period === 'yearly') dateFormat = 'YYYY';
-
-      // 1. Iniciamos la consulta
-      let query = db('daily_metrics')
-        .select(
-          db.raw(`TO_CHAR(date, '${dateFormat}') as period_date`),
-          'store_id'
-        )
-        .avg('load_ms as avg_load_ms')
-        .avg('dom_ms as avg_dom_ms')
-        .avg('ram_core_mb as avg_ram_core')
-        .avg('ram_total_mb as avg_ram_total')
-        .avg('ttfb_ms as avg_ttfb_ms')
-        .count('id as total_analyses');
-
-      // 2. 🌟 EL FIX ESTÁ AQUÍ: Usamos groupByRaw para forzar a Postgres a leer ambas columnas
-      query = query.groupByRaw(`TO_CHAR(date, '${dateFormat}'), store_id`);
-
-      // 3. Ordenamos por fecha descendente
-      query = query.orderBy('period_date', 'desc');
-
-      // 4. Aplicamos el filtro de tienda
-      if (storeId && storeId !== 'ALL') {
-        query = query.where({ store_id: storeId });
-      }
-
-      return await query;
+      return await db('system_alerts')
+        .select('system_alerts.*', 'stores.name as store_name')
+        .leftJoin('stores', 'system_alerts.store_id', 'stores.id')
+        .orderBy('created_at', 'desc')
+        .limit(limit);
     } catch (error) {
-      throw new Error('Error al agrupar métricas: ' + error.message);
+      return [];
     }
   }
 }
