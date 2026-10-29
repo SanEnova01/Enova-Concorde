@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Server, Clock, AlertTriangle, AlertCircle, CheckCircle2, ChevronRight, ActivitySquare } from 'lucide-react';
+import { Activity, Server, Clock, AlertTriangle, AlertCircle, CheckCircle2, ChevronRight, ActivitySquare, Terminal } from 'lucide-react';
 import crmApi from '../../api/crmApi';
 
 const getLoadColorMs = (ms) => {
