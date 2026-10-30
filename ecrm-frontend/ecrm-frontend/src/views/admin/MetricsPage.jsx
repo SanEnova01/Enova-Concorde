@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Activity, Server, Clock, AlertTriangle, AlertCircle, 
   CheckCircle2, ChevronRight, Terminal, Search, Filter, 
-  Code, ShieldCheck, ShieldAlert, Globe, Layers, ArrowUpRight
+  Code, ShieldCheck, ShieldAlert, Globe, Layers, ArrowUpRight,
+  Copy, Check, X
 } from 'lucide-react';
 import crmApi from '../../api/crmApi';
 
@@ -17,8 +18,17 @@ export default function HubMonitorGeneral() {
   const [searchTerm, setSearchTerm] = useState('');
   const [planFilter, setPlanFilter] = useState('ALL');
   const [feedFilter, setFeedFilter] = useState('ALL'); // 'ALL' | 'ALERTS' | 'SUCCESS'
+  const [jsonModalData, setJsonModalData] = useState(null);
+  const [copied, setCopied] = useState(false);
   const chatBottomRef = useRef(null);
 
+  const handleCopyJson = () => {
+    if (!jsonModalData) return;
+    const jsonString = JSON.stringify(jsonModalData, null, 2);
+    navigator.clipboard.writeText(jsonString);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 60000); 
@@ -111,7 +121,8 @@ export default function HubMonitorGeneral() {
         totalRequests: latest.total_requests,
         date: latest.date || latest.created_at,
         web_flow: latest.web_flow || 'Real-Browser',
-        html: htmlData
+        html: htmlData,
+        raw_record: latest
       };
     }).filter(Boolean);
   }, [stores, metrics]);
@@ -448,9 +459,53 @@ export default function HubMonitorGeneral() {
                     <Clock size={12} color="#9ca3af" /> {new Date(store.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
 
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#111827', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    Auditoría <ArrowUpRight size={13} />
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setJsonModalData({
+                          store_id: store.id,
+                          store_name: store.name,
+                          plan_type: store.plan_type,
+                          web: store.web,
+                          scanned_at: store.date,
+                          metrics: {
+                            server_status: store.status,
+                            web_flow: store.web_flow,
+                            load_ms: store.loadMs,
+                            dom_ms: store.domMs,
+                            ttfb_ms: store.ttfb,
+                            total_weight_mb: store.totalWeight,
+                            total_requests: store.totalRequests,
+                            ram_core_mb: store.ramCore,
+                            ram_total_mb: store.ramTotal
+                          },
+                          html_analysis: store.html,
+                          raw_db_record: store.raw_record
+                        });
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        backgroundColor: '#f3f4f6',
+                        color: '#111827',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Code size={12} /> JSON
+                    </button>
+
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#111827', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      Auditoría <ArrowUpRight size={13} />
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -580,10 +635,95 @@ export default function HubMonitorGeneral() {
               })
             )}
             <div ref={chatBottomRef} />
-          </div>
-
         </div>
+
       </div>
     </div>
+
+    {/* MODAL DE DATOS COMPLETOS EN FORMATO JSON */}
+    {jsonModalData && (
+      <div 
+        className="crm-modal-mask" 
+        onClick={() => setJsonModalData(null)} 
+        style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <div 
+          className="crm-modal-content" 
+          onClick={(e) => e.stopPropagation()} 
+          style={{ 
+            width: '850px', 
+            maxWidth: '95vw', 
+            maxHeight: '90vh', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            padding: '20px', 
+            backgroundColor: '#ffffff',
+            borderRadius: '10px',
+            border: '2px solid #111827',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+          }}
+        >
+          {/* CABECERA DEL MODAL */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #111827', paddingBottom: '12px', marginBottom: '14px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '900', color: '#111827', textTransform: 'uppercase' }}>
+                Datos Completos de Telemetría // {jsonModalData.store_name}
+              </h3>
+              <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                Capturado: {new Date(jsonModalData.scanned_at).toLocaleString()}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={handleCopyJson}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  backgroundColor: copied ? '#15803d' : '#111827',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? '¡Copiado!' : 'Copiar JSON'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setJsonModalData(null)}
+                style={{
+                  padding: '6px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={16} color="#111827" />
+              </button>
+            </div>
+          </div>
+
+          {/* VISUALIZADOR DE CÓDIGO JSON */}
+          <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #1e293b' }}>
+            <pre style={{ margin: 0, color: '#38bdf8', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.5', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              <code>{JSON.stringify(jsonModalData, null, 2)}</code>
+            </pre>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }
