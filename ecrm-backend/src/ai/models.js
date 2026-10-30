@@ -15,19 +15,16 @@ const PRICING = {
 
 const TASKS = {
   tickets: {
-    primary: process.env.AI_MODEL_TICKETS || HAIKU,
-    fallback: process.env.AI_MODEL_TICKETS_FALLBACK || LUNA,
-    maxOutputTokens: 2500
+    primary: 'openai/gpt-6-luna',
+    fallback: 'openai/gpt-6-luna'
   },
   html_insights: {
-    primary: process.env.AI_MODEL_HTML_INSIGHTS || HAIKU,
-    fallback: process.env.AI_MODEL_HTML_INSIGHTS_FALLBACK || LUNA,
-    maxOutputTokens: 1500
+    primary: 'openai/gpt-6-luna',
+    fallback: 'openai/gpt-6-luna'
   },
   dashboard: {
-    primary: process.env.AI_MODEL_DASHBOARD || LUNA,
-    fallback: process.env.AI_MODEL_DASHBOARD_FALLBACK || HAIKU,
-    maxOutputTokens: 500
+    primary: 'openai/gpt-6-luna',
+    fallback: 'openai/gpt-6-luna'
   }
 };
 
