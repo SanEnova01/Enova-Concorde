@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const { generateJSON, hasAiKey } = require('../ai/models');
 
 /**
  * GET /api/ai/dashboard-summary
@@ -37,7 +38,7 @@ router.get('/dashboard-summary', async (req, res) => {
 
     const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY;
 
-    if (!apiKey) {
+    if (!hasAiKey()) {
       return res.json({
         success: true,
         greeting: `¡Hola, ${userName}!`,
@@ -45,15 +46,6 @@ router.get('/dashboard-summary', async (req, res) => {
         subtext: `Tienes ${contextoBD.total_tickets} tickets registrados y ${contextoBD.total_clientes} clientes activos. (AI Key no detectada)`
       });
     }
-
-    // 3. Carga dinámica del SDK de Vercel (ESM)
-    const { generateText } = await import('ai');
-    const { createOpenAI } = await import('@ai-sdk/openai');
-
-    const vercelGateway = createOpenAI({
-      baseURL: 'https://ai-gateway.vercel.sh/v1',
-      apiKey: apiKey,
-    });
 
     const promptText = `
 Genera un saludo, un titular llamativo y un comentario ejecutivo muy conciso para el banner principal del CRM.
@@ -72,33 +64,26 @@ Responde ÚNICAMENTE en JSON válido con la siguiente estructura:
   "subtext": "Un comentario de 1 o 2 oraciones indicando las tareas críticas pendientes o resaltando la actividad de los clientes."
 }`;
 
-const { text, usage } = await generateText({
-      model: vercelGateway('openai/gpt-4o-mini'),
-      system: 'Eres el copiloto inteligente del CRM Concorde. Tu trabajo es dar reportes ultraconcisos y profesionales al super admin.',
-      prompt: promptText
+    const { data: parsedAiData, model, usage, costUsd } = await generateJSON({
+      task: 'dashboard',
+      module: 'DASHBOARD',
+      system: 'Eres el copiloto inteligente del CRM Concorde. Tu trabajo es dar reportes ultraconcisos y profesionales al super admin. Responde siempre en JSON puro, sin markdown.',
+      prompt: promptText,
+      validate: (j) => {
+        if (!j.greeting || !j.headline || !j.subtext) throw new Error('Respuesta inválida: faltan campos');
+        return j;
+      }
     });
-
-    // 🌟 CONSUMO EXACTO DE TOKENS OBTENIDO DE LA API
-    const promptTokens = usage?.promptTokens || 0;
-    const completionTokens = usage?.completionTokens || 0;
-    const totalTokens = usage?.totalTokens || 0;
-
-    // Costo estimado exacto para gpt-4o-mini ($0.150 por 1M de entrada, $0.600 por 1M de salida)
-    const estimatedCostUsd = ((promptTokens / 1000000) * 0.150) + ((completionTokens / 1000000) * 0.600);
-
-    console.log(`📊 [AI Usage] Entrada: ${promptTokens} | Salida: ${completionTokens} | Total: ${totalTokens} | Costo: $${estimatedCostUsd.toFixed(6)} USD`);
-
-    const cleanJson = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const parsedAiData = JSON.parse(cleanJson);
 
     return res.json({
       success: true,
       data: parsedAiData,
       usage: {
-        prompt_tokens: promptTokens,
-        completion_tokens: completionTokens,
-        total_tokens: totalTokens,
-        estimated_cost_usd: parseFloat(estimatedCostUsd.toFixed(6))
+        model,
+        prompt_tokens: usage.input,
+        completion_tokens: usage.output,
+        total_tokens: usage.total,
+        estimated_cost_usd: parseFloat(costUsd.toFixed(6))
       }
     });
 

@@ -6,6 +6,7 @@ const streamifier = require('streamifier');
 const nodemailer = require('nodemailer');
 const MetricsRepository = require('../repositories/MetricsRepository');
 const db = require('../config/db');
+const HtmlInsights = require('../ai/htmlInsights');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -283,82 +284,18 @@ router.post('/ingest', async (req, res) => {
     const metricData = req.body;
     if (!metricData.store_id) return res.status(400).json({ error: 'El campo store_id es obligatorio.' });
 
-    // Si viene la radiografía HTML, es el escaneo de las 9 AM. Disparamos la IA.
-    if (metricData.html_analysis) {
-      const registroAyer = await MetricsRepository.getLastMorningScan(metricData.store_id);
-      
-      if (registroAyer && registroAyer.html_analysis) {
-        const ayer = typeof registroAyer.html_analysis === 'string' ? JSON.parse(registroAyer.html_analysis) : registroAyer.html_analysis;
-        const hoy = typeof metricData.html_analysis === 'string' ? JSON.parse(metricData.html_analysis) : metricData.html_analysis;
-
-        // Importación dinámica Vercel AI SDK
-        const { generateText } = await import('ai');
-        const { createOpenAI } = await import('@ai-sdk/openai');
-        
-        const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY;
-        
-        if (apiKey) {
-          const vercelGateway = createOpenAI({
-            baseURL: 'https://ai-gateway.vercel.sh/v1',
-            apiKey: apiKey,
-          });
-
-          const promptText = `
-Eres el auditor de seguridad y rendimiento de Concorde CRM. 
-Analiza los cambios estructurales en el HTML de la tienda con ID "${metricData.store_id}".
-
-DATOS DEL DÍA ANTERIOR:
-- Nodos DOM: ${ayer.total_dom_nodes}
-- Scripts inyectados: ${ayer.total_scripts}
-- Dominios Externos en Scripts/Iframes: ${ayer.external_domains?.join(', ') || 'Ninguno'}
-
-DATOS DE HOY (9 AM):
-- Nodos DOM: ${hoy.total_dom_nodes}
-- Scripts inyectados: ${hoy.total_scripts}
-- Dominios Externos en Scripts/Iframes: ${hoy.external_domains?.join(', ') || 'Ninguno'}
-- Clases de error en pantalla: ${hoy.error_elements > 0 ? 'Sí (' + hoy.error_elements + ' elementos)' : 'Ninguno'}
-
-REGLAS DE EVALUACIÓN:
-1. Si los nodos DOM cayeron más del 50%, asume que la tienda se rompió (pantalla blanca) -> CRITICAL.
-2. Si los scripts o dominios externos subieron de golpe (ej. +5 nuevos dominios), asume posible inyección maliciosa -> WARNING o CRITICAL.
-3. Si la variación es mínima (±5% en nodos/scripts) y no hay errores, asume que está estable -> INFO.
-
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{
-  "severity": "INFO" | "WARNING" | "CRITICAL",
-  "type": "PERFORMANCE" | "SECURITY" | "SYSTEM",
-  "message": "Explicación de la anomalía en 1 oración.",
-  "recommendation": "Acción recomendada para el equipo técnico."
-}`;
-
-          try {
-            const { text } = await generateText({
-              model: vercelGateway('openai/gpt-4o-mini'),
-              system: 'Responde siempre en formato JSON puro, sin markdown ni comillas invertidas.',
-              prompt: promptText
-            });
-
-            const cleanJson = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const aiResponse = JSON.parse(cleanJson);
-
-            // Guardar alerta solo si amerita revisión (WARNING o CRITICAL)
-            if (aiResponse.severity !== 'INFO') {
-              await MetricsRepository.createAlert({
-                store_id: metricData.store_id,
-                alert_type: aiResponse.type,
-                severity: aiResponse.severity,
-                message: `${aiResponse.message} Sugerencia: ${aiResponse.recommendation}`,
-                raw_data: JSON.stringify({ ayer, hoy })
-              });
-            }
-          } catch (aiError) {
-            console.error('Error al generar alerta con IA:', aiError.message);
-          }
-        }
-      }
-    }
+    const previousScan = metricData.html_analysis
+      ? await MetricsRepository.getLastMorningScan(metricData.store_id)
+      : null;
 
     const result = await MetricsRepository.create(metricData);
+
+    if (metricData.html_analysis && previousScan) {
+      HtmlInsights.analyzeAndStore({ metricData, previousScan }).catch((err) => {
+        console.error('Error al generar alerta con IA:', err.message);
+      });
+    }
+
     res.status(201).json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

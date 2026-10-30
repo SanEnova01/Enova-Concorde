@@ -2,7 +2,8 @@ const { google } = require('googleapis');
 const TicketRepository = require('../repositories/TicketRepository');
 const db = require('../config/db');
 const cron = require('node-cron'); 
-
+const { generateJSON, hasAiKey } = require('../ai/models');
+const ticketPrompt = require('../ai/ticketPrompt');
 class GmailSyncService {
   constructor() {
     this.oauth2Client = new google.auth.OAuth2(
@@ -259,199 +260,35 @@ console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
     fullConversation,
     from,
     initialStore,
-    allStores,
-    intentos = 2
+    allStores
   ) {
-    const dummyData = {
-      identified_store_id: initialStore
-        ? initialStore.id
-        : 'enova.agency',
+    const fallbackData = ticketPrompt.buildFallback({
+      subject,
+      fullConversation,
+      initialStore
+    });
 
-      priority: 'MEDIUM',
-
-      task_type: 'CONSULTA',
-
-      clean_name:
-        subject || 'Ticket desde Gmail',
-
-      summary:
-        fullConversation ||
-        'Sin descripción',
-
-      quick_solution:
-        'Revisión manual requerida por el equipo técnico.',
-
-      extracted_entities: {
-        order_ids: [],
-        urls_affected: [],
-        error_codes: []
-      },
-
-      action_plan: {
-        hypothesis:
-          'Revisión manual requerida.',
-        investigation_steps: [],
-        missing_info: null
-      }
-    };
-
-    const apiKey =
-      process.env.AI_GATEWAY_API_KEY ||
-      process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      console.warn(
-        '[Vercel AI] Llave no detectada en Variables de Entorno. Procesando con datos dummy.'
-      );
-
-      return dummyData;
+    if (!hasAiKey()) {
+      console.warn('[AI] Llave no detectada en Variables de Entorno. Procesando con datos por defecto.');
+      return fallbackData;
     }
 
     try {
-      const { generateText } =
-        await import('ai');
-
-      const { createOpenAI } =
-        await import('@ai-sdk/openai');
-
-      const vercelGateway = createOpenAI({
-        baseURL:
-          'https://ai-gateway.vercel.sh/v1',
-        apiKey: apiKey
+      const { data } = await generateJSON({
+        task: 'tickets',
+        module: 'GMAIL_SYNC',
+        system: ticketPrompt.buildSystemInstruction({
+          from,
+          storesCatalog: ticketPrompt.buildStoresCatalog(allStores)
+        }),
+        prompt: ticketPrompt.buildUserPrompt({ subject, from, fullConversation }),
+        validate: ticketPrompt.validateAnalysis
       });
 
-      const storesCatalog =
-        allStores
-          .map(
-            (s) =>
-              `- ID: "${s.id}" | Nombre: "${s.name || ''}" | Web: "${s.web || ''}" | Emails: "${s.emails || ''}"`
-          )
-          .join('\n');
-
-      const systemInstruction = `Eres un sistema automatizado de triaje (Soporte Técnico Nivel 3).
-
-Tu función es analizar LA CADENA ENTERA DE CORREOS para entender el problema, identificar exactamente a qué cliente/tienda corresponde el mensaje y devolver un objeto JSON estricto.
-
-IMPORTANTE SOBRE EL RESUMEN:
-- El resumen debe ser autónomo y entendible sin necesidad de leer la cadena original.
-- Resume el problema actual, lo que el cliente solicita, los antecedentes importantes y cualquier acción que ya se haya realizado.
-- No repitas innecesariamente toda la conversación.
-- Máximo 4 oraciones.
-- Debe ser suficientemente claro para que un técnico pueda entender el caso rápidamente.
-
-REGLAS DE IDENTIFICACIÓN DE TIENDA (CRÍTICO):
-1. Analiza el remitente (${from}), el asunto, el cuerpo de los mensajes, las firmas, URLs mencionadas o nombres de marcas/tiendas dentro del texto.
-2. Compara el contenido contra la LISTA DE TIENDAS REGISTRADAS.
-3. Asigna en 'identified_store_id' el ID exacto de la tienda que coincida.
-4. Si el correo viene de un correo genérico (ej: gmail) o de un miembro interno de la agencia pero habla de una tienda específica, asigna la tienda de la que habla.
-5. Si no coincide con ninguna tienda registrada de la lista, asigna 'enova.agency'.
-
-REGLAS GENERALES:
-- NINGÚN texto fuera del JSON.
-- No utilices bloques de código.
-- Idioma: Siempre en Español.
-- Datos faltantes: Si un dato no se menciona, devuelve null.
-- No inventes información que no aparezca en la conversación.
-
-LISTA DE TIENDAS REGISTRADAS EN EL CRM:
-${storesCatalog}
-
-CRITERIOS DE CLASIFICACIÓN EXACTOS:
-- priority: CRITICAL | HIGH | MEDIUM | LOW
-- task_type: BUG_FIX | CAMBIO | CONSULTA | TASK_INTERNA
-
-ESTRUCTURA JSON EXACTA REQUERIDA:
-{
-  "identified_store_id": "El ID exacto de la tienda identificada de la lista o 'enova.agency'",
-  "clean_name": "Formato: '[Módulo/Área] - Descripción del fallo'. Máximo 10 palabras.",
-  "priority": "LOW|MEDIUM|HIGH|CRITICAL",
-  "task_type": "BUG_FIX|TASK_INTERNA|CAMBIO|CONSULTA",
-  "summary": "Resumen técnico completo del estado actual de la conversación. Máximo 4 oraciones.",
-  "quick_solution": "Diagnóstico inicial, confirmación requerida o paso a paso recomendado basado en la tecnología de la tienda.",
-  "extracted_entities": {
-    "order_ids": [],
-    "urls_affected": [],
-    "error_codes": []
-  },
-  "action_plan": {
-    "hypothesis": "Causa raíz técnica más probable.",
-    "investigation_steps": ["Paso 1", "Paso 2"],
-    "missing_info": null
-  }
-}`;
-
-      const userPrompt = `
-ASUNTO DEL THREAD: ${subject}
-REMITENTE INICIAL: ${from}
-
-==================================================
-HISTORIAL COMPLETO DE LA CONVERSACIÓN:
-==================================================
-
-${fullConversation}
-`;
-
-const { text, usage } =
-        await generateText({
-          model:
-            vercelGateway(
-              'openai/gpt-4o-mini'
-            ),
-
-          system: systemInstruction,
-          prompt: userPrompt
-        });
-
-      // 🌟 GUARDAR CONSUMO DE IA EN BD
-      if (usage) {
-        const costUsd = ((usage.promptTokens / 1000000) * 0.150) + ((usage.completionTokens / 1000000) * 0.600);
-        try {
-          await db('ai_usage_logs').insert({
-            module: 'GMAIL_SYNC',
-            prompt_tokens: usage.promptTokens,
-            completion_tokens: usage.completionTokens,
-            total_tokens: usage.totalTokens,
-            cost_usd: costUsd,
-            created_at: new Date()
-          });
-        } catch (e) {
-          console.warn('⚠️ No se pudo registrar log de IA:', e.message);
-        }
-      }
-
-      const responseText =
-        text
-          .replace(/```json/gi, '')
-          .replace(/```/g, '')
-          .trim();
-      return JSON.parse(responseText);
-
+      return data;
     } catch (e) {
-      if (
-        e.message &&
-        e.message.includes('429') &&
-        intentos > 0
-      ) {
-        await new Promise((r) =>
-          setTimeout(r, 2000)
-        );
-
-        return this.analyzeEmailWithAI(
-          subject,
-          fullConversation,
-          from,
-          initialStore,
-          allStores,
-          intentos - 1
-        );
-      }
-
-      console.error(
-        '[Vercel AI Error]:',
-        e.message
-      );
-
-      return dummyData;
+      console.error('[AI Error]:', e.message);
+      return fallbackData;
     }
   }
 // 🌟 FUNCIÓN PARA IMPRIMIR EL REPORTE DIARIO EN CONSOLA
@@ -699,16 +536,13 @@ ${msgBody}
          *
          * Solo guardamos un resumen útil para el técnico.
          */
-        const ticketDescription =
-          `[GMAIL_ID: ${lastMessage.id}]
-Origen: Gmail
-Remitente: ${rawFrom}
-
-📌 RESUMEN DE LA SOLICITUD:
-${aiData.summary || 'Sin resumen disponible.'}
-
-💡 SOLUCIÓN RÁPIDA SUGERIDA:
-${quickSolutionText}`;
+        const ticketDescription = ticketPrompt.renderDescription({
+          gmailId: lastMessage.id,
+          rawFrom,
+          aiData,
+          quickSolutionText,
+          registeredTech: finalStoreInfo.tecnologia
+        });
 
         // 🌟 ATRAPAMOS EL TICKET CREADO PARA SACAR SU ID
         const createdTicket = await TicketRepository.create({
