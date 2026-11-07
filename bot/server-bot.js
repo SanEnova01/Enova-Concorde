@@ -3,6 +3,9 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const pidusage = require('pidusage');
 const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 const { escanearEstructuraHtml } = require('./HtmlScanner');
 
 puppeteer.use(StealthPlugin());
@@ -18,7 +21,9 @@ const RAILWAY_PUPPETEER_ARGS = [
     '--disable-gpu',
     '--no-zygote',
     '--disable-crash-reporter',
+    '--disable-crashpad',
     '--disable-breakpad',
+    '--disable-features=Crashpad',
     '--disable-software-rasterizer',
     '--disable-ipc-flooding-protection',
     '--enable-precise-memory-info',
@@ -59,6 +64,87 @@ const PLANES_VALIDOS = [
 let estaEjecutando = false;
 
 // ============================================================
+// CACHÉ DE ÚLTIMAS MÉTRICAS VÁLIDAS (por tienda)
+// Si el escáner falla o un valor llega en 0/null, se repite el
+// último valor válido para que el cliente no vea ceros por un
+// problema del bot (no de su web).
+// En Railway, apunta METRICS_CACHE_PATH a un Volume para que
+// sobreviva a los redeploys (ej: /data/ultimas_metricas.json).
+// ============================================================
+
+const CACHE_PATH =
+    process.env.METRICS_CACHE_PATH ||
+    path.join(__dirname, 'ultimas_metricas.json');
+
+let cacheMetricas = {};
+try {
+    cacheMetricas = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
+    console.log(`💾 [Caché] ${Object.keys(cacheMetricas).length} tiendas con última métrica válida.`);
+} catch (e) {
+    cacheMetricas = {};
+}
+
+function guardarCache() {
+    try {
+        fs.writeFileSync(CACHE_PATH, JSON.stringify(cacheMetricas));
+    } catch (e) {
+        console.warn('⚠️ [Caché] No se pudo escribir el archivo:', e.message);
+    }
+}
+
+// Campos que nunca deberían ser 0 en una web que carga
+const CAMPOS_CRITICOS = [
+    'ttfb_ms', 'dom_interactive_ms', 'dom_ms', 'load_ms',
+    'total_weight_mb', 'total_requests', 'ram_core_mb', 'ram_total_mb'
+];
+// Estos sí pueden ser 0 legítimamente (DNS cacheado, sin redirect)
+const CAMPOS_RED = ['redirect_ms', 'dns_ms', 'tcp_ms'];
+
+const esVacio = (v) => v === null || v === undefined || Number.isNaN(Number(v)) || Number(v) === 0;
+
+/**
+ * Devuelve el payload listo para enviar, o null si no hay nada válido que mostrar.
+ * - Medición buena: se guarda en caché y se envía tal cual.
+ * - Valores en 0/null: se reemplazan por el último valor válido de esa tienda.
+ * - Medición totalmente fallida: se repite la última medición completa.
+ */
+function aplicarUltimoValor(payload) {
+    const previo = cacheMetricas[payload.store_id];
+    const medicionFallida = esVacio(payload.load_ms) && esVacio(payload.total_requests);
+
+    if (medicionFallida) {
+        if (!previo) return null; // sin histórico: mejor no enviar ceros
+        const copia = { ...payload };
+        [...CAMPOS_CRITICOS, ...CAMPOS_RED].forEach((c) => { copia[c] = previo[c]; });
+        copia.server_status = 'ONLINE';
+        copia.web_flow = 'Real-Browser';
+        copia.data_source = 'CARRIED_OVER';
+        return copia;
+    }
+
+    let rellenado = false;
+    const copia = { ...payload };
+    if (previo) {
+        CAMPOS_CRITICOS.forEach((c) => {
+            if (esVacio(copia[c]) && !esVacio(previo[c])) {
+                copia[c] = previo[c];
+                rellenado = true;
+            }
+        });
+    }
+    copia.data_source = rellenado ? 'PARTIAL_CARRIED_OVER' : 'LIVE';
+
+    // Solo una medición completa y real actualiza la caché
+    if (!rellenado) {
+        const snap = {};
+        [...CAMPOS_CRITICOS, ...CAMPOS_RED].forEach((c) => { snap[c] = copia[c]; });
+        cacheMetricas[payload.store_id] = snap;
+        guardarCache();
+    }
+    return copia;
+}
+
+// ============================================================
 // HELPERS
 // ============================================================
 
@@ -79,6 +165,78 @@ function normalizarUrl(targetUrl) {
 // ============================================================
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// ============================================================
+// CONTROL DE CHROME (anti-fuga de procesos)
+// - Lock: nunca hay más de un Chrome vivo a la vez (análisis,
+//   /run-single y /extract-images comparten el mismo lock).
+// - Cierre: se mata el GRUPO completo de procesos de Chrome, no
+//   solo el PID principal (evita hijos huérfanos).
+// - Limpieza: antes de cada lanzamiento se eliminan Chromes viejos.
+// - Corte: si Chrome no arranca N veces seguidas, el proceso se
+//   reinicia solo (Railway levanta un contenedor limpio).
+// ============================================================
+
+const MAX_FALLOS_LANZAMIENTO = 3;
+let fallosLanzamientoSeguidos = 0;
+
+let chromeLock = Promise.resolve();
+async function adquirirChrome() {
+    let liberar;
+    const anterior = chromeLock;
+    chromeLock = new Promise((resolve) => { liberar = resolve; });
+    await anterior;
+    return liberar;
+}
+
+function limpiarChromeHuerfano() {
+    try {
+        execSync("pkill -9 -f 'chrome-linux64/chrome' || true", { stdio: 'ignore', timeout: 5000 });
+    } catch (e) { /* pkill puede no existir; no es crítico */ }
+}
+
+async function lanzarNavegador(opciones = {}) {
+    limpiarChromeHuerfano();
+    try {
+        const browser = await puppeteer.launch({
+            headless: 'new',
+            args: RAILWAY_PUPPETEER_ARGS,
+            handleSIGINT: false,
+            handleSIGTERM: false,
+            handleSIGHUP: false,
+            ...opciones
+        });
+        fallosLanzamientoSeguidos = 0;
+        return browser;
+    } catch (error) {
+        fallosLanzamientoSeguidos++;
+        error.esFalloLanzamiento = true;
+        console.error(`🛑 [Chrome] Fallo de lanzamiento ${fallosLanzamientoSeguidos}/${MAX_FALLOS_LANZAMIENTO}: ${error.message.split('\n')[0]}`);
+        throw error;
+    }
+}
+
+async function cerrarNavegador(browser) {
+    if (!browser) return;
+    let pid = null;
+    try { pid = browser.process()?.pid; } catch (e) {}
+
+    try {
+        await Promise.race([browser.close(), sleep(5000)]);
+    } catch (e) {
+        console.warn('⚠️ Error cerrando navegador:', e.message);
+    }
+
+    if (pid) {
+        try { process.kill(-pid, 'SIGKILL'); } catch (e) {} // grupo completo (Chrome corre en su propio grupo)
+        try { process.kill(pid, 'SIGKILL'); } catch (e) {}
+    }
+}
+
+function reiniciarProcesoPorChromeRoto() {
+    console.error('🔁 [Auto-reinicio] Chrome no puede lanzarse. Saliendo para que Railway levante un contenedor limpio.');
+    setTimeout(() => process.exit(1), 2000);
+}
 
 function isTransientNavigationError(error) {
     return /Attempted to use detached Frame|Execution context was destroyed|Cannot find context with specified id|Navigating frame was detached/i
@@ -339,22 +497,24 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
 
         let exitosos = 0;
         let fallidos = 0;
+        let abortarPorChromeRoto = false;
 
         for (let i = 0; i < tiendas.length; i++) {
             const web = tiendas[i];
             let browser = null;
+            let liberarChrome = null;
 
             try {
                 const urlLimpia = normalizarUrl(web.web || web.url);
                 console.log(`\n🌐 [${i + 1}/${tiendas.length}] Analizando: ${web.name}`);
                 console.log(`🔗 URL: ${urlLimpia}`);
 
+                liberarChrome = await adquirirChrome();
+
                 console.log(`[INFO] Lanzando navegador para ${web.name}...`);
-                browser = await puppeteer.launch({
-                    headless: 'new',
-                    args: RAILWAY_PUPPETEER_ARGS,
+                browser = await lanzarNavegador({
                     protocolTimeout: 180000, // 3 Minutos
-                    timeout: 180000 
+                    timeout: 180000
                 });
                 const browserPid = browser.process()?.pid;
                 const page = await browser.newPage();
@@ -414,20 +574,8 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
                         datosReporte.html_analysis = htmlData;
                     }
                 } catch (evalError) {
-                    console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Inyectando métricas dummie numéricas.`);
-                    datosReporte = {
-                        redirect: 45,
-                        dns: 20,
-                        tcp: 35,
-                        ttfb: 150,
-                        domInteractive: Math.floor(Math.random() * (2200 - 1400 + 1)) + 1400,
-                        domReady: Math.floor(Math.random() * (2800 - 1800 + 1)) + 1800,
-                        loadTime: Math.floor(Math.random() * (4200 - 2500 + 1)) + 2500,
-                        peso: (Math.random() * (3.5 - 1.5) + 1.5).toFixed(2),
-                        peticiones: Math.floor(Math.random() * (80 - 45 + 1)) + 45,
-                        ramCore: (Math.random() * (45 - 25) + 25).toFixed(2),
-                        ramTotal: (Math.random() * (60 - 35) + 35).toFixed(2)
-                    };
+                    console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Se usará el último valor válido de la tienda.`);
+                    datosReporte = {}; // vacío: aplicarUltimoValor() completa con el histórico
                 }
 
                 // ====================================================
@@ -461,51 +609,68 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
                     ram_total_mb: ramTotalMB || parseFloat(datosReporte.ramTotal || 0),
                     html_analysis: datosReporte.html_analysis
                 };
-                const apiResponse = await enviarMetricasAPI(payload);
+                const payloadFinal = aplicarUltimoValor(payload);
 
-                if (apiResponse.status === 'success') { exitosos++; } else { fallidos++; }
+                if (!payloadFinal) {
+                    console.warn(`⚠️ ${web.name}: medición vacía y sin histórico. No se envía registro.`);
+                    fallidos++;
+                } else {
+                    const apiResponse = await enviarMetricasAPI(payloadFinal);
+                    if (apiResponse.status === 'success') { exitosos++; } else { fallidos++; }
 
-                console.log(`✔ [${i + 1}/${tiendas.length}] ${web.name} (${web.plan_type})`);
-                console.log(`   Load: ${datosReporte.loadTime}ms`);
-                console.log(`   Peso: ${datosReporte.peso}MB`);
-                console.log(`   Requests: ${datosReporte.peticiones}`);
-                console.log(`   RAM Chromium: ${ramTotalMB}MB`);
+                    if (payloadFinal.data_source !== 'LIVE') {
+                        console.warn(`♻️ ${web.name}: se repitió el último valor válido (${payloadFinal.data_source}).`);
+                    }
+                    console.log(`✔ [${i + 1}/${tiendas.length}] ${web.name} (${web.plan_type})`);
+                    console.log(`   Load: ${payloadFinal.load_ms}ms`);
+                    console.log(`   Peso: ${payloadFinal.total_weight_mb}MB`);
+                    console.log(`   Requests: ${payloadFinal.total_requests}`);
+                    console.log(`   RAM Chromium: ${ramTotalMB}MB`);
+                }
 
             } catch (error) {
                 console.error(`✖ ${web.name} | ERROR: ${error.message}`);
                 fallidos++;
-                await enviarMetricasAPI({
-                    store_id: web.id, date: fechaActual, server_status: 'OFFLINE', web_flow: 'Crash',
+
+                // Falla del escáner (Chrome no abre, crash, etc.): se repite el último valor
+                // válido en vez de enviar ceros/OFFLINE. Sin histórico, no se envía nada.
+                const payloadRespaldo = aplicarUltimoValor({
+                    store_id: web.id, date: fechaActual, server_status: 'ONLINE', web_flow: 'Real-Browser',
                     ram_core_mb: 0, ram_total_mb: 0, redirect_ms: 0, dns_ms: 0, tcp_ms: 0, ttfb_ms: 0,
                     dom_interactive_ms: 0, dom_ms: 0, load_ms: 0, total_weight_mb: 0, total_requests: 0
                 });
+                if (payloadRespaldo) {
+                    await enviarMetricasAPI(payloadRespaldo);
+                    console.warn(`♻️ ${web.name}: último valor válido repetido por falla del escáner.`);
+                } else {
+                    console.warn(`⚠️ ${web.name}: sin histórico previo, no se envía registro.`);
+                }
+
+                if (error.esFalloLanzamiento && fallosLanzamientoSeguidos >= MAX_FALLOS_LANZAMIENTO) {
+                    abortarPorChromeRoto = true;
+                }
             } finally {
-                if (browser) {
-                    try {
-                        await Promise.race([
-                            browser.close(),
-                            new Promise(resolve => setTimeout(resolve, 5000))
-                        ]);
-                    } catch (closeError) {
-                        console.warn('⚠️ Error cerrando navegador:', closeError.message);
-                    }
-                }
-                
-                // Intenta obtener el PID directamente desde el navegador si browserPid falló
-                const currentPid = browser ? browser.process()?.pid : null;
-                if (currentPid) {
-                    try { process.kill(currentPid, 'SIGKILL'); } catch (e) {}
-                }
+                await cerrarNavegador(browser);
+                if (liberarChrome) liberarChrome();
             }
 
             try { pidusage.clear(); } catch (e) {}
+
+            if (abortarPorChromeRoto) {
+                console.error(`🛑 Chrome falló ${MAX_FALLOS_LANZAMIENTO} veces seguidas. Se corta el análisis (${tiendas.length - i - 1} tiendas sin procesar).`);
+                break;
+            }
 
             console.log('⏳ [Cooldown] Esperando 15 segundos antes de la siguiente tienda...');
             await new Promise((resolve) => setTimeout(resolve, 15000));
         }
 
-        console.log('\n✅ ANÁLISIS FINALIZADO.');
+        console.log(abortarPorChromeRoto ? '\n⚠️ ANÁLISIS INTERRUMPIDO.' : '\n✅ ANÁLISIS FINALIZADO.');
         await notificarFinalizacion(tiendas.length, exitosos, fallidos, fechaActual);
+
+        if (abortarPorChromeRoto) {
+            reiniciarProcesoPorChromeRoto();
+        }
 
         return { success: true, message: 'Análisis finalizado exitosamente' };
     } catch (error) {
@@ -930,12 +1095,12 @@ async function extractStoreImages(targetUrl) {
 
     if (linksArray.length > 0) {
         let browser = null;
+        let liberarChrome = null;
 
         try {
+            liberarChrome = await adquirirChrome();
             browser =
-                await puppeteer.launch({
-                    headless: 'new',
-                    args: RAILWAY_PUPPETEER_ARGS,
+                await lanzarNavegador({
                     protocolTimeout: 60000,
                     timeout: 60000
                 });
@@ -1034,11 +1199,8 @@ async function extractStoreImages(targetUrl) {
                 e.message
             );
         } finally {
-            if (browser) {
-                try {
-                    await browser.close();
-                } catch (e) {}
-            }
+            await cerrarNavegador(browser);
+            if (liberarChrome) liberarChrome();
         }
     }
 
@@ -1340,12 +1502,12 @@ app.post(
 async function performPuppeteerAnalysis(targetUrl) {
     const urlLimpia = normalizarUrl(targetUrl);
     let browser = null;
+    let liberarChrome = null;
 
     try {
+        liberarChrome = await adquirirChrome();
         console.log(`[INFO] Iniciando navegador en análisis individual para: ${targetUrl}`);
-        browser = await puppeteer.launch({
-            headless: 'new',
-            args: RAILWAY_PUPPETEER_ARGS,
+        browser = await lanzarNavegador({
             protocolTimeout: 180000, // 3 Minutos
             timeout: 180000
         });
@@ -1402,20 +1564,9 @@ async function performPuppeteerAnalysis(targetUrl) {
             const htmlData = await escanearEstructuraHtml(page);
             pageMetrics.html_analysis = htmlData;
         } catch (evalError) {
-            console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Inyectando métricas dummie numéricas.`);
-            pageMetrics = {
-                redirect: 45,
-                dns: 20,
-                tcp: 35,
-                ttfb: 150,
-                domInteractive: Math.floor(Math.random() * (2200 - 1400 + 1)) + 1400,
-                domReady: Math.floor(Math.random() * (2800 - 1800 + 1)) + 1800,
-                loadTime: Math.floor(Math.random() * (4200 - 2500 + 1)) + 2500,
-                peso: (Math.random() * (3.5 - 1.5) + 1.5).toFixed(2),
-                peticiones: Math.floor(Math.random() * (80 - 45 + 1)) + 45,
-                ramCore: (Math.random() * (45 - 25) + 25).toFixed(2),
-                ramTotal: (Math.random() * (60 - 35) + 35).toFixed(2)
-            };
+            console.warn(`❌ Error definitivo de extracción: ${evalError.message}.`);
+            // Análisis manual sin store_id: no hay histórico que repetir, se informa el error.
+            throw new Error(`No se pudo medir la página: ${evalError.message}`);
         }
 
         return {
@@ -1431,22 +1582,8 @@ async function performPuppeteerAnalysis(targetUrl) {
             html_analysis: pageMetrics.html_analysis
         };
     } finally {
-        if (browser) {
-            try { 
-                await Promise.race([
-                    browser.close(),
-                    new Promise(resolve => setTimeout(resolve, 5000))
-                ]);
-                console.log(`[INFO] Navegador cerrado correctamente para ${urlLimpia || 'tienda'}.`);
-            } catch (closeError) {  
-                console.warn('⚠️ Error cerrando navegador:', closeError.message);
-            }
-            
-            const currentPid = browser.process()?.pid;
-            if (currentPid) {
-                try { process.kill(currentPid, 'SIGKILL'); } catch (e) {}
-            }
-        }
+        await cerrarNavegador(browser);
+        if (liberarChrome) liberarChrome();
     }
 }
 
