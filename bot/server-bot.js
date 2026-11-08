@@ -564,18 +564,23 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
                     }
                 }
 
-                try {
+               try {
                     console.log(`[INFO] Analizando DOM en bucle hasta estabilización...`);
                     datosReporte = await extraerMetricasEstables(page, 60000, 2000, 500);
                     console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
-                    
-                    if (isMorningScan) {
-                        const htmlData = await escanearEstructuraHtml(page);
-                        datosReporte.html_analysis = htmlData;
-                    }
                 } catch (evalError) {
                     console.warn(`❌ Error definitivo de extracción: ${evalError.message}. Se usará el último valor válido de la tienda.`);
-                    datosReporte = {}; // vacío: aplicarUltimoValor() completa con el histórico
+                    datosReporte = {};
+                }
+
+                // Asegurar escaneo HTML independiente del de métricas si es de mañana
+                if (isMorningScan) {
+                    try {
+                        const htmlData = await escanearEstructuraHtml(page);
+                        if (htmlData) datosReporte.html_analysis = htmlData;
+                    } catch (htmlErr) {
+                        console.warn(`⚠️ Error aislado al extraer HTML:`, htmlErr.message);
+                    }
                 }
 
                 // ====================================================
