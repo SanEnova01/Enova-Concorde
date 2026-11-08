@@ -1588,8 +1588,13 @@ async function performPuppeteerAnalysis(targetUrl) {
 
         return {
             url: urlLimpia,
+            redirect_ms: parseInt(pageMetrics.redirect || 0),
+            dns_ms: parseInt(pageMetrics.dns || 0),
+            tcp_ms: parseInt(pageMetrics.tcp || 0),
+            ttfb_ms: parseInt(pageMetrics.ttfb || 0),
+            dom_interactive_ms: parseInt(pageMetrics.domInteractive || 0),
+            dom_ms: parseInt(pageMetrics.domReady || 0), // mismo criterio que el escaneo masivo (DOM Ready)
             load_ms: parseInt(pageMetrics.loadTime),
-            dom_ms: parseInt(pageMetrics.domInteractive),
             ram_total_mb: parseFloat(pageMetrics.ramTotal),
             ram_core_mb: parseFloat(pageMetrics.ramCore),
             total_requests: parseInt(pageMetrics.peticiones),

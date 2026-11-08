@@ -220,6 +220,11 @@ router.post('/run-single-client', async (req, res) => {
 
         const newMetric = {
             store_id: store_id,
+            redirect_ms: botData.data.redirect_ms,
+            dns_ms: botData.data.dns_ms,
+            tcp_ms: botData.data.tcp_ms,
+            ttfb_ms: botData.data.ttfb_ms,
+            dom_interactive_ms: botData.data.dom_interactive_ms,
             load_ms: botData.data.load_ms,
             dom_ms: botData.data.dom_ms,
             ram_core_mb: botData.data.ram_core_mb,
@@ -230,7 +235,20 @@ router.post('/run-single-client', async (req, res) => {
             html_analysis: botData.data.html_analysis || null
         };
 
+        // El escaneo anterior se lee ANTES de insertar el nuevo, para poder compararlos
+        const previousScan = newMetric.html_analysis
+            ? await MetricsRepository.getLastMorningScan(store_id)
+            : null;
+
         const result = await MetricsRepository.create(newMetric);
+
+        // Misma ruta de IA que el escaneo masivo (/ingest): compara contra el escaneo previo
+        console.log(`[SINGLE-RUN] store=${store_id} html=${newMetric.html_analysis ? 'SI' : 'NO'} previo=${previousScan ? 'SI' : 'NO'}`);
+        if (newMetric.html_analysis && previousScan) {
+            HtmlInsights.analyzeAndStore({ metricData: newMetric, previousScan }).catch((err) => {
+                console.error('Error al generar alerta con IA (manual):', err.message);
+            });
+        }
 
         // --- GENERACIÓN DE TICKET (ANÁLISIS MANUAL) ---
         try {
