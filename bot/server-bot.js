@@ -573,7 +573,6 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
                     datosReporte = {};
                 }
 
-                // Asegurar escaneo HTML independiente del de métricas si es de mañana
                 if (isMorningScan) {
                     try {
                         const htmlData = await escanearEstructuraHtml(page);
@@ -759,7 +758,7 @@ app.post('/run-force', async (req, res) => {
         });
     }
 
-    ejecutarAnalisisAutomated();
+    ejecutarAnalisisAutomated(true);
 
     res.json({
         success: true,
