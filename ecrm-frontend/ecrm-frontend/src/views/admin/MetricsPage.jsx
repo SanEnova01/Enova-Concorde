@@ -97,14 +97,15 @@ export default function HubMonitorGeneral() {
     }
   };
 
-  // Consolidar última telemetría con estructura HTML
+// Consolidar última telemetría con estructura HTML
   const activeMonitors = useMemo(() => {
     return stores.map(store => {
       const storeRecords = metrics.filter(m => String(m.store_id) === String(store.id));
       if (storeRecords.length === 0) return null;
       
       const latest = storeRecords[0];
-      const htmlData = parseJsonSafe(latest.html_analysis);
+      const latestWithHtml = storeRecords.find(m => m.html_analysis) || latest;
+      const htmlData = parseJsonSafe(latestWithHtml.html_analysis);
 
       return {
         id: store.id,
@@ -122,7 +123,7 @@ export default function HubMonitorGeneral() {
         date: latest.date || latest.created_at,
         web_flow: latest.web_flow || 'Real-Browser',
         html: htmlData,
-        raw_record: latest
+        raw_record: latestWithHtml
       };
     }).filter(Boolean);
   }, [stores, metrics]);
