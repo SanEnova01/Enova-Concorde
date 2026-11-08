@@ -284,6 +284,8 @@ router.post('/ingest', async (req, res) => {
     const metricData = req.body;
     if (!metricData.store_id) return res.status(400).json({ error: 'El campo store_id es obligatorio.' });
 
+    console.log(`[INGEST] store=${metricData.store_id} html=${metricData.html_analysis ? 'SI' : 'NO'} source=${metricData.data_source || '-'}`);
+
     const previousScan = metricData.html_analysis
       ? await MetricsRepository.getLastMorningScan(metricData.store_id)
       : null;
@@ -298,6 +300,7 @@ router.post('/ingest', async (req, res) => {
 
     res.status(201).json({ success: true, data: result });
   } catch (error) {
+    console.error('[INGEST] Error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

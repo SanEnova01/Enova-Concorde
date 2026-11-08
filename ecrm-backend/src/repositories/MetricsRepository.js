@@ -76,6 +76,7 @@ class MetricsRepository {
     return await db('daily_metrics')
       .where({ store_id: storeId })
       .whereNotNull('html_analysis')
+      .whereRaw("(html_analysis::jsonb)->>'tech' IS NOT NULL") // ignora registros sin radiografía real
       .orderBy('date', 'desc')
       .first();
   }

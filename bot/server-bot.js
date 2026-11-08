@@ -408,7 +408,8 @@ async function obtenerTiendasFiltradas() {
 
 async function enviarMetricasAPI(payload) {
     try {
-        const response = await fetch(`${API_BASE_URL}/ingest`, {
+        // FIX: la ruta real vive en el router de métricas (/api/metrics/ingest)
+        const response = await fetch(`${API_BASE_URL}/metrics/ingest`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -417,15 +418,20 @@ async function enviarMetricasAPI(payload) {
             body: JSON.stringify(payload)
         });
 
-        const data = await response.json();
+        let data = null;
+        try { data = await response.json(); } catch (e) { /* respuesta no JSON */ }
 
-        return data.success
-            ? { status: 'success' }
-            : {
-                  status: 'error',
-                  message: data.error
-              };
+        if (!response.ok || !data || !data.success) {
+            console.error(
+                `❌ [Ingest] HTTP ${response.status} para store ${payload.store_id}:`,
+                (data && data.error) || 'respuesta inválida'
+            );
+            return { status: 'error', message: (data && data.error) || `HTTP ${response.status}` };
+        }
+
+        return { status: 'success' };
     } catch (error) {
+        console.error('❌ [Ingest] Error de red:', error.message);
         return {
             status: 'network_error',
             message: error.message
@@ -564,7 +570,7 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
                     }
                 }
 
-               try {
+              try {
                     console.log(`[INFO] Analizando DOM en bucle hasta estabilización...`);
                     datosReporte = await extraerMetricasEstables(page, 60000, 2000, 500);
                     console.log(`✅ Extracción exitosa. El Frame se estabilizó.`);
@@ -573,10 +579,17 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
                     datosReporte = {};
                 }
 
+                // Radiografía HTML solo en el escaneo de la mañana (o forzado manualmente)
+                datosReporte.html_analysis = null;
                 if (isMorningScan) {
                     try {
                         const htmlData = await escanearEstructuraHtml(page);
-                        if (htmlData) datosReporte.html_analysis = htmlData;
+                        if (htmlData) {
+                            datosReporte.html_analysis = htmlData;
+                            console.log(`🧬 [HTML] Radiografía OK: ${htmlData.total_dom_nodes} nodos, tech=${htmlData.tech}`);
+                        } else {
+                            console.warn(`⚠️ [HTML] escanearEstructuraHtml devolvió null para ${web.name}`);
+                        }
                     } catch (htmlErr) {
                         console.warn(`⚠️ Error aislado al extraer HTML:`, htmlErr.message);
                     }
@@ -611,7 +624,7 @@ async function ejecutarAnalisisAutomated(isMorningScan = false) {
                     total_requests: parseInt(datosReporte.peticiones || 0),
                     ram_core_mb: parseFloat(datosReporte.ramCore || 0),
                     ram_total_mb: ramTotalMB || parseFloat(datosReporte.ramTotal || 0),
-                    html_analysis: datosReporte.html_analysis
+                    html_analysis: datosReporte.html_analysis || null
                 };
                 const payloadFinal = aplicarUltimoValor(payload);
 
