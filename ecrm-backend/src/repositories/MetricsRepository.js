@@ -24,7 +24,7 @@ class MetricsRepository {
         total_requests: parseInt(total_requests) || 0,
         ram_core_mb: parseFloat(ram_core_mb || 0),
         ram_total_mb: parseFloat(ram_total_mb || ram_usage || 0),
-        html_analysis: html_analysis ? JSON.stringify(html_analysis) : null // 🌟 SE GUARDA EN POSTGRES
+        html_analysis: typeof html_analysis === 'object' && html_analysis !== null ? JSON.stringify(html_analysis) : (html_analysis || null)
       }).returning('*');
 
       return newMetric;
