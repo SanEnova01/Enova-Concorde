@@ -296,6 +296,28 @@ router.get('/alerts', async (req, res) => {
   }
 });
 
+// POST: marcar una alerta como atendida
+router.post('/alerts/:id/resolve', async (req, res) => {
+  try {
+    const by = req.user?.email || req.body?.resolved_by || null;
+    const row = await MetricsRepository.resolveAlert(req.params.id, by);
+    res.status(200).json({ success: true, data: row });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST: marcar todas las alertas abiertas de una tienda como atendidas
+router.post('/alerts/resolve-store/:store_id', async (req, res) => {
+  try {
+    const by = req.user?.email || req.body?.resolved_by || null;
+    const count = await MetricsRepository.resolveStoreAlerts(req.params.store_id, by);
+    res.status(200).json({ success: true, resolved: count });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 🌟 INGEST PRINCIPAL DEL BOT (AQUÍ OCURRE LA MAGIA DE LA IA A LAS 9 AM)
 router.post('/ingest', async (req, res) => {
   try {

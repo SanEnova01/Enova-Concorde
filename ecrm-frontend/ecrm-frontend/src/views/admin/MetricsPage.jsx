@@ -63,6 +63,49 @@ const parseHtmlValido = (raw) => {
 const normalizarPlan = (store) =>
   String(store.plan_type || store.plan || '').toUpperCase().trim();
 
+// ============================================================
+// CICLO DE VIDA DE LAS ALERTAS IA
+// La IA compara escaneos (eventos). Un evento NO es un estado permanente.
+//   OPEN       -> alerta del último escaneo con radiografía y que sigue "empeorando". Cuenta como URGENTE.
+//   RECOVERY   -> el último escaneo es igual o mejor que el anterior: la alerta describe un cambio que ya se corrigió.
+//   INFO       -> severidad informativa, no urgente.
+//   SUPERSEDED -> anterior al último escaneo con radiografía: ya hay datos más nuevos.
+//   RESOLVED   -> alguien la marcó como atendida (resolved_at).
+// Solo OPEN suma a la urgencia. El resto queda como historial.
+// ============================================================
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
+
+// true si el escaneo actual NO es peor que el previo y mejora al menos una métrica
+const esRecuperacion = (cur, prev, ttfbCur, ttfbPrev) => {
+  if (!cur || !prev) return false;
+  const keys = ['error_elements', 'total_dom_nodes', 'total_scripts', 'total_iframes', 'blocking_scripts'];
+  let mejora = false;
+  for (const k of keys) {
+    const c = num(cur[k]);
+    const p = num(prev[k]);
+    if (c > p) return false;
+    if (c < p) mejora = true;
+  }
+  const prevDom = new Set(prev.external_domains || []);
+  if ((cur.external_domains || []).some(d => !prevDom.has(d))) return false;
+  const prevPl = new Set(prev.plugins || []);
+  if ((cur.plugins || []).some(d => !prevPl.has(d))) return false;
+  if (ttfbPrev > 0 && ttfbCur > ttfbPrev * 1.3 && ttfbCur - ttfbPrev > 300) return false;
+  return mejora || num(cur.error_elements) === 0;
+};
+
+const clasificarAlerta = (alert, ctx) => {
+  if (alert.resolved_at) return 'RESOLVED';
+  const sev = String(alert.severity || '').toUpperCase();
+  const tipo = String(alert.alert_type || '').toUpperCase();
+  const created = new Date(alert.created_at).getTime();
+  if (ctx.scanTime && created < ctx.scanTime - 2 * 60 * 1000) return 'SUPERSEDED';
+  if (['INFO', 'LOW', 'SUCCESS'].includes(sev)) return 'INFO';
+  if (/RECUP|RESUELT|NORMALIZ|RESTAUR|MEJOR/.test(tipo)) return 'RECOVERY';
+  if (ctx.recuperado) return 'RECOVERY';
+  return 'OPEN';
+};
+
 export default function HubMonitorGeneral() {
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState([]);
@@ -85,6 +128,24 @@ export default function HubMonitorGeneral() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+  // Marcar alertas como atendidas (optimista; si el endpoint falla se revierte)
+  const marcarAtendidas = async (url, matches) => {
+    const previo = alerts;
+    const ahora = new Date().toISOString();
+    setAlerts(prev => prev.map(a => (matches(a) && !a.resolved_at ? { ...a, resolved_at: ahora } : a)));
+    try {
+      await crmApi.post(url, {});
+    } catch (e) {
+      console.error('Error al marcar alerta como atendida', e);
+      setAlerts(previo);
+      window.alert('No se pudo marcar como atendida. Verifica que el endpoint exista en el backend.');
+    }
+  };
+  const resolverAlerta = (alertId) =>
+    marcarAtendidas(`/metrics/alerts/${alertId}/resolve`, a => String(a.id) === String(alertId));
+  const resolverTienda = (storeId) =>
+    marcarAtendidas(`/metrics/alerts/resolve-store/${storeId}`, a => String(a.store_id) === String(storeId));
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 60000); 
@@ -163,10 +224,27 @@ export default function HubMonitorGeneral() {
 
       // 1) Alertas de la IA vigentes: las generadas desde el último escaneo con radiografía
       const scanTime = new Date(latestWithHtml.date || latestWithHtml.created_at).getTime();
-      const alertasVigentes = alerts.filter(a =>
-        String(a.store_id) === String(store.id) &&
-        new Date(a.created_at).getTime() >= scanTime - 2 * 60 * 1000
+      const prevHtmlRecord = storeRecords
+        .slice(storeRecords.indexOf(latestWithHtml) + 1)
+        .find(m => parseHtmlValido(m.html_analysis));
+      const recuperado = esRecuperacion(
+        htmlData,
+        prevHtmlRecord ? parseHtmlValido(prevHtmlRecord.html_analysis) : null,
+        num(latestWithHtml.ttfb_ms),
+        prevHtmlRecord ? num(prevHtmlRecord.ttfb_ms) : 0
       );
+
+      const alertStatus = {};
+      const alertasVigentes = [];
+      const recuperaciones = [];
+      alerts
+        .filter(a => String(a.store_id) === String(store.id))
+        .forEach(a => {
+          const st = clasificarAlerta(a, { scanTime, recuperado });
+          alertStatus[a.id] = st;
+          if (st === 'OPEN') alertasVigentes.push(a);
+          if (st === 'RECOVERY') recuperaciones.push(a);
+        });
       alertasVigentes.forEach(a => {
         addReason('CRITICAL', 'IA', a.message || a.alert_type || 'Alerta detectada por la IA');
       });
@@ -229,6 +307,10 @@ export default function HubMonitorGeneral() {
         name: store.name,
         plan_type: plan,
         urgency: { level, score, reasons, ai_alerts: alertasVigentes.length },
+        alertStatus,
+        recoveries: recuperaciones,
+        html_date: latestWithHtml.date || latestWithHtml.created_at,
+        html_is_stale: latestWithHtml !== latest,
         web: store.web || store.url || '',
         status: latest.server_status || 'ONLINE',
         loadMs: latest.load_ms,
@@ -253,12 +335,20 @@ export default function HubMonitorGeneral() {
     // Solo tiendas visibles (planes permitidos con métricas)
     const idsVisibles = new Set(activeMonitors.map(m => String(m.id)));
 
-    // Alertas de la BD: todo lo que reconoce la IA se muestra en rojo
+    // Estado de cada alerta según el ciclo de vida calculado por tienda
+    const statusById = {};
+    activeMonitors.forEach(m => Object.assign(statusById, m.alertStatus));
+    const SEV_BY_STATUS = { OPEN: 'CRITICAL', RECOVERY: 'SUCCESS', INFO: 'INFO', SUPERSEDED: 'HISTORY', RESOLVED: 'HISTORY' };
+
+    // Alertas de la BD: solo las abiertas van en rojo; el resto es historial
     alerts.filter(a => idsVisibles.has(String(a.store_id))).forEach(alert => {
+      const status = statusById[alert.id] || 'SUPERSEDED';
       list.push({
         id: `alert-${alert.id}`,
+        alert_id: alert.id,
+        status,
         type: 'AI_ALERT',
-        severity: 'CRITICAL', // la severidad original de la IA se conserva en original_severity
+        severity: SEV_BY_STATUS[status],
         original_severity: alert.severity,
         alert_type: alert.alert_type,
         store_id: alert.store_id,
@@ -288,6 +378,7 @@ export default function HubMonitorGeneral() {
 
     list.sort((a, b) => a.timestamp - b.timestamp);
 
+    if (feedFilter === 'OPEN') return list.filter(item => item.status === 'OPEN');
     if (feedFilter === 'ALERTS') return list.filter(item => item.type === 'AI_ALERT');
     if (feedFilter === 'SUCCESS') return list.filter(item => item.severity === 'SUCCESS');
     return list;
@@ -491,6 +582,22 @@ export default function HubMonitorGeneral() {
                     {store.urgency.reasons.length > 3 && (
                       <span style={{ fontSize: '10px', color: '#6b7280' }}>+{store.urgency.reasons.length - 3} motivo(s) más</span>
                     )}
+                    {store.urgency.ai_alerts > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); resolverTienda(store.id); }}
+                        style={{ alignSelf: 'flex-start', marginTop: '2px', fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '4px', border: '1px solid #d1d5db', backgroundColor: '#ffffff', color: '#374151', cursor: 'pointer' }}
+                      >
+                        ✓ Marcar alertas IA como atendidas
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Alertas corregidas: el último escaneo ya no empeora respecto al anterior */}
+                {store.recoveries.length > 0 && store.urgency.ai_alerts === 0 && (
+                  <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', color: '#166534' }}>
+                    ✓ Corregido: el último escaneo mejoró frente al anterior.
                   </div>
                 )}
 
@@ -569,6 +676,9 @@ export default function HubMonitorGeneral() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ fontSize: '10px', fontWeight: '800', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Code size={12} color="#4b5563" /> Radiografía DOM & HTML
+                      <span style={{ fontWeight: '600', color: '#9ca3af', textTransform: 'none', letterSpacing: 0 }}>
+                        · {store.html_date ? new Date(store.html_date).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--'}{store.html_is_stale ? ' (no es el último escaneo)' : ''}
+                      </span>
                     </span>
 
                     {/* INDICADOR DE ERRORES CON COLOR */}
@@ -723,7 +833,13 @@ export default function HubMonitorGeneral() {
               >
                 Todos
               </button>
-              <button 
+              <button
+                onClick={() => setFeedFilter('OPEN')}
+                style={{ flex: 1, padding: '4px 8px', fontSize: '10px', fontWeight: '700', borderRadius: '4px', border: '1px solid #fecaca', backgroundColor: feedFilter === 'OPEN' ? '#991b1b' : '#ffffff', color: feedFilter === 'OPEN' ? '#ffffff' : '#991b1b', cursor: 'pointer' }}
+              >
+                Abiertas
+              </button>
+              <button
                 onClick={() => setFeedFilter('ALERTS')}
                 style={{ flex: 1, padding: '4px 8px', fontSize: '10px', fontWeight: '700', borderRadius: '4px', border: '1px solid #fecaca', backgroundColor: feedFilter === 'ALERTS' ? '#dc2626' : '#fef2f2', color: feedFilter === 'ALERTS' ? '#ffffff' : '#991b1b', cursor: 'pointer' }}
               >
@@ -751,12 +867,16 @@ export default function HubMonitorGeneral() {
                 const isCritical = item.severity === 'CRITICAL';
                 const isWarning = item.severity === 'WARNING';
                 const isSuccess = item.severity === 'SUCCESS';
+                const isHistory = item.severity === 'HISTORY';
 
                 let cardBg = '#ffffff';
                 let borderColor = '#e5e7eb';
                 let tagColor = { bg: '#f3f4f6', text: '#374151' };
 
-                if (isCritical) {
+                if (isHistory) {
+                  cardBg = '#f9fafb';
+                  borderColor = '#e5e7eb';
+                } else if (isCritical) {
                   cardBg = '#fef2f2';
                   borderColor = '#fecaca';
                   tagColor = { bg: '#fee2e2', text: '#991b1b' };
@@ -780,14 +900,15 @@ export default function HubMonitorGeneral() {
                       backgroundColor: cardBg, 
                       border: `1px solid ${borderColor}`, 
                       borderRadius: '8px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                      opacity: isHistory ? 0.65 : 1
                     }}
                   >
                     <div style={{ paddingTop: '2px' }}>
                       {isCritical && <AlertTriangle size={15} color="#dc2626" />}
                       {isWarning && <AlertCircle size={15} color="#d97706" />}
                       {isSuccess && <CheckCircle2 size={15} color="#16a34a" />}
-                      {!isCritical && !isWarning && !isSuccess && <Activity size={15} color="#2563eb" />}
+                      {!isCritical && !isWarning && !isSuccess && <Activity size={15} color={isHistory ? '#9ca3af' : '#2563eb'} />}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
@@ -807,6 +928,20 @@ export default function HubMonitorGeneral() {
                         <span style={{ fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', backgroundColor: tagColor.bg, color: tagColor.text }}>
                           {item.alert_type}
                         </span>
+                        {item.type === 'AI_ALERT' && item.status !== 'OPEN' && (
+                          <span style={{ fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', backgroundColor: item.status === 'RECOVERY' ? '#dcfce7' : '#e5e7eb', color: item.status === 'RECOVERY' ? '#166534' : '#4b5563' }}>
+                            {{ RECOVERY: 'Corregido', INFO: 'Info', SUPERSEDED: 'Histórica', RESOLVED: 'Atendida' }[item.status]}
+                          </span>
+                        )}
+                        {item.status === 'OPEN' && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); resolverAlerta(item.alert_id); }}
+                            style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '700', padding: '1px 7px', borderRadius: '4px', border: '1px solid #d1d5db', backgroundColor: '#ffffff', color: '#374151', cursor: 'pointer' }}
+                          >
+                            ✓ Marcar atendida
+                          </button>
+                        )}
                       </div>
 
                       <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#374151', lineHeight: '1.4' }}>

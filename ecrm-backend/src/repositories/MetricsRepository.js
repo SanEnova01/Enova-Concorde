@@ -102,6 +102,24 @@ class MetricsRepository {
       return [];
     }
   }
+
+  // Marca UNA alerta como atendida
+  static async resolveAlert(id, by = null) {
+    const [row] = await db('system_alerts')
+      .where({ id })
+      .whereNull('resolved_at')
+      .update({ resolved_at: db.fn.now(), resolved_by: by })
+      .returning('*');
+    return row || null;
+  }
+
+  // Marca TODAS las alertas abiertas de una tienda como atendidas
+  static async resolveStoreAlerts(storeId, by = null) {
+    return db('system_alerts')
+      .where({ store_id: storeId })
+      .whereNull('resolved_at')
+      .update({ resolved_at: db.fn.now(), resolved_by: by });
+  }
 }
 
 module.exports = MetricsRepository;
