@@ -6,46 +6,48 @@ const PLANES_ELEGIBLES = ['go', 'growth', 'scale', 'escale', 'scale_plus', 'warr
 
 // ============================================================
 // FILTRO "MIS TIENDAS / TODAS"
-// AJUSTA ESTAS DOS CONSTANTES SI TU BD USA OTROS NOMBRES:
-//  - STORE_ASSIGN_FIELDS: campos de la tienda que dicen a quién está asignada
-//  - USER_STORAGE_KEYS:   dónde guarda el login al usuario actual (localStorage)
+// - Usuario actual: se decodifica del JWT guardado en localStorage('crm_token').
+// - Asignación: se detectan automáticamente los campos de la tienda cuyo nombre
+//   parezca de asignación (assigned*, asignad*, manager, responsable, owner, agent, user...).
+//   Si tu campo tiene otro nombre, agrégalo a EXTRA_ASSIGN_FIELDS.
 // ============================================================
-const STORE_ASSIGN_FIELDS = [
-  'assigned_to', 'assigned_user_id', 'assigned_user', 'assigned_agent', 'assigned_to_id',
-  'account_manager', 'account_manager_id', 'responsible_id', 'responsible', 'owner_id', 'user_id'
-];
-const USER_STORAGE_KEYS = ['user', 'crm_user', 'userInfo', 'currentUser', 'authUser'];
+const EXTRA_ASSIGN_FIELDS = [];
+const ASSIGN_KEY_REGEX = /assign|asign|manager|respons|owner|agent|encarg|executive|ejecutiv|cuenta|csm|user/i;
+const IGNORED_KEYS = new Set(['emails', 'email', 'created_by', 'updated_by']);
 
 const getCurrentUser = () => {
-  for (const key of USER_STORAGE_KEYS) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const u = parsed?.user || parsed;
-      if (u && typeof u === 'object' && (u.id || u.email || u.name)) return u;
-    } catch { /* ignorar */ }
-  }
-  return null;
+  try {
+    const token = localStorage.getItem('crm_token');
+    if (!token) return null;
+    const payload = JSON.parse(window.atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return payload || null;
+  } catch { return null; }
 };
 
 const norm = (v) => String(v ?? '').toLowerCase().trim();
+const userIdentifiers = (user) =>
+  [user?.id, user?.user_id, user?.sub, user?.email, user?.name, user?.username].filter(Boolean).map(norm);
+
+const assignKeys = (store) =>
+  Object.keys(store).filter(k =>
+    !IGNORED_KEYS.has(k) && (EXTRA_ASSIGN_FIELDS.includes(k) || ASSIGN_KEY_REGEX.test(k))
+  );
 
 // ¿Este valor de asignación (id, email, nombre, objeto o lista) corresponde al usuario?
-const valueMatchesUser = (val, user) => {
+const valueMatchesUser = (val, ids) => {
   if (val === null || val === undefined || val === '') return false;
-  if (Array.isArray(val)) return val.some(v => valueMatchesUser(v, user));
-  if (typeof val === 'object') {
-    return [val.id, val.user_id, val.email, val.name].some(x => x !== undefined && [user.id, user.email, user.name].filter(Boolean).map(norm).includes(norm(x)));
-  }
-  return [user.id, user.email, user.name].filter(Boolean).map(norm).includes(norm(val));
+  if (Array.isArray(val)) return val.some(v => valueMatchesUser(v, ids));
+  if (typeof val === 'object') return [val.id, val.user_id, val.email, val.name].some(x => x !== undefined && x !== null && ids.includes(norm(x)));
+  return ids.includes(norm(val));
 };
 
-const isAssignedToUser = (store, user) =>
-  !!user && STORE_ASSIGN_FIELDS.some(f => valueMatchesUser(store[f], user));
+const isAssignedToUser = (store, user) => {
+  const ids = userIdentifiers(user);
+  return assignKeys(store).some(k => valueMatchesUser(store[k], ids));
+};
 
 const hasAssignmentData = (store) =>
-  STORE_ASSIGN_FIELDS.some(f => store[f] !== undefined && store[f] !== null && store[f] !== '');
+  assignKeys(store).some(k => store[k] !== undefined && store[k] !== null && store[k] !== '');
 
 const ManualReviewForm = () => {
   const navigate = useNavigate();
@@ -330,6 +332,13 @@ const ManualReviewForm = () => {
   const currentUser = getCurrentUser();
   const assignmentAvailable = !!currentUser && stores.some(hasAssignmentData);
   const myStores = assignmentAvailable ? stores.filter(s => isAssignedToUser(s, currentUser)) : [];
+  if (!loading && stores.length > 0 && !assignmentAvailable) {
+    console.warn('[Mis tiendas] No se pudo determinar la asignación.', {
+      token_payload: currentUser,
+      campos_de_asignacion_detectados: stores[0] ? assignKeys(stores[0]) : [],
+      campos_de_la_tienda: stores[0] ? Object.keys(stores[0]) : []
+    });
+  }
   const effectiveScope = assignmentAvailable ? storeScope : 'ALL';
   const visibleStores = effectiveScope === 'MINE' ? myStores : stores;
 
