@@ -4,8 +4,52 @@ import crmApi from '../../api/crmApi';
 
 const PLANES_ELEGIBLES = ['go', 'growth', 'scale', 'escale', 'scale_plus', 'warranty'];
 
+// ============================================================
+// FILTRO "MIS TIENDAS / TODAS"
+// AJUSTA ESTAS DOS CONSTANTES SI TU BD USA OTROS NOMBRES:
+//  - STORE_ASSIGN_FIELDS: campos de la tienda que dicen a quién está asignada
+//  - USER_STORAGE_KEYS:   dónde guarda el login al usuario actual (localStorage)
+// ============================================================
+const STORE_ASSIGN_FIELDS = [
+  'assigned_to', 'assigned_user_id', 'assigned_user', 'assigned_agent', 'assigned_to_id',
+  'account_manager', 'account_manager_id', 'responsible_id', 'responsible', 'owner_id', 'user_id'
+];
+const USER_STORAGE_KEYS = ['user', 'crm_user', 'userInfo', 'currentUser', 'authUser'];
+
+const getCurrentUser = () => {
+  for (const key of USER_STORAGE_KEYS) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const u = parsed?.user || parsed;
+      if (u && typeof u === 'object' && (u.id || u.email || u.name)) return u;
+    } catch { /* ignorar */ }
+  }
+  return null;
+};
+
+const norm = (v) => String(v ?? '').toLowerCase().trim();
+
+// ¿Este valor de asignación (id, email, nombre, objeto o lista) corresponde al usuario?
+const valueMatchesUser = (val, user) => {
+  if (val === null || val === undefined || val === '') return false;
+  if (Array.isArray(val)) return val.some(v => valueMatchesUser(v, user));
+  if (typeof val === 'object') {
+    return [val.id, val.user_id, val.email, val.name].some(x => x !== undefined && [user.id, user.email, user.name].filter(Boolean).map(norm).includes(norm(x)));
+  }
+  return [user.id, user.email, user.name].filter(Boolean).map(norm).includes(norm(val));
+};
+
+const isAssignedToUser = (store, user) =>
+  !!user && STORE_ASSIGN_FIELDS.some(f => valueMatchesUser(store[f], user));
+
+const hasAssignmentData = (store) =>
+  STORE_ASSIGN_FIELDS.some(f => store[f] !== undefined && store[f] !== null && store[f] !== '');
+
 const ManualReviewForm = () => {
   const navigate = useNavigate();
+  const [storeScope, setStoreScope] = useState('MINE'); // 'MINE' (predeterminado) | 'ALL'
   const [activeTab, setActiveTab] = useState('FORM');
   const [stores, setStores] = useState([]);
   const [checks, setChecks] = useState({});
@@ -282,6 +326,13 @@ const ManualReviewForm = () => {
     return localDate.toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  // Tiendas asignadas al usuario actual vs. todas
+  const currentUser = getCurrentUser();
+  const assignmentAvailable = !!currentUser && stores.some(hasAssignmentData);
+  const myStores = assignmentAvailable ? stores.filter(s => isAssignedToUser(s, currentUser)) : [];
+  const effectiveScope = assignmentAvailable ? storeScope : 'ALL';
+  const visibleStores = effectiveScope === 'MINE' ? myStores : stores;
+
   const filteredHistoryStores = Object.values(historyByStore).filter(store => 
     store.name.toLowerCase().includes(historySearchTerm.toLowerCase()) || 
     store.id.toLowerCase().includes(historySearchTerm.toLowerCase())
@@ -317,6 +368,23 @@ const ManualReviewForm = () => {
               <p style={{ color: '#666', margin: 0, fontSize: '13px' }}>1 Clic: OK (Verde) | 2 Clics: Observado (Naranja) | 3 Clics: Limpiar</p>
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* CONTROL: MIS TIENDAS / TODAS */}
+              <div style={{ display: 'flex', border: '2px solid #111', borderRadius: '8px', overflow: 'hidden' }} title={assignmentAvailable ? '' : 'No se detectó asignación de tiendas para tu usuario: se muestran todas'}>
+                {[
+                  { key: 'MINE', label: `Mis tiendas${assignmentAvailable ? ` (${myStores.length})` : ''}` },
+                  { key: 'ALL', label: `Todas (${stores.length})` }
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    disabled={opt.key === 'MINE' && !assignmentAvailable}
+                    onClick={() => setStoreScope(opt.key)}
+                    style={{ padding: '9px 14px', border: 'none', fontWeight: '900', fontSize: '13px', cursor: (opt.key === 'MINE' && !assignmentAvailable) ? 'not-allowed' : 'pointer', opacity: (opt.key === 'MINE' && !assignmentAvailable) ? 0.4 : 1, backgroundColor: effectiveScope === opt.key ? '#111' : '#fff', color: effectiveScope === opt.key ? '#FFD700' : '#4b5563' }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#fff', padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Firma:</span>
                 <input type="text" value={reviewerName} onChange={(e) => setReviewerName(e.target.value)} placeholder="Ej. Juan Pérez" style={{ border: 'none', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit', color: '#111', width: '120px' }} />
@@ -345,7 +413,14 @@ const ManualReviewForm = () => {
                 </tr>
               </thead>
               <tbody>
-                {stores.map(store => (
+                {visibleStores.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#666' }}>
+                      No tienes tiendas asignadas. Cambia a "Todas" para ver el listado completo.
+                    </td>
+                  </tr>
+                )}
+                {visibleStores.map(store => (
                   <tr key={store.id} style={{ borderBottom: '1px solid #eee' }}>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
