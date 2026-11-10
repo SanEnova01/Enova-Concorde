@@ -51,7 +51,7 @@ const PixelPetWidget = ({ ticketStatusStats = {}, myTickets = [] }) => {
   const pointerStart = useRef({ x: 0, y: 0 });
   const draggedRef = useRef(false);
   const actionTimeoutRef = useRef(null);
-  const [hasMoved, setHasMoved] = useState(false);
+  const [, setHasMoved] = useState(false);
 
   // --- Estado visual y personalidad ---
   const [mood, setMood] = useState('idle');
@@ -74,7 +74,6 @@ const PixelPetWidget = ({ ticketStatusStats = {}, myTickets = [] }) => {
   const isCritical = openTickets >= criticalLoad;
   const level = Math.floor(Math.max(0, petData.xp) / 100) + 1;
   const xpInLevel = Math.max(0, petData.xp) % 100;
-  const moodScore = Math.round((petData.happiness + petData.energy + petData.cleanliness) / 3);
 
   const ticketHealth = useMemo(() => {
     if (isCritical) return { label: 'Carga crítica', color: '#ef4444' };

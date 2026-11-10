@@ -69,6 +69,17 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET: Conteos del dashboard (totales, por estado, por tienda y los pendientes del usuario)
+router.get('/stats', async (req, res) => {
+  try {
+    const assignee = req.adminUser?.name || req.adminUser?.email || null;
+    res.status(200).json({ success: true, data: await TicketRepository.getStats(assignee) });
+  } catch (error) {
+    console.error('[TICKETS] Error en stats:', error.message);
+    res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+});
+
 // GET: Un solo ticket (antes el detalle descargaba todos los tickets para buscar uno)
 router.get('/:id', async (req, res) => {
   try {

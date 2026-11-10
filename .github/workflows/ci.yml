@@ -1,0 +1,75 @@
+# Revisión automática en cada push y pull request a main.
+# Si algo falla, GitHub lo marca en rojo antes de que llegue a Railway.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (pruebas)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ecrm-backend
+    strategy:
+      matrix:
+        node: [18, 20]   # 18 = la versión que usa Railway hoy
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: concorde_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+      RUN_DB_TESTS: '1'
+      DB_HOST: localhost
+      DB_USER: ci
+      DB_PASSWORD: ci
+      DB_NAME: concorde_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: ecrm-backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Sintaxis de todos los archivos
+        run: find src -name '*.js' -not -path 'src/dist/*' -print0 | xargs -0 -n1 node --check
+
+  frontend:
+    name: Frontend (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ecrm-frontend/ecrm-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ecrm-frontend/ecrm-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  bot:
+    name: Bot (sintaxis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check bot/server-bot.js && node --check bot/HtmlScanner.js

@@ -37,6 +37,19 @@ class MetricsRepository {
     }
   }
 
+  // Métrica ya guardada para la misma corrida del bot (misma tienda, fecha de corrida ±10 min)
+  static async findSameRun(storeId, runDate, windowMinutes = 10) {
+    if (!storeId || !runDate) return null;
+    const d = new Date(runDate);
+    if (Number.isNaN(d.getTime())) return null;
+    const ms = windowMinutes * 60 * 1000;
+    return await db('daily_metrics')
+      .where({ store_id: storeId })
+      .where('date', '>=', new Date(d.getTime() - ms).toISOString())
+      .where('date', '<=', new Date(d.getTime() + ms).toISOString())
+      .first('id', 'date');
+  }
+
   // Inserción masiva (carga por CSV). Se omiten filas sin store_id; todo o nada (transacción).
   static async createBulk(rows) {
     const validRows = (rows || []).filter((r) => r && r.store_id).map((r) => this.toRow(r));

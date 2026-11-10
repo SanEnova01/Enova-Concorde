@@ -1,42 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Terminal } from 'lucide-react';
 
 // Componentes Core y Vistas Administrativas
-import AdminDashboard from './views/admin/AdminDashboard';
-import ClientsList from './views/admin/ClientsList';
-import ClientDetail from './views/admin/ClientDetail';
-import TotalTickets from './views/admin/TotalTickets';
-import TicketDetail from './views/admin/TicketDetail';
-import MetricsPage from './views/admin/MetricsPage';
-import UsersManagement from './views/admin/UsersManagement';
-import SettingsView from './views/admin/SettingsView';
-import KnowledgeBase from "./views/admin/KnowledgeBase";
-import ManualReviewForm from './views/admin/ManualReviewForm';
-
+// Pantallas cargadas bajo demanda: cada una se descarga recién cuando se visita
+const AdminDashboard = lazy(() => import('./views/admin/AdminDashboard'));
+const ClientsList = lazy(() => import('./views/admin/ClientsList'));
+const ClientDetail = lazy(() => import('./views/admin/ClientDetail'));
+const TotalTickets = lazy(() => import('./views/admin/TotalTickets'));
+const TicketDetail = lazy(() => import('./views/admin/TicketDetail'));
+const MetricsPage = lazy(() => import('./views/admin/MetricsPage'));
+const UsersManagement = lazy(() => import('./views/admin/UsersManagement'));
+const SettingsView = lazy(() => import('./views/admin/SettingsView'));
+const KnowledgeBase = lazy(() => import('./views/admin/KnowledgeBase'));
+const ManualReviewForm = lazy(() => import('./views/admin/ManualReviewForm'));
 // Vista de Tickets para el Cliente
-import ClientTickets from './views/client/ClientTickets';
+const ClientTickets = lazy(() => import('./views/client/ClientTickets'));
 import ServerConsole from './views/admin/ServerConsole';
 
 // Vistas Públicas (CoopPilot)
-import CoopPilotReturns from './views/public/CoopPilotReturns';
-import CoopPilotHub from './views/public/CoopPilotHub';
-import CoopPilotTracking from "./views/public/CoopPilotTracking";
-import PublicAuditForm from './views/public/PublicAuditForm';
-import PublicAuditReport from './views/public/PublicAuditReport';
-import AdminAuditRequests from './views/admin/AdminAuditRequests';    
-
-import ConcordeAnalyzerView from './views/admin/ConcordeAnalyzerView';
-import AnalisisReportGenerator from './views/admin/AnalisisReportGenerator';
-
+const CoopPilotReturns = lazy(() => import('./views/public/CoopPilotReturns'));
+const CoopPilotHub = lazy(() => import('./views/public/CoopPilotHub'));
+const CoopPilotTracking = lazy(() => import('./views/public/CoopPilotTracking'));
+const PublicAuditForm = lazy(() => import('./views/public/PublicAuditForm'));
+const PublicAuditReport = lazy(() => import('./views/public/PublicAuditReport'));
+const AdminAuditRequests = lazy(() => import('./views/admin/AdminAuditRequests'));
+const ConcordeAnalyzerView = lazy(() => import('./views/admin/ConcordeAnalyzerView'));
+const AnalisisReportGenerator = lazy(() => import('./views/admin/AnalisisReportGenerator'));
 // Autenticación y Protección
 import Login from './views/admin/Login';
-import ReportGenerator from './views/admin/ReportGenerator';
+const ReportGenerator = lazy(() => import('./views/admin/ReportGenerator'));
 import ProtectedRoute from './components/ProtectedRoute';
 import crmApi from './api/crmApi';
-import ImageExtractorView from './views/admin/ImageExtractorView';
-import QuoteGenerator from './views/admin/QuoteGenerator';
-
+const ImageExtractorView = lazy(() => import('./views/admin/ImageExtractorView'));
+const QuoteGenerator = lazy(() => import('./views/admin/QuoteGenerator'));
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -371,6 +368,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: '#666', fontSize: '13px' }}>Cargando…</div>}>
       <Routes>
         <Route path="/login" element={<Login />} />
         
@@ -493,6 +491,7 @@ function App() {
         } />
 
       </Routes>
+      </Suspense>
 
       <ServerConsole />
     </BrowserRouter>

@@ -117,7 +117,6 @@ function TotalTickets() {
   // ESTADOS DE SELECCIÓN Y BÚSQUEDA
   const [selectedIds, setSelectedIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');     // Buscador por ID, Asunto o Store ID
-  const [storeFilterSearch, setStoreFilterSearch] = useState(''); // Filtro en selector de tienda masivo
 
   // 🌟 NUEVOS ESTADOS: Filtro de Asignación y Ordenamiento
   const [currentUser, setCurrentUser] = useState('');
@@ -413,10 +412,6 @@ const handleSingleFieldChange = async (ticketId, field, value) => {
 
   if (loading) return <div className="crm-text-loading">Cargando operaciones...</div>;
 
-  const storesFiltradas = stores.filter(s => 
-    s.id.toLowerCase().includes(storeFilterSearch.toLowerCase()) || 
-    (s.name && s.name.toLowerCase().includes(storeFilterSearch.toLowerCase()))
-  );
 
   return (
     <div>

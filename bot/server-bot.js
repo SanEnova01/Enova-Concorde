@@ -5,7 +5,7 @@ const pidusage = require('pidusage');
 const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+
 const { escanearEstructuraHtml } = require('./HtmlScanner');
 
 puppeteer.use(StealthPlugin());
@@ -193,10 +193,34 @@ async function adquirirChrome() {
     return liberar;
 }
 
+// Mata procesos de Chrome que quedaron vivos de un lanzamiento anterior.
+// Se llama con chromeLock tomado, así que no hay ningún Chrome legítimo corriendo.
+// Usa /proc directamente: la imagen de Railway no trae pkill/ps (procps), y antes esto no hacía nada.
 function limpiarChromeHuerfano() {
+    if (process.platform !== 'linux') return;
+    let muertos = 0;
     try {
-        execSync("pkill -9 -f 'chrome-linux64/chrome' || true", { stdio: 'ignore', timeout: 5000 });
-    } catch (e) { /* pkill puede no existir; no es crítico */ }
+        for (const entry of fs.readdirSync('/proc')) {
+            if (!/^\d+$/.test(entry)) continue;
+            const pid = Number(entry);
+            if (pid === process.pid || pid === 1) continue;
+            let cmd = '';
+            try {
+                cmd = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ');
+            } catch (e) {
+                continue; // el proceso terminó mientras se leía
+            }
+            if (/chrome|chromium|crashpad/i.test(cmd)) {
+                try {
+                    process.kill(pid, 'SIGKILL');
+                    muertos++;
+                } catch (e) { /* ya no existe o no es nuestro */ }
+            }
+        }
+        if (muertos > 0) console.warn(`🧹 [Chrome] ${muertos} proceso(s) huérfano(s) eliminados antes de lanzar.`);
+    } catch (e) {
+        console.warn('[Chrome] No se pudo revisar /proc:', e.message);
+    }
 }
 
 async function lanzarNavegador(opciones = {}) {

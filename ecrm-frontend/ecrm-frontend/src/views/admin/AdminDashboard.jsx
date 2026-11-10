@@ -34,39 +34,11 @@ const [aiBanner, setAiBanner] = useState({
 
   // 🌟 NUEVOS ESTADOS PARA LOS TICKETS Y TIENDAS ASIGNADAS
   const [currentUser, setCurrentUser] = useState('');
-  const [userRole, setUserRole] = useState(''); 
+  const [, setUserRole] = useState(''); 
   const [myTickets, setMyTickets] = useState([]);
   const [showMyStoresOnly, setShowMyStoresOnly] = useState(false); // 🌟 Filtro de Mis Tiendas
 
-  const [techStatus] = useState({
-    shopify: {
-      global: { status: 'Todos los sistemas operativos', indicator: 'none' },
-      components: [
-        { name: 'Shopify Checkout', status: 'operational' },
-        { name: 'Shopify Admin', status: 'operational' },
-        { name: 'Storefront', status: 'operational' },
-        { name: 'Third-party apps', status: 'operational' }
-      ]
-    },
-    vtex: {
-      global: { status: 'Todos los sistemas operativos', indicator: 'none' },
-      components: [
-        { name: 'VTEX Checkout', status: 'operational' },
-        { name: 'VTEX IO', status: 'operational' },
-        { name: 'API REST', status: 'operational' },
-        { name: 'Portal Admin', status: 'operational' }
-      ]
-    },
-    woo: {
-      global: { status: 'Operativo / Analizando...', indicator: 'none' },
-      components: [
-        { name: 'Resolución de DNS y SSL', status: 'operational' },
-        { name: 'Tiempo de Respuesta (TTFB)', status: 'operational' },
-        { name: 'Estabilidad de Base de Datos', status: 'operational' },
-        { name: 'Núcleo de Aplicación (PHP)', status: 'operational' }
-      ]
-    }
-  });
+  // (se eliminó techStatus: datos fijos de Shopify/VTEX que no se mostraban en ningún lado)
   const dashboardRef = useRef(null); // <-- Agrega esto
 const [isMatrixMode, setIsMatrixMode] = useState(false);
   useEffect(() => {
@@ -115,50 +87,24 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
             // 🌟 2. CONSULTAS A LA BD: Estas sí se actualizan en vivo sin gasto de IA
             const fetchData = async () => {
               try {
-                const [ticketsRes, clientsRes] = await Promise.all([
-                  crmApi.get('/tickets?fields=summary'),
+                // Conteos calculados en la base de datos (antes se descargaban todos los tickets)
+                const [statsRes, clientsRes] = await Promise.all([
+                  crmApi.get('/tickets/stats'),
                   crmApi.get('/stores')
                 ]);
                 
-                if (ticketsRes.data.success && clientsRes.data.success) {
-                  const allTickets = ticketsRes.data.data || [];
+                if (statsRes.data.success && clientsRes.data.success) {
+                  const ticketStats = statsRes.data.data || {};
                   const allStores = clientsRes.data.data || [];
+                  const byStore = ticketStats.by_store || {};
 
-                  const historyCountsMap = {}; // Para la tabla (TODOS los tickets)
-                  const activeCountsMap = {};  // Para el Monitor W95 (Solo abiertos/en progreso)
-                  const tStatusCounts = {};
-                  const misTicketsPendientes = [];
-                  
-                  allTickets.forEach(t => {
-                    const st = String(t.status || 'OPEN').toUpperCase();
-                    
-                    if (t.store_id) {
-                      // 1. Sumamos al histórico SIEMPRE
-                      historyCountsMap[t.store_id] = (historyCountsMap[t.store_id] || 0) + 1;
-                      
-                      // 2. Sumamos a los activos SOLO si no están cerrados ni resueltos
-                      if (st !== 'CLOSED' && st !== 'RESOLVED') {
-                        activeCountsMap[t.store_id] = (activeCountsMap[t.store_id] || 0) + 1;
-                      }
-                    }
-                    
-                    tStatusCounts[st] = (tStatusCounts[st] || 0) + 1;
-
-                    if (st !== 'CLOSED' && t.assigned_to) {
-                       const asignados = t.assigned_to.split(',').map(n => n.trim());
-                       if (asignados.includes(currentUserName)) {
-                         misTicketsPendientes.push(t);
-                       }
-                    }
-                  });
-                  
-                  setTicketStatusStats(tStatusCounts);
-                  setMyTickets(misTicketsPendientes);
+                  setTicketStatusStats(ticketStats.by_status || {});
+                  setMyTickets(ticketStats.mine || []);
 
               const storesWithRealCounts = allStores.map(store => ({
                 ...store,
-                real_ticket_count: historyCountsMap[store.id] || 0, // 🌟 VUELVE EL HISTÓRICO A LA TABLA
-                active_ticket_count: activeCountsMap[store.id] || 0, // 🌟 NUEVO VALOR PARA EL WIDGET W95
+                real_ticket_count: byStore[store.id]?.total || 0, // histórico de la tabla
+                active_ticket_count: byStore[store.id]?.active || 0, // abiertos/en progreso (widget W95)
                 load_ms: store.load_ms || 0,
                 ttfb_ms: store.ttfb_ms || 0
               }));
@@ -179,7 +125,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
               });
 
               setStats({
-                tickets: allTickets.length,
+                tickets: ticketStats.total || 0,
                 clients: clientesActivos.length
               });
 

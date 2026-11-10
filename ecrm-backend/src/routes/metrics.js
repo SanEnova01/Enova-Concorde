@@ -339,6 +339,15 @@ async function ingestHandler(req, res) {
 
     console.log(`[INGEST] store=${metricData.store_id} html=${metricData.html_analysis ? 'SI' : 'NO'} source=${metricData.data_source || '-'}`);
 
+    // Idempotencia: el bot manda la hora de inicio de la corrida en "date". Si ya existe una
+    // métrica de esta tienda para la misma corrida (±10 min), es un duplicado (reintento o una
+    // segunda instancia del bot) y no se guarda otra vez ni se repite la IA.
+    const duplicate = await MetricsRepository.findSameRun(metricData.store_id, metricData.date);
+    if (duplicate) {
+      console.warn(`[INGEST] Duplicado ignorado store=${metricData.store_id} corrida=${metricData.date} (ya existe id=${duplicate.id})`);
+      return res.status(200).json({ success: true, duplicate: true, data: duplicate });
+    }
+
     const previousScan = metricData.html_analysis
       ? await MetricsRepository.getLastMorningScan(metricData.store_id)
       : null;

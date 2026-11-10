@@ -121,6 +121,37 @@ class TicketRepository {
     }
   }
 
+  // Conteos para el dashboard calculados en la base (antes se bajaban todos los tickets al navegador)
+  static async getStats(assigneeName) {
+    const statusExpr = "UPPER(COALESCE(status, 'OPEN'))";
+    const [totalRow, byStatusRows, byStoreRows, mineRows] = await Promise.all([
+      db('tickets').count('* as n').first(),
+      db('tickets').select(db.raw(`${statusExpr} as status`)).count('* as n').groupByRaw(statusExpr),
+      db('tickets')
+        .whereNotNull('store_id')
+        .select('store_id')
+        .count('* as total')
+        .select(db.raw(`SUM(CASE WHEN ${statusExpr} NOT IN ('CLOSED', 'RESOLVED') THEN 1 ELSE 0 END) as active`))
+        .groupBy('store_id'),
+      assigneeName
+        ? db('tickets')
+          .whereRaw(`${statusExpr} <> 'CLOSED'`)
+          .where('assigned_to', 'ilike', `%${String(assigneeName).replace(/[%_]/g, '')}%`)
+          .select('id', 'serial_number', 'name', 'store_id', 'status', 'priority', 'task_type', 'assigned_to', 'created_at')
+          .orderBy('created_at', 'desc')
+        : Promise.resolve([])
+    ]);
+
+    const by_status = {};
+    byStatusRows.forEach((r) => { by_status[r.status] = Number(r.n); });
+    const by_store = {};
+    byStoreRows.forEach((r) => { by_store[r.store_id] = { total: Number(r.total), active: Number(r.active) }; });
+    // assigned_to es una lista separada por comas: se confirma el nombre exacto
+    const mine = mineRows.filter((t) => String(t.assigned_to || '').split(',').map((n) => n.trim()).includes(assigneeName));
+
+    return { total: Number(totalRow?.n || 0), by_status, by_store, mine };
+  }
+
   static async update(id, data) {
     const updatePayload = {};
 
