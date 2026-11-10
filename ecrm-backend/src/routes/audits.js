@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../config/db');
 const { verificarToken, requireStaff } = require('../middleware/auth');
 const { OUTBOUND_API_KEY } = require('../config/security');
+const SettingsService = require('../services/SettingsService');
 
 // Solo admin / super admin (antes cualquier usuario logueado, incluso clientes)
 const verificarTokenAdmin = [verificarToken, requireStaff];
@@ -78,7 +79,7 @@ async function detectEcommerceTech(targetUrl) {
 }
 
 // 🌟 GOOGLE PAGESPEED INTELIGENTE (REAL O ADAPTATIVO INDIVIDUAL)
-async function getPageSpeedMetrics(targetUrl, botMobileData) {
+async function getPageSpeedMetrics(targetUrl, botMobileData, allowDummy = true) {
     let urlLimpia = targetUrl.trim();
     if (!urlLimpia.startsWith('http')) urlLimpia = `https://${urlLimpia}`;
 
@@ -119,6 +120,12 @@ async function getPageSpeedMetrics(targetUrl, botMobileData) {
     let mobile = await fetchByStrategy('mobile');
     let desktop = await fetchByStrategy('desktop');
 
+    // Switch "Métricas de respaldo" apagado: no se estima nada, se informa qué faltó
+    const missing = [];
+    if (!mobile) missing.push('PageSpeed móvil');
+    if (!desktop) missing.push('PageSpeed escritorio');
+    if (!allowDummy) return { mobile, desktop, missing, estimated: [] };
+
     // 🌟 DERIVACIÓN DINÁMICA INDIVIDUAL (Basada en la velocidad REAL del Bot para ESTA tienda)
     const loadMs = botMobileData?.load_ms || 3500;
     const domMs = botMobileData?.dom_ms || 1800;
@@ -150,7 +157,7 @@ async function getPageSpeedMetrics(targetUrl, botMobileData) {
         };
     }
 
-    return { mobile, desktop };
+    return { mobile, desktop, missing: [], estimated: missing };
 }
 
 // PÚBLICO: Solicitud de auditoría
@@ -233,12 +240,33 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
         const botMobileData = botMobileRes ? await botMobileRes.json().catch(() => null) : null;
         const botDesktopData = botDesktopRes ? await botDesktopRes.json().catch(() => null) : null;
 
+        // Switch del menú Configuración (solo super admin). Encendido por defecto.
+        const allowDummy = await SettingsService.get('audit_dummy_metrics');
+        const fallosBot = [];
+        if (!botMobileData?.data) fallosBot.push('bot móvil');
+        if (!botDesktopData?.data) fallosBot.push('bot escritorio');
+
+        if (!allowDummy && fallosBot.length > 0) {
+            return res.status(502).json({
+                success: false,
+                error: `No se pudo medir con datos reales (${fallosBot.join(', ')}). Las métricas de respaldo están desactivadas en Configuración.`
+            });
+        }
+
         const baseBot = botMobileData?.data || botDesktopData?.data || {
             load_ms: 3500, dom_ms: 1800, ram_core_mb: 120, total_requests: 85, total_weight_mb: 4.2
         };
 
         // 2. Obtener/Derivar PageSpeed usando la data real obtenida para ESTA tienda
-        const googleData = await getPageSpeedMetrics(targetUrl, baseBot);
+        const { missing: fallosPageSpeed, estimated: pageSpeedEstimado, ...googleData } =
+            await getPageSpeedMetrics(targetUrl, baseBot, allowDummy);
+
+        if (!allowDummy && fallosPageSpeed.length > 0) {
+            return res.status(502).json({
+                success: false,
+                error: `No se pudo obtener datos reales (${fallosPageSpeed.join(', ')}). Las métricas de respaldo están desactivadas en Configuración.`
+            });
+        }
 
         const snapshotCompleto = {
             ...baseBot,
@@ -250,7 +278,9 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
             },
             pagespeed: googleData,
             tech: techInfo.tech,
-            tech_icon: techInfo.icon
+            tech_icon: techInfo.icon,
+            // Qué partes del reporte son estimadas (respaldo) y no medidas
+            estimated_sources: [...fallosBot, ...pageSpeedEstimado]
         };
 
         const [result] = await db('audit_requests')

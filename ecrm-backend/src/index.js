@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs'); 
 const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
 const { isAllowedOrigin, requestHasValidApiKey, JWT_SECRET } = require('./config/security');
-const { verificarToken, signToken } = require('./middleware/auth');
+const { verificarToken, requireSuperAdmin, signToken } = require('./middleware/auth');
 const app = express();
 
 // 🌟 AUTO-CREACIÓN DE LA TABLA AUDIT_LOGS EN POSTGRESQL
@@ -272,6 +272,7 @@ app.use('/api/daily-reviews', verificarToken, require('./routes/manualReviews'))
 app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 app.use('/api/ai', verificarToken, require('./routes/ai'));
 app.use('/api/quotes', verificarToken, require('./routes/quotes'));
+app.use('/api/settings', verificarToken, requireSuperAdmin, require('./routes/settings'));
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: RESUMEN DETALLADO DE SHOPIFY
 // ==========================================

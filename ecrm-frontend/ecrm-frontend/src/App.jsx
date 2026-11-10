@@ -10,6 +10,7 @@ import TotalTickets from './views/admin/TotalTickets';
 import TicketDetail from './views/admin/TicketDetail';
 import MetricsPage from './views/admin/MetricsPage';
 import UsersManagement from './views/admin/UsersManagement';
+import SettingsView from './views/admin/SettingsView';
 import KnowledgeBase from "./views/admin/KnowledgeBase";
 import ManualReviewForm from './views/admin/ManualReviewForm';
 
@@ -132,7 +133,8 @@ function AdminLayout({ children }) {
     },
 
     { path: '/client/knowledge', label: 'Base de Conocimiento IA', allowed: (userRole === 'client' && hasCoopPilot) ? ['client'] : [] },
-    { path: '/admin/usuarios', label: 'Gestionar Usuarios', allowed: ['super admin'] }
+    { path: '/admin/usuarios', label: 'Gestionar Usuarios', allowed: ['super admin'] },
+    { path: '/admin/configuracion', label: 'Configuración', allowed: ['super admin'] }
   ];
   
   const visibleNavItems = allNavItems.filter(item => item.allowed.includes(userRole));
@@ -440,6 +442,12 @@ function App() {
         <Route path="/admin/usuarios" element={
           <ProtectedRoute allowedRoles={['super admin']}>
             <AdminLayout><UsersManagement /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/configuracion" element={
+          <ProtectedRoute allowedRoles={['super admin']}>
+            <AdminLayout><SettingsView /></AdminLayout>
           </ProtectedRoute>
         } />
 

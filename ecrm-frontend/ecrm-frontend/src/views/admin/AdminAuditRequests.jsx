@@ -43,7 +43,7 @@ function AdminAuditRequests() {
             }
         } catch (error) {
             console.error("Error ejecutando auditoría:", error);
-            alert("Ocurrió un error al intentar ejecutar el Bot.");
+            alert(error.response?.data?.error || "Ocurrió un error al intentar ejecutar el Bot.");
         }
         setLoadingId(null);
     };

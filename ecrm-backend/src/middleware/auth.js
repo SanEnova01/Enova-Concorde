@@ -182,10 +182,16 @@ const requireStaff = (req, res, next) => {
   return forbidden(res);
 };
 
+// Solo super admin (menú de configuración y funciones ocultas)
+const requireSuperAdmin = (req, res, next) => {
+  if (req.adminUser && normalizeRole(req.adminUser.role) === 'super admin') return next();
+  return forbidden(res);
+};
+
 const signToken = (user) => jwt.sign(
   { id: user.id, name: user.name, email: user.email, role: user.role },
   JWT_SECRET,
   { expiresIn: '12h' }
 );
 
-module.exports = { verificarToken, requireStaff, signToken, getStoreIdsForEmail, emailList };
+module.exports = { verificarToken, requireStaff, requireSuperAdmin, signToken, getStoreIdsForEmail, emailList };
