@@ -8,93 +8,16 @@ import ClientMemoryVu from './ClientDetail/ClientMemoryVu';
 import ClientTickets from './ClientDetail/ClientTickets';
 import ClientMetricsHistory from './ClientDetail/ClientMetricsHistory';
 import ClientExternalMonitor from './ClientDetail/ClientExternalMonitor';
-import QuickAnalysis from './ClientDetail/QuickAnalysis';
 import StoreReviewHistory from './ClientDetail/StoreReviewHistory';
 import ClientHtmlScan from './ClientDetail/ClientHtmlScan';
-// 🌟 SUBCOMPONENTE: Contador Odómetro Analógico (Tamaño Reducido)
+import ClientHeader from './ClientDetail/ClientHeader';
+import ClientContactCard from './ClientDetail/ClientContactCard';
+import ClientNotes from './ClientDetail/ClientNotes';
+import ClientQuickAnalysisPanel from './ClientDetail/ClientQuickAnalysisPanel';
+import ClientModulesModal from './ClientDetail/ClientModulesModal';
+import ClientEditModal from './ClientDetail/ClientEditModal';
+import { MODULES, DEFAULT_ORDER, CONFIGURABLE_IDS, planDefaultEnabled, parseJsonSafe } from './ClientDetail/clientModules';
 import DailyReviewModal from '../../components/DailyReviewModal';
-
-// ============================================================
-// REGISTRO DE MÓDULOS
-// - id: identificador estable (se guarda en BD y en localStorage)
-// - span: 'full' ocupa toda la fila, 'half' media fila
-// - configurable: si el admin puede ocultarlo por plan / por cliente
-// ============================================================
-const MODULES = [
-  { id: 'quick_analysis',   label: 'Monitor de Rendimiento en Tiempo Real', span: 'full', configurable: true },
-  { id: 'contact',          label: 'Datos de Contacto',                     span: 'half', configurable: true },
-  { id: 'external_monitor', label: 'Monitor externo (Shopify / VTEX / Woo)', span: 'half', configurable: true },
-  { id: 'performance',      label: 'Gráfico de Rendimiento',                span: 'half', configurable: true },
-  { id: 'memory',           label: 'Memoria (VU)',                          span: 'half', configurable: true },
-  { id: 'tickets',          label: 'Tickets',                               span: 'half', configurable: true },
-  { id: 'metrics_history',  label: 'Historial de Métricas',                 span: 'half', configurable: true },
-  { id: 'html_scan',        label: 'Radiografía HTML del Escaneo',          span: 'full', configurable: true },
-  { id: 'quality',          label: 'Control de Calidad y Revisiones Manuales', span: 'full', configurable: true },
-  { id: 'notes',            label: 'Notas Internas',                        span: 'full', configurable: false } // solo admins, nunca para clientes
-];
-
-const DEFAULT_ORDER = MODULES.map(m => m.id);
-const CONFIGURABLE_IDS = MODULES.filter(m => m.configurable).map(m => m.id);
-
-// ------------------------------------------------------------
-// MÓDULOS POR PLAN (edita aquí qué ve cada plan por defecto)
-// Hoy TODOS los planes ven TODOS los módulos, para no cambiar lo que ven
-// los clientes actuales. Quita ids de la lista de un plan para ocultárselos.
-// Un cliente concreto puede sobreescribir esto desde "Módulos del cliente".
-// ------------------------------------------------------------
-const PLAN_MODULES = {
-  GO:         [...CONFIGURABLE_IDS],
-  GROWTH:     [...CONFIGURABLE_IDS],
-  ESCALE:     [...CONFIGURABLE_IDS],
-  SCALE:      [...CONFIGURABLE_IDS],
-  SCALE_PLUS: [...CONFIGURABLE_IDS]
-};
-
-const planDefaultEnabled = (planKey, id) => {
-  const list = PLAN_MODULES[planKey];
-  return list ? list.includes(id) : true; // planes no listados (WARRANTY, LEAD...) ven todo
-};
-
-const parseJsonSafe = (raw) => {
-  if (!raw) return null;
-  if (typeof raw === 'object') return raw;
-  try { return JSON.parse(raw); } catch { return null; }
-};
-
-const SmallAnalogOdometer = ({ value, digits = 4 }) => {
-  const paddedValue = String(value).padStart(digits, '0');
-
-  return (
-    <div style={{
-      display: 'inline-flex',
-      gap: '2px',
-      backgroundColor: '#e5e5e5',
-      padding: '3px 4px',
-      borderRadius: '4px',
-      border: '1px solid #cccccc',
-      boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0,0,0,0.05)'
-    }}>
-      {paddedValue.split('').map((digit, index) => (
-        <div key={index} style={{
-          backgroundColor: '#ffffff',
-          color: '#111111',
-          fontSize: '16px',
-          fontWeight: 'bold',
-          fontFamily: "'Courier New', Courier, monospace",
-          padding: '1px 5px',
-          borderRadius: '3px',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.9)',
-          background: 'linear-gradient(180deg, #f8f8f8 0%, #ffffff 40%, #ffffff 60%, #ececec 100%)',
-          textAlign: 'center',
-          minWidth: '14px',
-          border: '1px solid #cfcfcf'
-        }}>
-          {digit}
-        </div>
-      ))}
-    </div>
-  );
-};
 
 function ClientDetail() {
   const { storeId } = useParams();
@@ -281,13 +204,6 @@ function ClientDetail() {
     fetchActiveStoreDetails();
   }, [activeStoreId]);
 
-  const getLogoUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    const domain = (crmApi.defaults.baseURL || '').replace(/\/api$/, '');
-    return `${domain}${url.startsWith('/') ? '' : '/'}${url}`;
-  };
-
   const handleSaveNotes = async () => {
     try {
       const response = await crmApi.patch(`/stores/${client.id}`, { notes: notesText });
@@ -418,71 +334,12 @@ function ClientDetail() {
     switch (id) {
       case 'quick_analysis':
         return (
-          <div className="crm-card-paper" style={{ padding: 0, overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
-            <button
-              type="button"
-              onClick={() => setQuickOpen(o => !o)}
-              aria-expanded={quickOpen}
-              style={{
-                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '14px 18px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: '900',
-                backgroundColor: quickOpen ? '#111111' : '#ffffff', color: quickOpen ? '#FFD700' : '#111111'
-              }}
-            >
-              <span>⚡ Monitor de Rendimiento en Tiempo Real</span>
-              <span style={{ fontSize: '12px' }}>{quickOpen ? '▲ Cerrar' : '▼ Abrir'}</span>
-            </button>
-            {/* Se mantiene montado (solo oculto) para no perder un análisis en curso al plegar */}
-            <div style={{ display: quickOpen ? 'block' : 'none' }}>
-              <QuickAnalysis storeId={client.id} storeUrl={client.web} />
-            </div>
-          </div>
+          <ClientQuickAnalysisPanel client={client} quickOpen={quickOpen} setQuickOpen={setQuickOpen} />
         );
 
       case 'contact':
         return (
-          <div className="crm-card-paper" style={{ margin: 0, flex: 1, boxSizing: 'border-box' }}>
-            <h3 className="crm-section-title" style={{ marginTop: 0, marginBottom: '16px', borderBottom: '1px dotted #ccc', paddingBottom: '8px' }}>Datos de Contacto</h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>SITIO WEB:</span>
-                {client.web ? <a href={client.web} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 'bold', fontSize: '13px' }}>{client.web}</a> : <span className="crm-text-muted" style={{ fontSize: '13px' }}>No registrado</span>}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>TECNOLOGÍA:</span>
-                <span style={{ backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', color: '#374151' }}>
-                  {client.tecnologia || 'No registrada'}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>CORREOS:</span>
-                <span style={{ color: '#4b5563', fontSize: '13px', lineHeight: '1.4' }}>{client.emails ? client.emails.split(',').join(', ') : 'No registrados'}</span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>TELÉFONO:</span>
-                <span style={{ color: '#4b5563', fontSize: '13px' }}>{client.phone || 'No registrado'}</span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>TICKETS:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <SmallAnalogOdometer value={tickets.length} digits={4} />
-                  <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 'bold' }}>CREADOS</span>
-                </div>
-              </div>
-
-              {client.has_cooppilot && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                  <span style={{ fontWeight: '800', color: '#111', minWidth: '95px', fontSize: '13px' }}>COOPPILOT:</span>
-                  <a href={`/cooppilot/${client.id}`} target="_blank" rel="noreferrer" style={{ backgroundColor: '#111', color: '#FFD700', padding: '4px 10px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', textDecoration: 'none' }}>✨ ACTIVO ↗</a>
-                </div>
-              )}
-            </div>
-          </div>
+          <ClientContactCard client={client} tickets={tickets} />
         );
 
       case 'external_monitor':
@@ -523,24 +380,14 @@ function ClientDetail() {
       case 'notes':
         if (userRole === 'client') return null;
         return (
-          <div className="crm-card-paper" style={{ width: '100%', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 className="crm-section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Notas Internas</h3>
-              {!isEditingNotes ? (
-                <button onClick={() => setIsEditingNotes(true)} className="crm-btn-border" style={{ padding: '4px 10px', fontSize: '12px' }}>Editar</button>
-              ) : (
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button onClick={handleSaveNotes} className="crm-btn-black" style={{ padding: '4px 10px', fontSize: '12px' }}>Guardar</button>
-                  <button onClick={() => { setIsEditingNotes(false); setNotesText(client.notes || ''); }} className="crm-btn-border" style={{ padding: '4px 10px', fontSize: '12px' }}>Cancelar</button>
-                </div>
-              )}
-            </div>
-            {isEditingNotes ? (
-              <textarea value={notesText} onChange={(e) => setNotesText(e.target.value)} className="crm-input-text" style={{ width: '100%', height: '100px', boxSizing: 'border-box', resize: 'none' }} />
-            ) : (
-              <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{client.notes || 'Sin anotaciones particulares sobre este cliente.'}</p>
-            )}
-          </div>
+          <ClientNotes
+            client={client}
+            isEditingNotes={isEditingNotes}
+            setIsEditingNotes={setIsEditingNotes}
+            notesText={notesText}
+            setNotesText={setNotesText}
+            onSave={handleSaveNotes}
+          />
         );
 
       default:
@@ -696,24 +543,7 @@ function ClientDetail() {
       ) : (
         <>
           {/* HEADER DE LA TIENDA (fijo, no es un módulo) */}
-          <div className="crm-card-paper" style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <div style={{ width: '64px', height: '64px', backgroundColor: '#f2f1ec', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #111111', overflow: 'hidden', flexShrink: 0, borderRadius: '8px' }}>
-              {client.logo_url ? <img src={getLogoUrl(client.logo_url)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontWeight: 'bold' }}>{client.name.substring(0, 2).toUpperCase()}</span>}
-            </div>
-            <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold' }}>{client.name}</h1>
-                <p className="crm-text-muted" style={{ margin: '4px 0 0 0' }}>ID de registro: {client.id}</p>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                <span className="crm-badge">Plan: {client.plan_type}</span>
-                {String(client.tecnologia).toLowerCase().includes('shopify') && <img src="/assets/shopify-icon.png" alt="Shopify" style={{ height: '35px', objectFit: 'contain', marginTop: '4px' }} />}
-                {String(client.tecnologia).toLowerCase().includes('woo') && <img src="/assets/woo-icon.png" alt="WooCommerce" style={{ height: '40px', objectFit: 'contain', marginTop: '4px' }} />}
-                {String(client.tecnologia).toLowerCase().includes('vtex') && <img src="/assets/vtex-icon.png" alt="VTEX" style={{ height: '45px', objectFit: 'contain', marginTop: '4px' }} />}
-                {!String(client.tecnologia).toLowerCase().match(/shopify|woo|vtex/) && <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', textTransform: 'uppercase', marginTop: '4px' }}>{client.tecnologia}</span>}
-              </div>
-            </div>
-          </div>
+          <ClientHeader client={client} />
 
           {layoutEdit && (
             <div style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '13px', color: '#92400e' }}>
@@ -796,117 +626,27 @@ function ClientDetail() {
 
           {/* MODAL: MÓDULOS VISIBLES PARA ESTE CLIENTE */}
           {showModulesModal && (
-            <div className="crm-modal-mask" onClick={() => setShowModulesModal(false)}>
-              <div className="crm-modal-content" onClick={e => e.stopPropagation()}>
-                <h3 className="crm-section-title" style={{ marginTop: 0 }}>Módulos de {client.name}</h3>
-                <p className="crm-text-muted" style={{ marginTop: 0, fontSize: '13px' }}>
-                  Plan <strong>{planKey || '—'}</strong>. Las casillas parten de lo que el plan incluye; lo que cambies aquí solo aplica a este cliente.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '14px 0' }}>
-                  {MODULES.filter(m => m.configurable).map(m => {
-                    const byPlan = planDefaultEnabled(planKey, m.id);
-                    const changed = draftModules[m.id] !== byPlan;
-                    return (
-                      <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', border: `1px solid ${changed ? '#f59e0b' : '#e5e7eb'}`, borderRadius: '6px', cursor: 'pointer', backgroundColor: changed ? '#fffbeb' : '#ffffff' }}>
-                        <input
-                          type="checkbox"
-                          checked={!!draftModules[m.id]}
-                          onChange={(e) => setDraftModules(prev => ({ ...prev, [m.id]: e.target.checked }))}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <span style={{ flex: 1, fontSize: '13px', fontWeight: '600' }}>{m.label}</span>
-                        <span style={{ fontSize: '10px', color: '#6b7280' }}>
-                          {changed ? (byPlan ? 'Quitado del plan' : 'Añadido al plan') : (byPlan ? 'Incluido en el plan' : 'No incluido en el plan')}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                <div className="crm-pagination-box" style={{ justifyContent: 'space-between' }}>
-                  <button type="button" onClick={handleSaveModules} className="crm-btn-black">Guardar</button>
-                  <button type="button" onClick={resetDraftToPlan} className="crm-btn-border">Restablecer al plan</button>
-                  <button type="button" onClick={() => setShowModulesModal(false)} className="crm-btn-red">Cancelar</button>
-                </div>
-              </div>
-            </div>
+            <ClientModulesModal
+              client={client}
+              planKey={planKey}
+              draftModules={draftModules}
+              setDraftModules={setDraftModules}
+              onSave={handleSaveModules}
+              onReset={resetDraftToPlan}
+              onClose={() => setShowModulesModal(false)}
+            />
           )}
 
           {/* MODAL DE EDICIÓN */}
           {showEditModal && (
-            <div className="crm-modal-mask" onClick={() => setShowEditModal(false)}>
-              <div className="crm-modal-content" onClick={e => e.stopPropagation()}>
-                <h3 className="crm-section-title" style={{ marginTop: 0 }}>Editar Datos del Cliente</h3>
-                <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label className="crm-stat-label">Nombre del Cliente / Tienda</label>
-                    <input type="text" name="name" value={editFormData.name} onChange={handleEditInputChange} className="crm-input-text" required />
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label className="crm-stat-label">Sitio Web</label>
-                      <input type="url" name="web" value={editFormData.web} onChange={handleEditInputChange} className="crm-input-text" />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label className="crm-stat-label">Teléfono</label>
-                      <input type="text" name="phone" value={editFormData.phone} onChange={handleEditInputChange} className="crm-input-text" />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label className="crm-stat-label">Correos de contacto</label>
-                      <input type="text" name="emails" value={editFormData.emails} onChange={handleEditInputChange} className="crm-input-text" />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label className="crm-stat-label">Tipo de Plan</label>
-                      <select name="plan_type" value={editFormData.plan_type} onChange={handleEditInputChange} className="crm-select-dropdown">
-                        <option value="GO">GO</option>
-                        <option value="GROWTH">GROWTH</option>
-                        <option value="ESCALE">ESCALE</option>
-                        <option value="WARRANTY">WARRANTY</option>
-                        <option value="OUT_OF_WARRANTY">OUT OF WARRANTY</option>
-                        <option value="LEAD">LEAD</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label className="crm-stat-label">Actualizar Logotipo</label>
-                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="crm-input-text" style={{ padding: '5px' }} />
-                    {editFormData.logo_url && <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold' }}>✓ Logo cargado</span>}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label className="crm-stat-label">Tecnología E-commerce</label>
-                    <select name="tecnologia" value={editFormData.tecnologia || ''} onChange={handleEditInputChange} className="crm-select-dropdown">
-                      <option value="">Selecciona tecnología</option>
-                      <option value="Shopify">Shopify</option>
-                      <option value="Woocommerce">WooCommerce</option>
-                      <option value="Vtex">VTEX</option>
-                      <option value="Magento">Magento</option>
-                      <option value="Custom">Custom / Propio</option>
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', backgroundColor: '#f9f9f6', border: '1px solid #ccc', borderRadius: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <input type="checkbox" checked={!!editFormData.has_cooppilot} onChange={(e) => setEditFormData(prev => ({ ...prev, has_cooppilot: e.target.checked }))} style={{ width: '18px', height: '18px', cursor: 'pointer' }}/>
-                      <label className="crm-stat-label" style={{ cursor: 'pointer', margin: 0, fontWeight: 'bold' }}>🚀 Habilitar Módulo CoopPilot</label>
-                    </div>
-                  </div>
-
-                  <div className="crm-pagination-box" style={{ marginTop: '16px', justifyContent: 'space-between' }}>
-                    <button type="submit" className="crm-btn-black">Guardar Cambios</button>
-                    <button type="button" onClick={() => setShowEditModal(false)} className="crm-btn-red">Cancelar</button>
-                  </div>
-
-                </form>
-              </div>
-            </div>
+            <ClientEditModal
+              editFormData={editFormData}
+              setEditFormData={setEditFormData}
+              onInputChange={handleEditInputChange}
+              onLogoUpload={handleLogoUpload}
+              onSubmit={handleSaveEdit}
+              onClose={() => setShowEditModal(false)}
+            />
           )}
 
           {/* MODAL DE REVISIÓN DIARIA INDEPENDIENTE */}

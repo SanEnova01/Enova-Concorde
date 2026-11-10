@@ -1,6 +1,15 @@
 const db = require('../config/db');
 const HubSyncService = require('../services/HubSyncService');
 
+// Listado paginado de tickets
+const TICKET_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+const SORTABLE_COLUMNS = ['serial_number', 'name', 'store_id', 'status', 'priority', 'task_type', 'assigned_to', 'is_apolo_sync', 'created_at', 'id'];
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+const UNASSIGNED = '__UNASSIGNED__';
+// Los comodines de LIKE que escriba el usuario se toman como texto literal
+const escapeLike = (v) => String(v).trim().replace(/[\\%_]/g, (c) => '\\' + c);
+
 // ESCUDOS AUTO-CORRECTORES (Evitan que PostgreSQL rechace la data)
 const sanitizePriority = (p) => {
   if (!p) return 'MEDIUM';
@@ -104,18 +113,72 @@ class TicketRepository {
     }
   }
 
+  // Aplica los filtros del listado. Sin filtros no toca la consulta (comportamiento original).
+  static _applyListFilters(query, filters = {}) {
+    if (filters.is_apolo_sync) {
+      query = query.where({ is_apolo_sync: true });
+    }
+    if (filters.store_id) {
+      query = query.where({ store_id: filters.store_id });
+    }
+    // Tiendas permitidas (rol cliente): el filtro va en la base para que paginar no se salte el acceso.
+    // Una lista vacía significa "ninguna tienda" (no "todas").
+    if (Array.isArray(filters.store_ids)) {
+      query = query.whereIn('store_id', filters.store_ids.map(String));
+    }
+    if (filters.status) {
+      const status = String(filters.status).toUpperCase();
+      if (status === 'ACTIVE') {
+        query = query.where((b) => b.whereNull('status').orWhereNot('status', 'CLOSED'));
+      } else if (TICKET_STATUSES.includes(status)) {
+        query = query.where({ status });
+      }
+    }
+    if (filters.is_b2c !== undefined) {
+      query = filters.is_b2c
+        ? query.where({ is_b2c: true })
+        : query.where((b) => b.whereNull('is_b2c').orWhere({ is_b2c: false }));
+    }
+    if (filters.assigned_to === UNASSIGNED) {
+      query = query.where((b) => b.whereNull('assigned_to').orWhere('assigned_to', ''));
+    } else if (filters.assigned_to) {
+      query = query.where('assigned_to', 'ilike', `%${escapeLike(filters.assigned_to)}%`);
+    }
+    if (filters.search) {
+      const pattern = `%${escapeLike(filters.search)}%`;
+      query = query.where((b) => b
+        .where('serial_number', 'ilike', pattern)
+        .orWhere('name', 'ilike', pattern)
+        .orWhere('store_id', 'ilike', pattern));
+    }
+    return query;
+  }
+
   static async getAll(filters = {}) {
     try {
-      let query = db('tickets').orderBy('created_at', 'desc');
+      return await TicketRepository._applyListFilters(db('tickets'), filters).orderBy('created_at', 'desc');
+    } catch (error) {
+      throw new Error('Error al obtener los tickets: ' + error.message);
+    }
+  }
 
-      if (filters.is_apolo_sync) {
-        query = query.where({ is_apolo_sync: true });
-      }
-      if (filters.store_id) {
-        query = query.where({ store_id: filters.store_id });
-      }
+  // Listado paginado: devuelve la página pedida y el total que cumple los filtros
+  static async getPage(filters = {}, { page = 1, limit = DEFAULT_PAGE_SIZE, sort = 'created_at', order = 'desc' } = {}) {
+    try {
+      const safeLimit = Math.min(Math.max(parseInt(limit, 10) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+      const safePage = Math.max(parseInt(page, 10) || 1, 1);
+      const sortCol = SORTABLE_COLUMNS.includes(sort) ? sort : 'created_at';
+      const sortDir = String(order).toLowerCase() === 'asc' ? 'asc' : 'desc';
 
-      return await query;
+      // El conteo va en una consulta aparte y sin ORDER BY (Postgres no lo admite con count(*))
+      const countRow = await TicketRepository._applyListFilters(db('tickets'), filters).count('* as n').first();
+      const total = Number(countRow?.n || 0);
+
+      let query = TicketRepository._applyListFilters(db('tickets'), filters).orderBy(sortCol, sortDir);
+      if (sortCol !== 'id') query = query.orderBy('id', 'desc'); // desempate estable entre páginas
+      const rows = await query.limit(safeLimit).offset((safePage - 1) * safeLimit);
+
+      return { rows, total, page: safePage, limit: safeLimit, totalPages: Math.max(Math.ceil(total / safeLimit), 1) };
     } catch (error) {
       throw new Error('Error al obtener los tickets: ' + error.message);
     }

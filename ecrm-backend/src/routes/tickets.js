@@ -46,7 +46,31 @@ router.get('/', async (req, res) => {
     }
     if (req.query.store_id) filters.store_id = String(req.query.store_id);
 
-    let results = await TicketRepository.getAll(filters);
+    // Filtros opcionales del listado (sin ellos se devuelve todo, como antes)
+    if (req.query.status) filters.status = String(req.query.status);
+    if (req.query.search) filters.search = String(req.query.search);
+    if (req.query.assigned_to) filters.assigned_to = String(req.query.assigned_to);
+    if (req.query.is_b2c === 'true' || req.query.is_b2c === 'false') filters.is_b2c = req.query.is_b2c === 'true';
+
+    // Rol cliente: las tiendas permitidas se aplican en la consulta, antes de paginar
+    // (si no, los totales y las páginas revelarían o mezclarían tickets de otras tiendas).
+    if (Array.isArray(req.clientStoreIds)) filters.store_ids = req.clientStoreIds;
+
+    const paginated = req.query.page !== undefined || req.query.limit !== undefined;
+    let results;
+    let pagination;
+    if (paginated) {
+      const pageData = await TicketRepository.getPage(filters, {
+        page: req.query.page,
+        limit: req.query.limit,
+        sort: req.query.sort,
+        order: req.query.order
+      });
+      results = pageData.rows;
+      pagination = { page: pageData.page, limit: pageData.limit, total: pageData.total, totalPages: pageData.totalPages };
+    } else {
+      results = await TicketRepository.getAll(filters);
+    }
 
     // ?fields=summary: sin la descripción (texto largo). Lo usa el dashboard, que solo cuenta tickets.
     if (req.query.fields === 'summary') {
@@ -62,7 +86,7 @@ router.get('/', async (req, res) => {
         return { ...t, description: d.slice(0, 300) + '…' + (gmailTag ? ` ${gmailTag[0]}` : ''), description_truncated: true };
       });
     }
-    res.status(200).json({ success: true, data: results });
+    res.status(200).json(pagination ? { success: true, data: results, pagination } : { success: true, data: results });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });
