@@ -64,7 +64,8 @@ async function ensureDailyTicket(storeId, metric, origin = 'BOT') {
   return withStoreLock(String(storeId), async () => {
     const existing = await db('tickets')
       .where({ store_id: storeId, name: DAILY_TICKET_NAME })
-      .whereRaw('created_at::date = CURRENT_DATE')
+      // "Hoy" según la hora de Lima (antes UTC: después de las 19:00 en Lima ya contaba como mañana)
+      .whereRaw("(created_at AT TIME ZONE 'America/Lima')::date = (now() AT TIME ZONE 'America/Lima')::date")
       .first();
 
     if (existing) return { created: false, ticket: existing };

@@ -21,34 +21,35 @@ const sanitizeTaskType = (t) => {
   return 'CONSULTA'; 
 };
 
+const VALID_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+
 class TicketRepository {
   // 🌟 AHORA DETERMINA EL PREFIJO DEPENDIENDO SI ES B2B (SOP) O B2C (HUB)
-  static async generateSerialNumber(isB2C = false) {
-    const year = new Date().getFullYear();
+  // Debe llamarse DENTRO de una transacción (conn = trx): toma un candado de Postgres por
+  // prefijo y año, así dos tickets creados a la vez no pueden recibir el mismo número.
+  static async generateSerialNumber(isB2C = false, conn = db) {
+    // Año según la hora de Lima (el 31/12 a las 20:00 en Lima todavía es el mismo año)
+    const year = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Lima', year: 'numeric' }).format(new Date());
     const prefix = isB2C ? 'HUB' : 'SOP';
+    const pattern = `${prefix}-${year}-%`;
 
-    const lastTicket = await db('tickets')
-      .where('serial_number', 'like', `${prefix}-${year}-%`)
-      .orderBy('created_at', 'desc')
-      .first();
+    await conn.raw('SELECT pg_advisory_xact_lock(hashtext(?))', [`ticket_serial:${prefix}-${year}`]);
 
-    let nextNumber = 1;
-    if (lastTicket) {
-      const parts = lastTicket.serial_number.split('-');
-      if (parts.length >= 3) {
-        nextNumber = parseInt(parts[2], 10) + 1;
-      }
-    }
+    // Mayor número usado (antes: el del último ticket por fecha, que podía no ser el mayor)
+    const result = await conn.raw(
+      `SELECT MAX(CAST(NULLIF(regexp_replace(split_part(serial_number, '-', 3), '[^0-9]', '', 'g'), '') AS int)) AS n
+       FROM tickets WHERE serial_number LIKE ?`,
+      [pattern]
+    );
+    const lastNumber = parseInt(result.rows?.[0]?.n, 10) || 0;
 
-    const paddedNumber = nextNumber.toString().padStart(4, '0');
+    const paddedNumber = (lastNumber + 1).toString().padStart(4, '0');
     return `${prefix}-${year}-${paddedNumber}`;
   }
 
   static async create(ticketData) {
     try {
       const isB2C = !!ticketData.is_b2c;
-      // 👈 Genera el serial pasando la bandera de B2C
-      const serial_number = await this.generateSerialNumber(isB2C);
       
       const validPriority = sanitizePriority(ticketData.priority);
       const validTaskType = sanitizeTaskType(ticketData.task_type);
@@ -59,7 +60,15 @@ class TicketRepository {
         finalStoreId = 'enova.agency';
       }
 
+      // Estado inicial: el que se pida si es válido (antes siempre OPEN)
+      const status = VALID_STATUSES.includes(String(ticketData.status || '').toUpperCase())
+        ? String(ticketData.status).toUpperCase()
+        : 'OPEN';
+
       const newTicket = await db.transaction(async (trx) => {
+        // 👈 Genera el serial (B2B SOP / B2C HUB) con candado, dentro de la transacción
+        const serial_number = await this.generateSerialNumber(isB2C, trx);
+
         const [insertedTicket] = await trx('tickets').insert({
           serial_number,
           name: ticketData.name || 'Ticket Automático',
@@ -67,7 +76,8 @@ class TicketRepository {
           store_id: finalStoreId,
           priority: validPriority,
           task_type: validTaskType,
-          status: 'OPEN',
+          status,
+          ...(status === 'CLOSED' || status === 'RESOLVED' ? { closed_at: db.fn.now() } : {}),
           assigned_to: ticketData.assigned_to || null,
           is_b2c: isB2C
         }).returning('*');

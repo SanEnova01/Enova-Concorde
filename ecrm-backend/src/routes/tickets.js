@@ -15,6 +15,10 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Solo el equipo puede crear tickets ya cerrados o en progreso; un cliente siempre crea OPEN
+    const role = String(req.adminUser?.role || '').toLowerCase().trim();
+    if (role !== 'admin' && role !== 'super admin') delete ticketData.status;
+
     const result = await TicketRepository.create(ticketData);
 
     if (req.logActivity) {
@@ -24,12 +28,7 @@ router.post('/', async (req, res) => {
       );
     }
 
-    // 🌟 INVOCACIÓN SILENCIOSA A ENOVA HUB
-    if (result) {
-        registrarTicketEnHub(result).catch(err => {
-            console.error('❌ [Hub Sync Error]', err.message);
-        });
-    }
+    // El envío al Hub ya lo hace TicketRepository.create (antes se enviaba dos veces)
 
     res.status(201).json({ success: true, data: result });
   } catch (error) {

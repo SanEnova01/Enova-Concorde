@@ -454,7 +454,7 @@ async function notificarFinalizacion(
     fechaActual
 ) {
     try {
-        await fetch(
+        const resp = await fetch(
             `${API_BASE_URL}/metrics/notify-completion`,
             {
                 method: 'POST',
@@ -471,9 +471,12 @@ async function notificarFinalizacion(
             }
         );
 
-        console.log(
-            '📧 Correo de notificación enviado con éxito.'
-        );
+        const body = await resp.json().catch(() => ({}));
+        if (resp.ok && body.success) {
+            console.log('📧 Correo de notificación enviado con éxito.');
+        } else {
+            console.warn(`⚠️ [Notify] El backend no envió el correo (HTTP ${resp.status}): ${body.error || 'sin detalle'}`);
+        }
     } catch (error) {
         console.error(
             'Error enviando correo de notificación:',

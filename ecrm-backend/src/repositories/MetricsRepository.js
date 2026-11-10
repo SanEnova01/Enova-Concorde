@@ -1,8 +1,8 @@
 const db = require('../config/db');
 
 class MetricsRepository {
-  static async create(metricData) {
-    try {
+  // Convierte un registro recibido (bot, CSV, manual) en la fila de daily_metrics
+  static toRow(metricData) {
       const {
         store_id, date, redirect_ms, dns_ms, tcp_ms, ttfb_ms,
         dom_interactive_ms, dom_ms, load_ms, total_weight_mb,
@@ -10,7 +10,7 @@ class MetricsRepository {
         html_analysis // 🌟 SE ATRAPA LA RADIOGRAFÍA HTML
       } = metricData;
 
-      const [newMetric] = await db('daily_metrics').insert({
+      return {
         store_id,
         date: date ? new Date(date).toISOString() : db.fn.now(),
         redirect_ms: parseInt(redirect_ms) || 0,
@@ -25,11 +25,29 @@ class MetricsRepository {
         ram_core_mb: parseFloat(ram_core_mb || 0),
         ram_total_mb: parseFloat(ram_total_mb || ram_usage || 0),
         html_analysis: typeof html_analysis === 'object' && html_analysis !== null ? JSON.stringify(html_analysis) : (html_analysis || null)
-      }).returning('*');
+      };
+  }
 
+  static async create(metricData) {
+    try {
+      const [newMetric] = await db('daily_metrics').insert(this.toRow(metricData)).returning('*');
       return newMetric;
     } catch (error) {
       throw new Error('Error al guardar la métrica: ' + error.message);
+    }
+  }
+
+  // Inserción masiva (carga por CSV). Se omiten filas sin store_id; todo o nada (transacción).
+  static async createBulk(rows) {
+    const validRows = (rows || []).filter((r) => r && r.store_id).map((r) => this.toRow(r));
+    if (validRows.length === 0) return { inserted: 0, skipped: (rows || []).length };
+    try {
+      await db.transaction(async (trx) => {
+        await trx.batchInsert('daily_metrics', validRows, 500);
+      });
+      return { inserted: validRows.length, skipped: rows.length - validRows.length };
+    } catch (error) {
+      throw new Error('Error al guardar métricas en bloque: ' + error.message);
     }
   }
 

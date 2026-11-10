@@ -243,47 +243,9 @@ app.post(['/api/upload', '/upload'], verificarToken, upload.single('logo'), (req
 // ==========================================
 // 🚀 ENDPOINT PÚBLICO PARA MEDIDOR.JS (INGESTA DE MÉTRICAS)
 // ==========================================
-app.post('/api/ingest', async (req, res) => {
-  if (!requestHasValidApiKey(req)) {
-    return res.status(401).json({ success: false, error: 'API Key inválida o ausente.' });
-  }
-
-  try {
-    const metricData = req.body;
-    if (!metricData.store_id) {
-      return res.status(400).json({ error: 'El campo store_id es obligatorio.' });
-    }
-
-    // 1. Inserción de la métrica diaria
-    const [insertedRow] = await db('daily_metrics').insert({
-      store_id: metricData.store_id,
-      date: metricData.date ? new Date(metricData.date).toISOString() : db.fn.now(),
-      redirect_ms: parseInt(metricData.redirect_ms) || 0,
-      dns_ms: parseInt(metricData.dns_ms) || 0,
-      tcp_ms: parseInt(metricData.tcp_ms) || 0,
-      ttfb_ms: parseInt(metricData.ttfb_ms) || 0,
-      dom_interactive_ms: parseInt(metricData.dom_interactive_ms) || 0, 
-      dom_ms: parseInt(metricData.dom_ms) || 0,
-      load_ms: parseInt(metricData.load_ms) || 0,
-      total_weight_mb: parseFloat(metricData.total_weight_mb) || 0,
-      total_requests: parseInt(metricData.total_requests) || 0,
-      ram_core_mb: parseFloat(metricData.ram_core_mb) || 0,
-      ram_total_mb: parseFloat(metricData.ram_total_mb) || 0
-    }).returning('*');
-
-    // 2. Ticket diario (uno por tienda y día) — misma lógica que /api/metrics/ingest
-    try {
-      await require('./services/DailyTicketService').ensureDailyTicket(metricData.store_id, metricData, 'BOT');
-    } catch (ticketErr) {
-      console.error('⚠️ Error al generar ticket automático:', ticketErr.message);
-    }
-
-    res.status(201).json({ success: true, data: insertedRow });
-  } catch (error) {
-    console.error("Error en /api/ingest:", error);
-    res.status(500).json({ success: false, error: 'Error inyectando métrica en DB: ' + error.message });
-  }
-});
+// Ruta antigua: usa exactamente la misma lógica que /api/metrics/ingest
+// (antes no guardaba la radiografía HTML ni lanzaba la IA)
+app.post('/api/ingest', (req, res) => require('./routes/metrics').ingestHandler(req, res));
 
 // ==========================================
 // RUTAS PROTEGIDAS POR JWT / API KEY

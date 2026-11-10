@@ -137,28 +137,32 @@ router.post('/notify-completion', async (req, res) => {
   const { total_stores, success_count, failed_count, date } = req.body;
 
   try {
-    if (process.env.SMTP_USER) {
-      await transporter.sendMail({
-        from: `"Concorde Analyzer Bot" <${process.env.SMTP_USER}>`,
-        to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
-        subject: `✅ Reporte de Análisis Ejecutado - ${new Date().toLocaleDateString()}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #111; color: #fff; border-radius: 8px;">
-            <h2 style="color: #FFD700;">🚀 Concorde Analyzer Report</h2>
-            <p>Se ha completado la ronda de análisis de rendimiento diario.</p>
-            <ul>
-              <li><strong>Fecha:</strong> ${new Date(date).toLocaleString()}</li>
-              <li><strong>Tiendas Analizadas:</strong> ${total_stores}</li>
-              <li><strong>Exitosas:</strong> <span style="color: #16a34a;">${success_count}</span></li>
-              <li><strong>Fallidas / Crash:</strong> <span style="color: #dc2626;">${failed_count}</span></li>
-            </ul>
-          </div>
-        `
-      });
+    if (!process.env.SMTP_USER) {
+      // Antes respondía éxito sin enviar nada
+      console.warn('[NOTIFY] SMTP_USER no está definido: no se envió el correo de fin de escaneo.');
+      return res.status(503).json({ success: false, sent: false, error: 'Correo no configurado (falta SMTP_USER).' });
     }
-    res.json({ success: true, message: 'Notificación procesada' });
+    await transporter.sendMail({
+      from: `"Concorde Analyzer Bot" <${process.env.SMTP_USER}>`,
+      to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
+      subject: `✅ Reporte de Análisis Ejecutado - ${new Date().toLocaleDateString()}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #111; color: #fff; border-radius: 8px;">
+          <h2 style="color: #FFD700;">🚀 Concorde Analyzer Report</h2>
+          <p>Se ha completado la ronda de análisis de rendimiento diario.</p>
+          <ul>
+            <li><strong>Fecha:</strong> ${new Date(date).toLocaleString()}</li>
+            <li><strong>Tiendas Analizadas:</strong> ${total_stores}</li>
+            <li><strong>Exitosas:</strong> <span style="color: #16a34a;">${success_count}</span></li>
+            <li><strong>Fallidas / Crash:</strong> <span style="color: #dc2626;">${failed_count}</span></li>
+          </ul>
+        </div>
+      `
+    });
+    res.json({ success: true, sent: true, message: 'Notificación enviada' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('[NOTIFY] Error enviando correo de fin de escaneo:', error.message);
+    res.status(500).json({ success: false, sent: false, error: error.message });
   }
 });
 
@@ -195,10 +199,11 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
     })
     .on('end', async () => {
       try {
-        await MetricsRepository.createBulk(results);
-        res.status(200).json({ success: true, message: 'Data procesada exitosamente' });
+        const { inserted, skipped } = await MetricsRepository.createBulk(results);
+        res.status(200).json({ success: true, inserted, skipped, message: `Se cargaron ${inserted} registros${skipped ? ` (${skipped} sin store_id omitidos)` : ''}.` });
       } catch (error) {
-        res.status(500).json({ error: 'Fallo al insertar en DB' });
+        console.error('[UPLOAD-CSV] Error:', error.message);
+        res.status(500).json({ success: false, error: 'Fallo al insertar en DB: ' + error.message });
       }
     });
 });
@@ -323,7 +328,8 @@ router.post('/alerts/resolve-store/:store_id', async (req, res) => {
 });
 
 // 🌟 INGEST PRINCIPAL DEL BOT (AQUÍ OCURRE LA MAGIA DE LA IA A LAS 9 AM)
-router.post('/ingest', async (req, res) => {
+// Handler único de ingesta: lo usan /api/metrics/ingest y la ruta antigua /api/ingest (index.js)
+async function ingestHandler(req, res) {
   if (!requestHasValidApiKey(req)) {
     return res.status(401).json({ success: false, error: 'API Key inválida o ausente.' });
   }
@@ -355,7 +361,8 @@ router.post('/ingest', async (req, res) => {
     console.error('[INGEST] Error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
-});
+}
+router.post('/ingest', ingestHandler);
 
 router.post('/', async (req, res) => {
   try {
@@ -388,3 +395,4 @@ router.get('/:store_id', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.ingestHandler = ingestHandler;
