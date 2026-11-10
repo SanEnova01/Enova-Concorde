@@ -25,6 +25,12 @@ const TASKS = {
   dashboard: {
     primary: 'openai/gpt-6-luna',
     fallback: 'openai/gpt-6-luna'
+  },
+  // Mascota del dashboard: respuestas cortas. El modelo principal se elige en Configuración.
+  pet: {
+    primary: LUNA,
+    fallback: HAIKU,
+    maxOutputTokens: 300
   }
 };
 
@@ -124,7 +130,7 @@ async function logUsage(moduleName, modelId, usage) {
   }
 }
 
-async function generateJSON({ task, system, prompt, module: moduleName, validate }) {
+async function generateJSON({ task, system, prompt, module: moduleName, validate, model: modelOverride }) {
   const cfg = TASKS[task];
   if (!cfg) throw new Error(`Tarea de IA desconocida: ${task}`);
 
@@ -132,7 +138,7 @@ async function generateJSON({ task, system, prompt, module: moduleName, validate
   if (!provider) throw new Error('NO_AI_KEY');
 
   const { generateText } = await import('ai');
-  const chain = [cfg.primary, cfg.fallback].filter((m, i, a) => m && a.indexOf(m) === i);
+  const chain = [modelOverride, cfg.primary, cfg.fallback].filter((m, i, a) => m && a.indexOf(m) === i);
   let lastError = null;
 
   for (const modelId of chain) {

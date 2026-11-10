@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { isAllowedOrigin, requestHasValidApiKey, JWT_SECRET } = require('./config/security');
-const { verificarToken, requireSuperAdmin } = require('./middleware/auth');
+const { verificarToken, requireSuperAdmin, requireStaff } = require('./middleware/auth');
 const app = express();
 
 require('./db/ensureIndexes')().catch((err) => console.error('[DB] Error verificando índices:', err.message));
@@ -126,6 +126,7 @@ app.use('/api/knowledge', verificarToken, require('./routes/knowledge'));
 app.use('/api/ai', verificarToken, require('./routes/ai'));
 app.use('/api/quotes', verificarToken, require('./routes/quotes'));
 app.use('/api/settings', verificarToken, requireSuperAdmin, require('./routes/settings'));
+app.use('/api/pet', verificarToken, requireStaff, require('./routes/pet'));
 
 // Estado de plataformas externas → routes/external.js
 app.use('/api/external', require('./routes/external'));

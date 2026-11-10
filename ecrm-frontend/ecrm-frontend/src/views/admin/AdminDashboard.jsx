@@ -4,7 +4,7 @@ import crmApi from '../../api/crmApi';
 import { startVisiblePolling } from '../../utils/visiblePolling';
 
 import MatrixEffect from './MatrixEffect';
-import PixelPetWidget from './PixelPetWidget';
+import ConcordePet from './pet/ConcordePet';
 // Widgets del dashboard (antes en este mismo archivo) → ./dashboard/
 import AnalogOdometer from './dashboard/AnalogOdometer';
 import ClientLogo from './dashboard/ClientLogo';
@@ -214,7 +214,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
     <div ref={dashboardRef} style={{ position: 'relative', width: '100%', minHeight: '100%' }}>
       
       {/* 🌟 AQUÍ HACES LA LLAMADA AL PIXEL PET */}
-      <PixelPetWidget 
+      <ConcordePet 
         ticketStatusStats={ticketStatusStats} 
         myTickets={myTickets} 
       />

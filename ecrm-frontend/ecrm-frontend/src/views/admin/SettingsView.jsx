@@ -26,6 +26,60 @@ function Switch({ checked, disabled, onChange }) {
   );
 }
 
+// Número: se guarda al salir del campo o con Enter
+function NumberField({ setting, disabled, onSave }) {
+  const [draft, setDraft] = useState(String(setting.value ?? ''));
+  const commit = () => {
+    if (draft === '' || Number(draft) === setting.value) return;
+    onSave(Number(draft));
+  };
+  return (
+    <input
+      type="number" className="crm-input-text" style={{ width: '90px' }}
+      min={setting.min} max={setting.max} value={draft} disabled={disabled}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+    />
+  );
+}
+
+// Texto largo: se guarda con el botón
+function TextField({ setting, disabled, onSave }) {
+  const [draft, setDraft] = useState(setting.value || '');
+  const changed = draft !== (setting.value || '');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '320px', maxWidth: '100%' }}>
+      <textarea
+        className="crm-input-text" rows={3} maxLength={setting.maxLength} value={draft} disabled={disabled}
+        onChange={(e) => setDraft(e.target.value)} style={{ resize: 'vertical' }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#999' }}>
+        <span>{draft.length}/{setting.maxLength || 1000}</span>
+        <button type="button" className="crm-btn-black" disabled={!changed || disabled} onClick={() => onSave(draft)}
+          style={{ padding: '4px 10px', fontSize: '12px', opacity: changed ? 1 : 0.4 }}>Guardar</button>
+      </div>
+    </div>
+  );
+}
+
+function SettingControl({ setting, disabled, onSave }) {
+  if (setting.type === 'boolean') {
+    return <Switch checked={!!setting.value} disabled={disabled} onChange={onSave} />;
+  }
+  if (setting.type === 'select') {
+    return (
+      <select className="crm-select-dropdown" value={setting.value} disabled={disabled}
+        onChange={(e) => onSave(e.target.value)} style={{ minWidth: '220px' }}>
+        {(setting.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    );
+  }
+  if (setting.type === 'number') return <NumberField setting={setting} disabled={disabled} onSave={onSave} />;
+  if (setting.type === 'text') return <TextField setting={setting} disabled={disabled} onSave={onSave} />;
+  return null;
+}
+
 function SettingsView() {
   const [settings, setSettings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,9 +103,10 @@ function SettingsView() {
   const updateSetting = async (key, value) => {
     setSavingKey(key);
     try {
-      await crmApi.put(`/settings/${key}`, { value });
+      const res = await crmApi.put(`/settings/${key}`, { value });
+      const saved = res.data?.data?.value ?? value; // el servidor devuelve el valor normalizado
       setSettings(prev => prev.map(s => s.key === key
-        ? { ...s, value, updated_at: new Date().toISOString() }
+        ? { ...s, value: saved, updated_at: new Date().toISOString() }
         : s));
     } catch (err) {
       alert(err.response?.data?.error || 'No se pudo guardar el cambio.');
@@ -94,13 +149,11 @@ function SettingsView() {
                   </div>
                 )}
               </div>
-              {s.type === 'boolean' && (
-                <Switch
-                  checked={!!s.value}
-                  disabled={savingKey === s.key}
-                  onChange={(v) => updateSetting(s.key, v)}
-                />
-              )}
+              <SettingControl
+                setting={s}
+                disabled={savingKey === s.key}
+                onSave={(v) => updateSetting(s.key, v)}
+              />
             </div>
           ))}
         </div>
