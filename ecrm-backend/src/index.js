@@ -291,49 +291,9 @@ app.post('/api/ingest', async (req, res) => {
       ram_total_mb: parseFloat(metricData.ram_total_mb) || 0
     }).returning('*');
 
-    // 2. Creación del ticket (Únicamente en la primera ingesta del día por tienda)
+    // 2. Ticket diario (uno por tienda y día) — misma lógica que /api/metrics/ingest
     try {
-      const ticketExistenteHoy = await db('tickets')
-        .where({
-          store_id: metricData.store_id,
-          name: 'Revisión técnica Status diario'
-        })
-        .whereRaw("created_at::date = CURRENT_DATE")
-        .first();
-
-      if (!ticketExistenteHoy) {
-        const loadMs = parseInt(metricData.load_ms) || 0;
-        const ttfbMs = parseInt(metricData.ttfb_ms) || 0;
-        const weightMb = parseFloat(metricData.total_weight_mb) || 0;
-        const requests = parseInt(metricData.total_requests) || 0;
-
-        const descripcion = `📌 ¿Qué hace esta revisión técnica?
-Este ticket se genera automáticamente con el primer análisis del día para verificar la salud y velocidad de la tienda online.
-
-🔍 Acciones realizadas por el bot:
-1. Simulación de usuario: El sistema entra a la tienda simulando la visita de un cliente desde un teléfono móvil.
-2. Respuesta del servidor (TTFB): Mide cuánto tarda el servidor en dar la primera respuesta desde que el cliente da clic.
-3. Tiempo de carga total: Mide cuántos milisegundos tarda la pantalla en mostrarse completamente funcional.
-4. Peso y elementos: Suma el peso de todas las imágenes y scripts descargados (MB) y cuenta cuántas peticiones se hicieron a la red.
-5. Recursos del sistema: Revisa el consumo de memoria RAM utilizado durante el renderizado.
-
-📊 Resultado de la prueba de hoy:
-- Tiempo de carga total: ${loadMs} ms
-- Respuesta inicial del servidor (TTFB): ${ttfbMs} ms
-- Peso total de la página: ${weightMb} MB
-- Cantidad de elementos cargados (Requests): ${requests}
-- Consumo de memoria RAM: ${metricData.ram_core_mb || 0} MB`;
-
-        await TicketRepository.create({
-          name: 'Revisión técnica Status diario',
-          description: descripcion,
-          store_id: metricData.store_id,
-          priority: 'MEDIUM',
-          task_type: 'TASK_INTERNA'
-        });
-
-        console.log(`🎫 Ticket diario creado para store_id: ${metricData.store_id}`);
-      }
+      await require('./services/DailyTicketService').ensureDailyTicket(metricData.store_id, metricData, 'BOT');
     } catch (ticketErr) {
       console.error('⚠️ Error al generar ticket automático:', ticketErr.message);
     }

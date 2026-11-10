@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 const MetricsRepository = require('../repositories/MetricsRepository');
 const db = require('../config/db');
 const HtmlInsights = require('../ai/htmlInsights');
+const DailyTicketService = require('../services/DailyTicketService');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -252,26 +253,7 @@ router.post('/run-single-client', async (req, res) => {
 
         // --- GENERACIÓN DE TICKET (ANÁLISIS MANUAL) ---
         try {
-          const TicketRepository = require('../repositories/TicketRepository');
-          const ticketExistenteHoy = await db('tickets')
-            .where({ store_id: store_id, name: 'Revisión técnica Status diario' })
-            .whereRaw("created_at::date = CURRENT_DATE")
-            .first();
-
-          if (!ticketExistenteHoy) {
-            const loadSec = ((botData.data.load_ms || 0) / 1000).toFixed(2);
-            const ttfbSec = ((botData.data.ttfb_ms || 0) / 1000).toFixed(2);
-            const descripcion = `📌 Este ticket se generó a partir de una ejecución manual.\n\n📊 Resultado:\n- Carga: ${loadSec}s\n- TTFB: ${ttfbSec}s\n- Peso: ${botData.data.total_weight_mb || 0} MB\n- Peticiones: ${botData.data.total_requests || 0}\n- RAM Consumida: ${botData.data.ram_core_mb || 0} MB`;
-
-            await TicketRepository.create({
-              name: 'Revisión técnica Status diario',
-              description: descripcion,
-              store_id: store_id,
-              priority: 'MEDIUM',
-              task_type: 'TASK_INTERNA',
-              status: 'CLOSED'
-            });
-          }
+          await DailyTicketService.ensureDailyTicket(store_id, botData.data, 'MANUAL');
         } catch (err) {
           console.error(`[SINGLE-RUN - ERROR EN TICKET]`, err);
         }
@@ -280,6 +262,28 @@ router.post('/run-single-client', async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// Disparo independiente del ticket diario para UN cliente, usando su última métrica guardada.
+// No vuelve a escanear; si ya existe el ticket de hoy, lo devuelve sin duplicar.
+router.post('/daily-ticket/:store_id', async (req, res) => {
+  try {
+    const { store_id } = req.params;
+    const lastMetric = await db('daily_metrics')
+      .where({ store_id })
+      .orderBy('date', 'desc')
+      .first();
+
+    if (!lastMetric) {
+      return res.status(404).json({ success: false, error: 'La tienda no tiene métricas registradas.' });
+    }
+
+    const { created, ticket } = await DailyTicketService.ensureDailyTicket(store_id, lastMetric, 'TRIGGER');
+    res.status(created ? 201 : 200).json({ success: true, created, data: ticket });
+  } catch (error) {
+    console.error('[DailyTicket] Error en disparo manual:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // ======================================================
@@ -337,6 +341,11 @@ router.post('/ingest', async (req, res) => {
         console.error('Error al generar alerta con IA:', err.message);
       });
     }
+
+    // Ticket diario por tienda (se perdió cuando el bot pasó de /api/ingest a /api/metrics/ingest)
+    DailyTicketService.ensureDailyTicket(metricData.store_id, metricData, 'BOT').catch((err) => {
+      console.error(`⚠️ [DailyTicket] Error store=${metricData.store_id}:`, err.message);
+    });
 
     res.status(201).json({ success: true, data: result });
   } catch (error) {
