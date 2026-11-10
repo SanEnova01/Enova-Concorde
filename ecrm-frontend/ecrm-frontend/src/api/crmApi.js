@@ -26,7 +26,13 @@ crmApi.interceptors.request.use(
 crmApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    // Solo se cierra sesión si el token falta o venció. Un 403 por falta de permiso
+    // (p. ej. un cliente pidiendo datos de admin) no debe expulsar al usuario.
+    const status = error.response?.status;
+    const body = error.response?.data || {};
+    const sesionVencida = status === 401 ||
+      (status === 403 && (body.code === 'SESSION_EXPIRED' || /sesi[oó]n expirada/i.test(body.error || '')));
+    if (sesionVencida) {
       localStorage.removeItem('crm_token');
       window.location.href = '/login';
     }

@@ -8,6 +8,8 @@ const MetricsRepository = require('../repositories/MetricsRepository');
 const db = require('../config/db');
 const HtmlInsights = require('../ai/htmlInsights');
 const DailyTicketService = require('../services/DailyTicketService');
+const { requestHasValidApiKey, OUTBOUND_API_KEY } = require('../config/security');
+const { requireStaff } = require('../middleware/auth');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -31,8 +33,7 @@ let botStatusInfo = {
 // ======================================================
 
 router.post('/bot-heartbeat', (req, res) => {
-  const rawKey = req.headers['x-api-key'] || '';
-  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+  if (!requestHasValidApiKey(req)) {
     return res.status(401).json({ success: false, error: 'API Key no autorizada' });
   }
 
@@ -71,7 +72,7 @@ router.post('/force-run', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': 'ENOVA_SECRET_API_KEY_2026'
+        'x-api-key': OUTBOUND_API_KEY
       }
     });
     const data = await botRes.json();
@@ -91,7 +92,7 @@ router.post('/extract-images', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': 'ENOVA_SECRET_API_KEY_2026'
+        'x-api-key': OUTBOUND_API_KEY
       },
       body: JSON.stringify({ url })
     });
@@ -129,8 +130,7 @@ router.get('/extract-progress', async (req, res) => {
 });
 
 router.post('/notify-completion', async (req, res) => {
-  const rawKey = req.headers['x-api-key'] || '';
-  if (rawKey.trim() !== 'ENOVA_SECRET_API_KEY_2026' && rawKey.trim() !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
+  if (!requestHasValidApiKey(req)) {
     return res.status(401).json({ success: false, error: 'API Key no autorizada' });
   }
 
@@ -211,7 +211,7 @@ router.post('/run-single-client', async (req, res) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': process.env.API_KEY || 'ENOVA_SECRET_API_KEY_2026'
+                'x-api-key': OUTBOUND_API_KEY
             },
             body: JSON.stringify({ url: url })
         });
@@ -266,7 +266,7 @@ router.post('/run-single-client', async (req, res) => {
 
 // Disparo independiente del ticket diario para UN cliente, usando su última métrica guardada.
 // No vuelve a escanear; si ya existe el ticket de hoy, lo devuelve sin duplicar.
-router.post('/daily-ticket/:store_id', async (req, res) => {
+router.post('/daily-ticket/:store_id', requireStaff, async (req, res) => {
   try {
     const { store_id } = req.params;
     const lastMetric = await db('daily_metrics')
@@ -324,6 +324,9 @@ router.post('/alerts/resolve-store/:store_id', async (req, res) => {
 
 // 🌟 INGEST PRINCIPAL DEL BOT (AQUÍ OCURRE LA MAGIA DE LA IA A LAS 9 AM)
 router.post('/ingest', async (req, res) => {
+  if (!requestHasValidApiKey(req)) {
+    return res.status(401).json({ success: false, error: 'API Key inválida o ausente.' });
+  }
   try {
     const metricData = req.body;
     if (!metricData.store_id) return res.status(400).json({ error: 'El campo store_id es obligatorio.' });

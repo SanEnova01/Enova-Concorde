@@ -1,20 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const jwt = require('jsonwebtoken');
+const { verificarToken, requireStaff } = require('../middleware/auth');
+const { OUTBOUND_API_KEY } = require('../config/security');
 
-const verificarTokenAdmin = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ success: false, error: 'Acceso denegado.' });
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026');
-        req.adminUser = decoded;
-        next();
-    } catch (error) {
-        return res.status(403).json({ success: false, error: 'Sesión expirada.' });
-    }
-};
+// Solo admin / super admin (antes cualquier usuario logueado, incluso clientes)
+const verificarTokenAdmin = [verificarToken, requireStaff];
 
 const BOT_SERVICE_URL = process.env.BOT_SERVICE_URL || 'http://localhost:3001';
 
@@ -224,7 +215,7 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-api-key': process.env.API_KEY || 'ENOVA_SECRET_API_KEY_2026'
+                    'x-api-key': OUTBOUND_API_KEY
                 },
                 body: JSON.stringify({ url: targetUrl, device: 'mobile' })
             }).catch(() => null),
@@ -232,7 +223,7 @@ router.post('/:id/run', verificarTokenAdmin, async (req, res) => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-api-key': process.env.API_KEY || 'ENOVA_SECRET_API_KEY_2026'
+                    'x-api-key': OUTBOUND_API_KEY
                 },
                 body: JSON.stringify({ url: targetUrl, device: 'desktop' })
             }).catch(() => null),

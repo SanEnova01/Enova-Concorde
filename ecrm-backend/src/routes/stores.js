@@ -1,4 +1,5 @@
 const express = require('express');
+const { emailList } = require('../middleware/auth');
 const router = express.Router();
 const StoreRepository = require('../repositories/StoreRepository');
 
@@ -46,8 +47,8 @@ router.get('/:id', async (req, res) => {
       
       // 🌟 FIX: Buscar TODAS las coincidencias usando includes() de forma segura
       const matchedStores = stores.filter(store => {
-        if (!store.emails) return false;
-        return String(store.emails).toLowerCase().includes(correoLimpio);
+        // Coincidencia exacta (includes() mezclaba correos parecidos: ana@x.com ⊂ juana@x.com)
+        return emailList(store.emails).includes(correoLimpio);
       });
 
       if (matchedStores.length > 0) {

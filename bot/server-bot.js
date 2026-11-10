@@ -48,9 +48,13 @@ const API_BASE_URL =
     process.env.API_BASE_URL ||
     'https://enova-concorde-staging-2027.up.railway.app/api';
 
-const API_KEY =
-    process.env.API_KEY ||
-    'ENOVA_SECRET_API_KEY_2026';
+// La llave vive solo en Railway → Variables (debe ser la misma API_KEY del backend)
+const API_KEY = (process.env.API_KEY || '').trim();
+if (!API_KEY) {
+    console.error('🚨 [SECURITY] API_KEY no está definida: el bot no podrá enviar métricas ni aceptar órdenes.');
+}
+// Sin API_KEY configurada se rechaza todo (antes una llave vacía podía coincidir con '')
+const llaveValida = (rawKey) => !!API_KEY && String(rawKey || '').trim() === API_KEY;
 
 // Planes permitidos para ser analizados
 const PLANES_VALIDOS = [
@@ -756,7 +760,7 @@ app.post('/run-force', async (req, res) => {
     const rawKey =
         req.headers['x-api-key'] || '';
 
-    if (rawKey.trim() !== API_KEY) {
+    if (!llaveValida(rawKey)) {
         return res.status(401).json({
             success: false,
             error: 'API Key no autorizada'
@@ -1327,8 +1331,7 @@ app.post(
             req.headers['x-api-key'] || '';
 
         if (
-            rawKey.trim() !==
-            API_KEY
+            !llaveValida(rawKey)
         ) {
             return res.status(401).json({
                 success: false,
@@ -1462,8 +1465,7 @@ app.post(
             req.headers['x-api-key'] || '';
 
         if (
-            rawKey.trim() !==
-            API_KEY
+            !llaveValida(rawKey)
         ) {
             return res.status(401).json({
                 success: false,

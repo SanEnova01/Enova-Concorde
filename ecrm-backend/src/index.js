@@ -8,7 +8,8 @@ const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs'); 
 const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
-const TicketRepository = require('./repositories/TicketRepository');
+const { isAllowedOrigin, requestHasValidApiKey, JWT_SECRET } = require('./config/security');
+const { verificarToken, signToken } = require('./middleware/auth');
 const app = express();
 
 // 🌟 AUTO-CREACIÓN DE LA TABLA AUDIT_LOGS EN POSTGRESQL
@@ -51,7 +52,8 @@ app.set('trust proxy', 1);
 // 0.1 CORS: DEBE IR ANTES QUE CUALQUIER OTRO MIDDLEWARE
 // ==========================================
 app.use(cors({
-  origin: '*', // Permite que tu frontend de Railway se conecte sin bloqueos
+  // Solo los dominios del CRM (config/security.js o variable CORS_ORIGINS)
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-API-KEY']
 }));
@@ -92,37 +94,27 @@ app.use(express.json());
 // ==========================================
 // 🚀 RUTAS PÚBLICAS Y AUDITORÍAS (REGISTRADAS AQUÍ)
 // ==========================================
+// Límites propios para rutas públicas que crean tickets o consumen IA
+const publicChatLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, error: 'Demasiadas consultas. Espera un momento.' }
+});
+const publicCreateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, error: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.' }
+});
+app.use('/api/cooppilot/chat', publicChatLimiter);
+app.use('/api/cooppilot/ticket', publicCreateLimiter);
+app.use('/api/audits/request', publicCreateLimiter);
+
 app.use('/api/cooppilot', require('./routes/cooppilot'));
 app.use('/api/audits', require('./routes/audits'));
 
 // ==========================================
 // MIDDLEWARE: GUARDIÁN DE RUTAS INTERNAS (SOPORTA JWT Y API KEY DEL BOT)
 // ==========================================
-const verificarToken = (req, res, next) => {
-  // 🌟 1. PERMISO ESPECIAL PARA EL BOT MEDIANTE X-API-KEY
-  const rawKey = req.headers['x-api-key'] || req.headers['X-API-KEY'] || req.headers['X-Api-Key'] || '';
-  const apiKey = String(rawKey).trim();
-
-  if (apiKey === 'ENOVA_SECRET_API_KEY_2026' || apiKey === 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
-    return next(); // Es el bot de Concorde, dar acceso inmediato
-  }
-
-  // 🌟 2. VALIDACIÓN TRADICIONAL POR TOKEN JWT PARA USUARIOS
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ success: false, error: 'Acceso denegado. Inicie sesión.' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026');
-    req.adminUser = decoded;
-    next();
-  } catch (error) {
-    return res.status(403).json({ success: false, error: 'Sesión expirada. Vuelva a autenticarse.' });
-  }
-};
+// La lógica vive en middleware/auth.js: API key por variable de entorno, JWT y permisos por rol
+// (un usuario "client" solo accede a los datos de sus propias tiendas).
 
 // ==========================================
 // CREACIÓN AUTOMÁTICA DE CARPETAS Y MULTER
@@ -174,51 +166,22 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       .orWhereRaw('LOWER(name) = ?', [cleanIdentifier])
       .first();
     
-    if (!user) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `DIAGNÓSTICO: El usuario o correo '${cleanIdentifier}' NO existe en la base de datos.` 
-      });
+    // Mismo mensaje si el usuario no existe o la contraseña falla (no revela qué correos existen).
+    // Se eliminó la "auto-reparación" con 123456: permitía entrar a CUALQUIER cuenta con esa clave.
+    const credencialesInvalidas = () => res.status(400).json({
+      success: false,
+      error: 'Usuario o contraseña incorrectos.'
+    });
+
+    if (!user || !user.password) return credencialesInvalidas();
+
+    const passwordValido = await bcrypt.compare(password, user.password).catch(() => false);
+    if (!passwordValido) {
+      await logActivity(req, 'LOGIN_FALLIDO', `Intento fallido para ${cleanIdentifier}`);
+      return credencialesInvalidas();
     }
 
-    // 🌟 MECANISMO DE AUTO-REPARACIÓN DE HASH CORRUPTO 🌟
-    const passwordValidoTradicional = await bcrypt.compare(password, user.password);
-
-    if (!passwordValidoTradicional && password === '123456') {
-      console.log(`[Seguridad] Reparando hash corrupto detectado para el usuario/correo: ${cleanIdentifier}`);
-      
-      const nuevoHashLimpio = await bcrypt.hash('123456', 10);
-      
-      // Corregimos la contraseña directamente en la BD
-      await db('users').where({ id: user.id }).update({ password: nuevoHashLimpio });
-      
-      // SE INYECTA EL NOMBRE AL TOKEN (name: user.name)
-      const token = jwt.sign(
-        { id: user.id, name: user.name, email: user.email, role: user.role }, 
-        process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026', 
-        { expiresIn: '12h' }
-      );
-
-      return res.status(200).json({
-        success: true,
-        token: token,
-        user: { name: user.name, email: user.email }
-      });
-    }
-
-    if (!passwordValidoTradicional && password !== '123456') {
-      return res.status(400).json({ 
-        success: false, 
-        error: `DIAGNÓSTICO: El correo '${cleanIdentifier}' SÍ existe, pero la contraseña es incorrecta.` 
-      });
-    }
-
-    // Generamos el pasaporte digital inyectando el nombre (name: user.name)
-    const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role }, 
-      process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026', 
-      { expiresIn: '12h' }
-    );
+    const token = signToken(user);
 
     // 🌟 REGISTRAMOS EL ÚLTIMO LOGIN REAL EN LA BD Y EL EVENTO EN AUDITORÍA
     await db('users').where({ id: user.id }).update({ last_login: db.fn.now() }).catch(() => {});
@@ -232,7 +195,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
   } catch (error) {
     console.error("Error en auth login:", error);
-    res.status(500).json({ success: false, error: 'Error del servidor: ' + error.message });
+    res.status(500).json({ success: false, error: 'Error del servidor.' });
   }
 });
 
@@ -257,15 +220,8 @@ app.post(['/api/upload', '/upload'], verificarToken, upload.single('logo'), (req
 // 🚀 ENDPOINT PÚBLICO PARA MEDIDOR.JS (INGESTA DE MÉTRICAS)
 // ==========================================
 app.post('/api/ingest', async (req, res) => {
-  const rawKey = req.headers['x-api-key'] || req.headers['X-API-KEY'] || req.headers['X-Api-Key'] || '';
-  const apiKey = rawKey.trim();
-  
-  if (apiKey !== 'ENOVA_SECRET_API_KEY_2026' && apiKey !== 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026') {
-    return res.status(401).json({ 
-      success: false, 
-      error: 'API Key inválida o ausente.',
-      diagnostico: `Recibido: "${apiKey}" | Largo real: ${apiKey.length} caracteres.` 
-    });
+  if (!requestHasValidApiKey(req)) {
+    return res.status(401).json({ success: false, error: 'API Key inválida o ausente.' });
   }
 
   try {
@@ -379,11 +335,30 @@ app.get('/api/external/vtex-status', async (req, res) => {
 // ==========================================
 // 🛍️ PROXY EN TIEMPO REAL: MONITOR AUTÓNOMO WOOCOMMERCE
 // ==========================================
-app.get('/api/external/woocommerce-status', async (req, res) => {
+// Evita que este proxy se use para consultar servicios internos (SSRF)
+const isPublicHttpUrl = (raw) => {
+  try {
+    const u = new URL(raw);
+    if (!['http:', 'https:'].includes(u.protocol)) return false;
+    const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || h === '::1' || h === '0.0.0.0') return false;
+    if (/^(127|10|0)\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return false;
+    if (/^(fc|fd|fe80)/.test(h) && h.includes(':')) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+app.get('/api/external/woocommerce-status', verificarToken, async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) {
       return res.status(400).json({ success: false, error: 'Falta la URL de la tienda.' });
+    }
+    if (!isPublicHttpUrl(url)) {
+      return res.status(400).json({ success: false, error: 'URL no permitida.' });
     }
 
     const startTime = Date.now();
@@ -686,7 +661,7 @@ const { Server } = require('socket.io');
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] }
+  cors: { origin: (origin, cb) => cb(null, isAllowedOrigin(origin)), methods: ['GET', 'POST'] }
 });
 
 // Middleware de seguridad para WebSockets (Solo Super Admins)
@@ -695,8 +670,8 @@ io.use((socket, next) => {
   if (!token) return next(new Error('Sin token de autorización'));
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'LLAVE_MAESTRA_SECRETA_DEL_CRM_2026');
-    if (decoded.role !== 'super admin') {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (String(decoded.role || '').toLowerCase().trim() !== 'super admin') {
       return next(new Error('Permiso denegado. Se requiere rol de super admin.'));
     }
     // Si es super admin, lo unimos a la sala especial
