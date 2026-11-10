@@ -41,6 +41,7 @@ const CLIENT_RULES = [
   // Tickets
   { method: 'GET', path: /^\/api\/tickets$/, filter: (row, own) => own.has(String(row.store_id)) },
   { method: 'POST', path: /^\/api\/tickets$/, store: (req) => req.body?.store_id, defaultStore: true },
+  { method: 'GET', path: /^\/api\/tickets\/([^/]+)$/, ticket: (req, m) => m[1] },
   { method: 'GET', path: /^\/api\/tickets\/([^/]+)\/messages$/, ticket: (req, m) => m[1] },
   { method: 'POST', path: /^\/api\/tickets\/([^/]+)\/messages$/, ticket: (req, m) => m[1] },
 

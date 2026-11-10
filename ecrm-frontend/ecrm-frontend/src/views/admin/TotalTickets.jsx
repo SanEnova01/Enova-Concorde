@@ -162,7 +162,8 @@ function TotalTickets() {
     try {
       // 🌟 Añadimos la llamada a /users/admins
       const [ticketsRes, storesRes, usersRes] = await Promise.all([
-        crmApi.get('/tickets'), 
+        // Descripción recortada a 300 caracteres: la tabla solo la usa como tooltip
+        crmApi.get('/tickets?fields=list'), 
         crmApi.get('/stores'),
         crmApi.get('/users/admins') 
       ]);

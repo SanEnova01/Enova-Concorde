@@ -49,11 +49,22 @@ const MatrixEffect = ({ targetRef }) => {
       }
     };
 
-    const interval = setInterval(draw, 50);
+    // requestAnimationFrame: el navegador lo pausa solo si la pestaña está oculta.
+    // Se limita a ~20 cuadros por segundo, igual que el setInterval(50) anterior.
+    let frameId;
+    let lastDraw = 0;
+    const loop = (ts) => {
+      if (ts - lastDraw >= 50) {
+        lastDraw = ts;
+        draw();
+      }
+      frameId = requestAnimationFrame(loop);
+    };
+    frameId = requestAnimationFrame(loop);
     
     window.addEventListener('resize', resizeCanvas);
     return () => {
-      clearInterval(interval);
+      cancelAnimationFrame(frameId);
       window.removeEventListener('resize', resizeCanvas);
     };
   }, [targetRef]);

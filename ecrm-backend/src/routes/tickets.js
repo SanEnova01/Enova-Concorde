@@ -52,7 +52,29 @@ router.get('/', async (req, res) => {
     if (req.query.fields === 'summary') {
       results = results.map(({ description, ...rest }) => rest);
     }
+    // ?fields=list: descripción recortada a 300 caracteres (lo que muestra la tabla de Tickets
+    // Totales como tooltip) conservando la marca [GMAIL_ID: ...] que usa para enlazar el correo.
+    if (req.query.fields === 'list') {
+      results = results.map((t) => {
+        const d = t.description || '';
+        if (d.length <= 300) return t;
+        const gmailTag = d.match(/\[GMAIL_ID:\s*[a-zA-Z0-9]+\]/);
+        return { ...t, description: d.slice(0, 300) + '…' + (gmailTag ? ` ${gmailTag[0]}` : ''), description_truncated: true };
+      });
+    }
     res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+});
+
+// GET: Un solo ticket (antes el detalle descargaba todos los tickets para buscar uno)
+router.get('/:id', async (req, res) => {
+  try {
+    const ticket = await db('tickets').where({ id: req.params.id }).first();
+    if (!ticket) return res.status(404).json({ success: false, error: 'Ticket no encontrado.' });
+    res.status(200).json({ success: true, data: ticket });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });

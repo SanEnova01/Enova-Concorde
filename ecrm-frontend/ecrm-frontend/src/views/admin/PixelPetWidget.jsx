@@ -146,6 +146,7 @@ const PixelPetWidget = ({ ticketStatusStats = {}, myTickets = [] }) => {
   // Motor de personalidad: prioriza alertas útiles de Concorde y respeta el descanso.
   useEffect(() => {
     const brainLoop = window.setInterval(() => {
+      if (document.hidden) return; // pestaña oculta: no gastar renders
       if (isDragging || isMenuOpen || sleepMode) return;
       if (mood === 'love' || mood === 'coffee' || mood === 'celebrate') return;
 
@@ -201,6 +202,7 @@ const PixelPetWidget = ({ ticketStatusStats = {}, myTickets = [] }) => {
   // Parpadeo/boca, con movimiento reducido opcional.
   useEffect(() => {
     const blinkLoop = window.setInterval(() => {
+      if (document.hidden) return; // pestaña oculta: no gastar renders (antes ~3 por segundo)
       if (mood === 'sleep' || sleepMode) setMouthOpen(false);
       else setMouthOpen(Math.random() > (mood === 'talking' || mood === 'panic' ? 0.35 : 0.82));
     }, 320);

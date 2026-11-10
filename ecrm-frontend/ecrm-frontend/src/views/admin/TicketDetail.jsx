@@ -125,20 +125,23 @@ function TicketDetail() {
       setLoading(true);
       setTicketError(false);
       
-      const [ticketsRes, storesRes, adminsRes] = await Promise.all([
-        crmApi.get('/tickets'),
+      // Solo este ticket (antes se descargaban todos para buscarlo)
+      const [ticketRes, storesRes, adminsRes] = await Promise.all([
+        crmApi.get(`/tickets/${encodeURIComponent(ticketId)}`).catch((err) => {
+          if (err.response?.status === 404 || err.response?.status === 403) return { data: { data: null } };
+          throw err;
+        }),
         crmApi.get('/stores'),
         crmApi.get('/users/admins').catch(() => ({ data: [] }))
       ]);
       
-      const tickets = extraerArreglo(ticketsRes);
       const stores = extraerArreglo(storesRes);
       const admins = extraerArreglo(adminsRes);
       
       setStoresList(stores);
       setAdminUsers(admins); // 👈 Guardamos los administradores
       
-      const foundTicket = tickets.find(t => String(t.id) === String(ticketId));
+      const foundTicket = ticketRes.data?.data || null;
       
       if (foundTicket) {
         setTicket(foundTicket);
