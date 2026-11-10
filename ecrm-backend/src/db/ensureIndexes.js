@@ -12,14 +12,17 @@ const INDEXES = [
 ];
 
 async function ensureIndexes() {
+  let fallidos = 0;
   for (const sql of INDEXES) {
     try {
       await db.raw(sql);
     } catch (err) {
+      fallidos++;
       console.warn(`[DB] No se pudo crear índice (${sql.split(' ')[5]}): ${err.message}`);
     }
   }
-  console.log('✅ [DB] Índices verificados');
+  if (fallidos === 0) console.log('✅ [DB] Índices verificados');
+  else console.warn(`⚠️ [DB] ${fallidos} de ${INDEXES.length} índices no se pudieron verificar`);
 }
 
 module.exports = ensureIndexes;
