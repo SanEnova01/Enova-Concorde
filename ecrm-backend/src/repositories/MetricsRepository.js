@@ -33,8 +33,13 @@ class MetricsRepository {
     }
   }
 
-  static async getAll() {
-    return await db('daily_metrics').orderBy('date', 'desc');
+  // Sin opciones devuelve toda la tabla (compatibilidad). Con days/store_id filtra en la base.
+  static async getAll({ days, storeId } = {}) {
+    let query = db('daily_metrics').orderBy('date', 'desc');
+    if (storeId) query = query.where({ store_id: storeId });
+    const nDays = parseInt(days, 10);
+    if (nDays > 0) query = query.where('date', '>=', db.raw(`now() - (? * interval '1 day')`, [nDays]));
+    return await query;
   }
 
   static async getAllByStore(storeId) {

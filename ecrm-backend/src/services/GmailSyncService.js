@@ -25,10 +25,12 @@ class GmailSyncService {
     this.isProcessing = false;
     this.processedLabelId = null;
 
-console.log('[Gmail Sync] Bot activo. Revisión cada 2s.');
+// Antes cada 2 s (~43.000 consultas a Gmail al día). Configurable con GMAIL_POLL_SECONDS.
+    const pollMs = Math.max(10, parseInt(process.env.GMAIL_POLL_SECONDS || '30', 10)) * 1000;
+console.log(`[Gmail Sync] Bot activo. Revisión cada ${pollMs / 1000}s.`);
 
     setTimeout(() => this.processTaggedEmails(), 2000);
-    setInterval(() => this.processTaggedEmails(), 2000);
+    setInterval(() => this.processTaggedEmails(), pollMs);
 
 // 🌟 PROGRAMAR REPORTE DIARIO DE IA EN LA CONSOLA (8:00 AM LIMA)
     cron.schedule('0 8 * * *', () => {

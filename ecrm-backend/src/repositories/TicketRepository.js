@@ -101,6 +101,9 @@ class TicketRepository {
       if (filters.is_apolo_sync) {
         query = query.where({ is_apolo_sync: true });
       }
+      if (filters.store_id) {
+        query = query.where({ store_id: filters.store_id });
+      }
 
       return await query;
     } catch (error) {

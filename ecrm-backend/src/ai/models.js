@@ -136,7 +136,7 @@ async function generateJSON({ task, system, prompt, module: moduleName, validate
   let lastError = null;
 
   for (const modelId of chain) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const model = typeof provider.chat === 'function' ? provider.chat(modelId) : provider(modelId);
         const { text, usage } = await generateText({
@@ -161,8 +161,10 @@ async function generateJSON({ task, system, prompt, module: moduleName, validate
         lastError = err;
         const parseProblem = /JSON|vacía|inválid/i.test(err.message);
         console.warn(`⚠️ [AI:${task}] ${modelId} intento ${attempt} falló: ${err.message}`);
-        if (attempt === 1 && (isRetryable(err) || parseProblem)) {
-          await sleep(1500);
+        if (attempt < 3 && (isRetryable(err) || parseProblem)) {
+          // Ante 429 / límite del proveedor se espera bastante más (5 s, 15 s) antes de reintentar
+          const rateLimited = /429|rate limit/i.test(err.message);
+          await sleep(rateLimited ? 5000 * Math.pow(3, attempt - 1) : 1500);
           continue;
         }
         break;

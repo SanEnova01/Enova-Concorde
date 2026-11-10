@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
+import { startVisiblePolling } from '../../utils/visiblePolling';
 
 function ConcordeAnalyzerView() {
   const navigate = useNavigate();
@@ -20,8 +21,7 @@ function ConcordeAnalyzerView() {
       .catch(err => console.error(err));
 
     checkBotStatus();
-    const interval = setInterval(checkBotStatus, 10000);
-    return () => clearInterval(interval);
+    return startVisiblePolling(checkBotStatus, 30000);
   }, []);
 
   // ✅ CÓDIGO CORREGIDO:

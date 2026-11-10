@@ -230,7 +230,31 @@ function composeMessage(insight) {
   return parts.join(' ').slice(0, 480);
 }
 
-async function analyzeAndStore({ metricData, previousScan }) {
+// Máximo de análisis de IA en paralelo. El escaneo masivo dispara uno por tienda sin esperar;
+// sin este límite se acumulan llamadas al proveedor y aparecen errores 429.
+const MAX_CONCURRENT = Math.max(1, parseInt(process.env.AI_HTML_CONCURRENCY || '2', 10));
+let running = 0;
+const queue = [];
+
+function withConcurrencyLimit(fn) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      running++;
+      Promise.resolve().then(fn).then(resolve, reject).finally(() => {
+        running--;
+        if (queue.length) queue.shift()();
+      });
+    };
+    if (running < MAX_CONCURRENT) run();
+    else queue.push(run);
+  });
+}
+
+function analyzeAndStore(args) {
+  return withConcurrencyLimit(() => analyzeAndStoreNow(args));
+}
+
+async function analyzeAndStoreNow({ metricData, previousScan }) {
   if (!hasAiKey()) return null;
 
   const currSnap = parseSnapshot(metricData.html_analysis);

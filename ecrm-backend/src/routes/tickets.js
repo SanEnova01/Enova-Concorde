@@ -45,8 +45,14 @@ router.get('/', async (req, res) => {
     if (req.query.is_apolo_sync === 'true' || req.query.is_apolo_sync === true) {
       filters.is_apolo_sync = true;
     }
+    if (req.query.store_id) filters.store_id = String(req.query.store_id);
 
-    const results = await TicketRepository.getAll(filters);
+    let results = await TicketRepository.getAll(filters);
+
+    // ?fields=summary: sin la descripción (texto largo). Lo usa el dashboard, que solo cuenta tickets.
+    if (req.query.fields === 'summary') {
+      results = results.map(({ description, ...rest }) => rest);
+    }
     res.status(200).json({ success: true, data: results });
   } catch (error) {
     console.error(error);

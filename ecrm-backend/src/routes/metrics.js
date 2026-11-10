@@ -370,7 +370,7 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const results = await MetricsRepository.getAll();
+    const results = await MetricsRepository.getAll({ days: req.query.days, storeId: req.query.store_id });
     res.status(200).json({ success: true, data: results });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Error interno del servidor.' });

@@ -7,6 +7,7 @@ import {
   Copy, Check, X
 } from 'lucide-react';
 import crmApi from '../../api/crmApi';
+import { startVisiblePolling } from '../../utils/visiblePolling';
 
 // ============================================================
 // CONFIGURACIÓN DE PRIORIDAD
@@ -148,8 +149,7 @@ export default function HubMonitorGeneral() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000); 
-    return () => clearInterval(interval);
+    return startVisiblePolling(fetchData, 60000);
   }, []);
 
   useEffect(() => {
@@ -182,7 +182,8 @@ export default function HubMonitorGeneral() {
 
       // 3. Métricas históricas
       try {
-        const metricsRes = await crmApi.get('/metrics');
+        // Últimos 60 días: suficiente para la base de comparación HTML (10 radiografías) sin traer toda la tabla
+        const metricsRes = await crmApi.get('/metrics?days=60');
         let dataM = metricsRes.data?.data || metricsRes.data || [];
         dataM.sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at));
         setMetrics(dataM);

@@ -241,13 +241,14 @@ function ClientDetail() {
         setNotesText(clientData.notes || '');
 
         try {
-          const ticketsRes = await crmApi.get('/tickets');
+          const ticketsRes = await crmApi.get(`/tickets?store_id=${encodeURIComponent(activeStoreId)}`);
           const ticketsList = Array.isArray(ticketsRes.data) ? ticketsRes.data : (ticketsRes.data.data || []);
           setTickets(ticketsList.filter(t => String(t.store_id) === String(activeStoreId)));
         } catch (ticketError) {}
 
         try {
-          const metricsRes = await crmApi.get('/metrics');
+          // Solo las métricas de esta tienda (antes se descargaba la tabla completa)
+          const metricsRes = await crmApi.get(`/metrics/${encodeURIComponent(activeStoreId)}`);
           const metricsList = Array.isArray(metricsRes.data) ? metricsRes.data : (metricsRes.data.data || []);
           setMetrics(metricsList
             .filter(m => String(m.store_id) === String(activeStoreId))

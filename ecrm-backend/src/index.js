@@ -4,7 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs'); 
 const db = require('./config/db'); // Conexión Knex a tu PostgreSQL
@@ -26,6 +26,8 @@ db.schema.hasTable('audit_logs').then(exists => {
     }).then(() => console.log('✅ Tabla audit_logs inicializada correctamente en PostgreSQL'));
   }
 }).catch(err => console.error("Error verificando tabla audit_logs:", err.message));
+
+require('./db/ensureIndexes')().catch((err) => console.error('[DB] Error verificando índices:', err.message));
 
 // 🌟 HELPER BASE DE REGISTRO DE AUDITORÍA
 const logActivity = async (req, action, details = '') => {
@@ -65,14 +67,35 @@ app.use(helmet({
   crossOriginResourcePolicy: false,
 }));
 
+// Límite general: se cuenta POR USUARIO (no por IP, porque una oficina comparte IP)
+// y no aplica al bot ni a servicios internos con API key.
+const usuarioDelToken = (req) => {
+  const token = (req.headers['authorization'] || '').split(' ')[1];
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    return null;
+  }
+};
+
 const generalLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hora de ventana
-  max: 2500, // 2500 solicitudes por hora (promedio de ~40 por minuto)
-  standardHeaders: true, 
-  legacyHeaders: false, 
-  message: { 
-    success: false, 
-    error: 'Has superado el límite de actividad para tu cuenta. Por favor, espera unos minutos antes de continuar.' 
+  windowMs: 60 * 60 * 1000, // 1 hora
+  limit: (req) => (usuarioDelToken(req) ? 5000 : 1500),
+  keyGenerator: (req) => {
+    const user = usuarioDelToken(req);
+    return user?.id ? `user:${user.id}` : `ip:${ipKeyGenerator(req.ip)}`;
+  },
+  skip: (req) => requestHasValidApiKey(req),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res, next, options) => {
+    const user = usuarioDelToken(req);
+    console.warn(`[RATE-LIMIT] 429 ${req.method} ${req.originalUrl} ${user ? `user=${user.email}` : `ip=${req.ip}`}`);
+    res.status(options.statusCode).json({
+      success: false,
+      error: 'Has superado el límite de actividad para tu cuenta. Por favor, espera unos minutos antes de continuar.'
+    });
   }
 });
 // 🌟 MIDDLEWARE GLOBAL DE AUDITORÍA
@@ -85,6 +108,7 @@ app.use(generalLimiter);
 const loginLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, 
   max: 5,
+  skipSuccessfulRequests: true, // solo cuentan los intentos fallidos
   message: { success: false, error: 'Demasiados intentos de sesión fallidos. Bloqueado por 5 minutos.' }
 });
 
@@ -692,8 +716,12 @@ io.use((socket, next) => {
     
     // 2. Procesa y envía por Socket a la sala de super admins
     try {
+      // Solo se procesa si hay un super admin con la consola abierta (antes se serializaba todo siempre)
+      const room = io.sockets.adapter.rooms.get('super_admin_room');
+      if (!room || room.size === 0) return;
+
       const message = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-      
+
       // Evitamos un bucle infinito filtrando los logs internos de socket.io
       if (!message.includes('socket.io')) {
         io.to('super_admin_room').emit('server-log', {

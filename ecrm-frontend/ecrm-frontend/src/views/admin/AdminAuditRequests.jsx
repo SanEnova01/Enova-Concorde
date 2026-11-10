@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import crmApi from '../../api/crmApi';
+import { startVisiblePolling } from '../../utils/visiblePolling';
 
 function AdminAuditRequests() {
     const [requests, setRequests] = useState([]);
@@ -11,13 +12,9 @@ function AdminAuditRequests() {
         // 1. Carga inicial
         fetchRequests();
 
-        // 2. Polling cada 10 segundos (10000 ms)
-        const intervalId = setInterval(() => {
-            fetchRequests();
-        }, 10000);
-
-        // 3. Limpieza al salir de la vista
-        return () => clearInterval(intervalId);
+        // 2. Polling cada 30 s, pausado si la pestaña no está visible
+        // 3. Limpieza al salir de la vista (return)
+        return startVisiblePolling(fetchRequests, 30000);
     }, []);
 
     const fetchRequests = async () => {

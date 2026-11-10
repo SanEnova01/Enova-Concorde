@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
+import { startVisiblePolling } from '../../utils/visiblePolling';
 
 // Importación de logos
 import wooIcon from '../../assets/woo-icon.png';
@@ -117,8 +118,7 @@ const AnalyzerStatusWidget = () => {
     };
 
     checkBotStatus();
-    const interval = setInterval(checkBotStatus, 10000);
-    return () => clearInterval(interval);
+    return startVisiblePolling(checkBotStatus, 30000);
   }, []);
 
   const isOnline = botStatus.status === 'ONLINE';
@@ -713,7 +713,7 @@ const [aiBanner, setAiBanner] = useState({
   const dashboardRef = useRef(null); // <-- Agrega esto
 const [isMatrixMode, setIsMatrixMode] = useState(false);
   useEffect(() => {
-    let intervalId; 
+    let stopPolling; 
 
     // 🌟 1. CONSULTA DE IA: Se ejecuta SÓLO UNA VEZ al montar la pantalla (Cero gasto innecesario de tokens)
     crmApi.get('/ai/dashboard-summary')
@@ -759,7 +759,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
             const fetchData = async () => {
               try {
                 const [ticketsRes, clientsRes] = await Promise.all([
-                  crmApi.get('/tickets'),
+                  crmApi.get('/tickets?fields=summary'),
                   crmApi.get('/stores')
                 ]);
                 
@@ -837,8 +837,8 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
         await fetchData();
         setLoading(false);
 
-        // Polling cada 10 segundos SOLO para datos livianos de PostgreSQL
-        intervalId = setInterval(fetchData, 10000);
+        // Polling cada 30 s, pausado si la pestaña no está visible
+        stopPolling = startVisiblePolling(fetchData, 30000);
 
       } catch (error) {
         console.error(error);
@@ -849,7 +849,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
     dataInitialization();
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      if (stopPolling) stopPolling();
     };
   }, [navigate]);
 
