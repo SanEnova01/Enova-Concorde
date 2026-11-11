@@ -16,6 +16,11 @@ mockModule('ai/models.js', {
     aiCalls.push(opts);
     if (aiFails) throw new Error('429 rate limit');
     return { data: opts.validate(aiResponse) };
+  },
+  generateWithTools: async (opts) => {
+    aiCalls.push(opts);
+    if (aiFails) throw new Error('429 rate limit');
+    return { data: opts.validate(aiResponse), toolCalls: [] };
   }
 });
 const SettingsService = require('../src/services/SettingsService');
@@ -55,8 +60,8 @@ test('chat con IA: usa el modelo y la personalidad de Configuración y los datos
 });
 
 test('respuesta de la IA fuera de formato se corrige (mood/acción desconocidos, texto largo)', () => {
-  const r = PetService.validateReply({ reply: 'x'.repeat(500), mood: 'enojado', action: 'borrar_todo' });
-  assert.strictEqual(r.reply.length, 260);
+  const r = PetService.validateReply({ reply: 'x'.repeat(900), mood: 'enojado', action: 'borrar_todo' });
+  assert.strictEqual(r.reply.length, 420);
   assert.strictEqual(r.mood, 'talking');
   assert.strictEqual(r.action, 'none');
   assert.throws(() => PetService.validateReply({ reply: '  ' }));

@@ -46,9 +46,34 @@ const SHOP = [
   { id: 'glasses', name: '🕶️ Gafas', price: 15 },
 ];
 
-const SUGGESTIONS = ['¿Cómo vamos hoy?', '¿Cuáles son mis tickets?', '¿Qué tienda tiene más carga?', 'Cuéntame algo del Concorde'];
+const SUGGESTIONS = ['¿Cómo vamos hoy?', '¿Cuáles son mis tickets?', 'Correos de contacto de una tienda', 'Estado del ticket SOP-…', 'Tickets abiertos de una tienda'];
+
+// Solo admin y super admin tienen mascota (el backend también lo exige en /api/pet)
+const isStaffSession = () => {
+  try {
+    const token = window.localStorage.getItem('crm_token');
+    const role = JSON.parse(window.atob(token.split('.')[1])).role;
+    return ['admin', 'super admin'].includes(String(role || '').toLowerCase().trim());
+  } catch {
+    return false;
+  }
+};
+
+// Nombres legibles de las consultas que hizo la IA
+const TOOL_LABELS = {
+  buscar_tienda: 'tiendas', ver_ticket: 'ticket', buscar_tickets: 'tickets',
+  tickets_de_tienda: 'tickets de tienda', metricas_tienda: 'métricas', alertas_tienda: 'alertas',
+};
+
+// Plantillas que el usuario completa antes de enviar
+const TEMPLATES = {
+  'Correos de contacto de una tienda': 'Dame los correos de contacto de ',
+  'Estado del ticket SOP-…': '¿En qué estado está el ticket SOP-',
+  'Tickets abiertos de una tienda': '¿Qué tickets abiertos tiene ',
+};
 
 const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
+  const [allowed] = useState(isStaffSession);
   const [config, setConfig] = useState(null);
 
   // --- Posición y arrastre ---
@@ -109,12 +134,13 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
 
   // --- Configuración desde el backend (se refresca cada 5 min con la pestaña visible) ---
   useEffect(() => {
+    if (!allowed) return undefined;
     const load = () => crmApi.get('/pet/config')
       .then((res) => setConfig(res.data?.data || FALLBACK_CONFIG))
       .catch(() => setConfig((prev) => prev || FALLBACK_CONFIG));
     load();
     return startVisiblePolling(load, 5 * 60 * 1000);
-  }, []);
+  }, [allowed]);
 
   // Si el chat está apagado, abrir en otra pestaña
   useEffect(() => {
@@ -214,7 +240,7 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
       const res = await crmApi.post('/pet/talk', { message, mode });
       const data = res.data?.data;
       if (!data?.reply) throw new Error('sin respuesta');
-      if (mode === 'chat') setChat((prev) => [...prev.slice(-10), { from: 'pet', text: data.reply, source: data.source }]);
+      if (mode === 'chat') setChat((prev) => [...prev.slice(-10), { from: 'pet', text: data.reply, source: data.source, consultas: data.consultas }]);
       applyReply(data);
     } catch (err) {
       const msg = err.response?.data?.error || 'No pude conectarme ahora 😵‍💫';
@@ -446,13 +472,17 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
   };
 
   const sendChat = (text) => {
+    if (text && TEMPLATES[text]) {
+      setChatInput(TEMPLATES[text]); // plantilla: el usuario completa el nombre o número
+      return;
+    }
     const msg = (text ?? chatInput).trim();
     if (!msg || thinking) return;
     setChatInput('');
     askPet(msg, 'chat');
   };
 
-  if (!config || !config.enabled) return null;
+  if (!allowed || !config || !config.enabled) return null;
 
   const displayMood = sleepMode ? 'sleep' : (thinking ? 'thinking' : mood);
   const animation = petData.reducedMotion ? 'none'
@@ -614,13 +644,20 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
                   </div>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 120, maxHeight: 220, overflowY: 'auto' }}>
-                  {chat.length === 0 && <div style={{ fontSize: 11, color: '#6b7280' }}>Pregúntame por los tickets, las tiendas o cómo va el día.</div>}
+                  {chat.length === 0 && <div style={{ fontSize: 11, color: '#6b7280' }}>Pregúntame por un cliente, un número de ticket, sus métricas o cómo va el día. Solo consulto, no modifico nada.</div>}
                   {chat.map((m, i) => (
                     <div key={i} style={{
                       alignSelf: m.from === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%',
                       background: m.from === 'user' ? '#111' : (m.source === 'error' ? '#fee2e2' : '#f3f4f6'),
                       color: m.from === 'user' ? '#fff' : '#111', borderRadius: 10, padding: '6px 9px', fontSize: 12, lineHeight: 1.35,
-                    }}>{m.text}</div>
+                    }}>
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                      {m.consultas?.length > 0 && (
+                        <div style={{ fontSize: 9, color: '#6b7280', marginTop: 3 }}>
+                          🔎 Consultó: {[...new Set(m.consultas)].map((c) => TOOL_LABELS[c] || c).join(', ')}
+                        </div>
+                      )}
+                    </div>
                   ))}
                   {thinking && <div style={{ fontSize: 11, color: '#6366f1' }}>Concorde está pensando…</div>}
                   <div ref={chatEndRef} />

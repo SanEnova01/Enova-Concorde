@@ -113,6 +113,25 @@ test('403 por permiso trae code FORBIDDEN; token vencido trae SESSION_EXPIRED', 
   assert.strictEqual(body.code, 'SESSION_EXPIRED');
 });
 
+test('mascota (/api/pet): cliente bloqueado; admin pasa el guardián', async () => {
+  await expect({ url: '/api/pet/config', auth: ana }, 403);
+  await expect({ method: 'POST', url: '/api/pet/talk', auth: ana, body: { message: 'hola' } }, 403);
+  await expect({ method: 'POST', url: '/api/pet/talk', auth: admin, body: { message: 'hola' } }, 'ALLOW');
+});
+
+test('requireStaff: solo admin y super admin (ni cliente ni API key sin usuario)', () => {
+  const { requireStaff } = require('../src/middleware/auth');
+  const check = (adminUser) => {
+    let ok = false;
+    requireStaff({ adminUser }, { status() { return this; }, json() {} }, () => { ok = true; });
+    return ok;
+  };
+  assert.ok(check({ role: 'admin' }));
+  assert.ok(check({ role: 'Super Admin' }));
+  assert.ok(!check({ role: 'client' }));
+  assert.ok(!check(undefined));
+});
+
 test('requireSuperAdmin: solo super admin', () => {
   const check = (adminUser) => {
     let ok = false;

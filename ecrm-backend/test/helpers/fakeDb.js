@@ -60,7 +60,8 @@ function createFakeDb(initial = {}, { onRaw } = {}) {
       whereNot(col, val) { conds.push({ bool, test: (r) => String(r[col]) !== String(val) }); },
       whereNull(col) { conds.push({ bool, test: (r) => r[col] == null }); },
       whereNotNull(col) { conds.push({ bool, test: (r) => r[col] != null }); },
-      whereIn(col, list) { conds.push({ bool, test: (r) => list.map(String).includes(String(r[col])) }); }
+      whereIn(col, list) { conds.push({ bool, test: (r) => list.map(String).includes(String(r[col])) }); },
+      whereNotIn(col, list) { conds.push({ bool, test: (r) => !list.map(String).includes(String(r[col])) }); }
     });
     const and = add('and');
     const or = add('or');
@@ -72,7 +73,8 @@ function createFakeDb(initial = {}, { onRaw } = {}) {
       whereNull(...a) { and.whereNull(...a); return api; },
       orWhereNull(...a) { or.whereNull(...a); return api; },
       whereNotNull(...a) { and.whereNotNull(...a); return api; },
-      whereIn(...a) { and.whereIn(...a); return api; }
+      whereIn(...a) { and.whereIn(...a); return api; },
+      whereNotIn(...a) { and.whereNotIn(...a); return api; }
     };
     return { api, evaluate, conds };
   };

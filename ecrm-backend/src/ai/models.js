@@ -30,7 +30,7 @@ const TASKS = {
   pet: {
     primary: LUNA,
     fallback: HAIKU,
-    maxOutputTokens: 300
+    maxOutputTokens: 500
   }
 };
 
@@ -181,8 +181,56 @@ async function generateJSON({ task, system, prompt, module: moduleName, validate
   throw lastError || new Error('Todos los modelos de IA fallaron');
 }
 
+/**
+ * Igual que generateJSON, pero el modelo puede usar herramientas (consultas de solo lectura)
+ * antes de responder. maxSteps limita las idas y vueltas modelo ↔ herramientas.
+ * languageModel: solo para pruebas (modelo simulado).
+ */
+async function generateWithTools({ task, system, prompt, module: moduleName, validate, model: modelOverride, tools, maxSteps = 4, languageModel }) {
+  const cfg = TASKS[task];
+  if (!cfg) throw new Error(`Tarea de IA desconocida: ${task}`);
+  const { generateText, stepCountIs } = await import('ai');
+
+  let chain;
+  if (languageModel) {
+    chain = [{ id: 'test-model', get: () => languageModel }];
+  } else {
+    const provider = await getProvider();
+    if (!provider) throw new Error('NO_AI_KEY');
+    chain = [modelOverride, cfg.primary, cfg.fallback]
+      .filter((m, i, a) => m && a.indexOf(m) === i)
+      .map((id) => ({ id, get: () => (typeof provider.chat === 'function' ? provider.chat(id) : provider(id)) }));
+  }
+
+  let lastError = null;
+  for (const { id: modelId, get } of chain) {
+    try {
+      const result = await generateText({
+        model: get(),
+        system,
+        prompt,
+        tools,
+        stopWhen: stepCountIs(maxSteps),
+        maxOutputTokens: cfg.maxOutputTokens
+      });
+      const u = normalizeUsage(result.totalUsage || result.usage);
+      let data = extractJson(result.text);
+      if (validate) data = validate(data);
+      await logUsage(moduleName || task.toUpperCase(), modelId, u);
+      const toolCalls = (result.steps || []).flatMap((s) => s.toolCalls || []).map((c) => c.toolName);
+      console.log(`🤖 [AI:${task}] ${modelId} | in ${u.input} out ${u.output} | herramientas: ${toolCalls.join(', ') || 'ninguna'}`);
+      return { data, model: modelId, usage: u, toolCalls };
+    } catch (err) {
+      lastError = err;
+      console.warn(`⚠️ [AI:${task}] ${modelId} falló: ${err.message}`);
+    }
+  }
+  throw lastError || new Error('Todos los modelos de IA fallaron');
+}
+
 module.exports = {
   generateJSON,
+  generateWithTools,
   extractJson,
   normalizeUsage,
   estimateCostUsd,
