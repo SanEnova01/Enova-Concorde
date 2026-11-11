@@ -138,7 +138,7 @@ async function talk({ user, message, mode = 'chat', languageModel }) {
     if (mode === 'chat') {
       // Chat: la IA puede consultar la base con herramientas de solo lectura (auditadas)
       const auditReq = { adminUser: user, headers: {}, socket: {}, body: {} };
-      const tools = buildTools({
+      const tools = await buildTools({
         onUse: (name, args) => {
           console.log(`[PET] ${user?.email || user?.name || 'usuario'} → ${name} ${JSON.stringify(args)}`);
           logActivity(auditReq, 'MASCOTA_CONSULTA', `${name} ${JSON.stringify(args)}`);

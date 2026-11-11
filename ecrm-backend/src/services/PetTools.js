@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { tool, jsonSchema } = require('ai');
+// 'ai' es un módulo ESM: en Node 18 (Railway) no se puede usar require(); se carga con import() al construir las herramientas
 
 // ==========================================
 // HERRAMIENTAS DE CONSULTA DE LA MASCOTA (solo lectura)
@@ -151,7 +151,8 @@ const SCHEMAS = {
 /**
  * Herramientas para el SDK de IA. onUse(nombre, args) se llama en cada consulta (auditoría).
  */
-function buildTools({ onUse } = {}) {
+async function buildTools({ onUse } = {}) {
+  const { tool, jsonSchema } = await import('ai');
   return Object.fromEntries(Object.entries(SCHEMAS).map(([name, s]) => [name, tool({
     description: s.description,
     inputSchema: jsonSchema({ type: 'object', properties: s.params, required: s.required, additionalProperties: false }),
