@@ -66,5 +66,21 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     assert.strictEqual(ultimos.length, 1);
   });
 
+  await t.test('clonar: dos clonaciones simultáneas del mismo ticket no repiten letra', async () => {
+    await db('stores').insert([{ id: 'k1' }, { id: 'k2' }, { id: 'k3' }, { id: 'k4' }]);
+    const original = await TicketRepository.create({ name: 'Pedido Kuna', store_id: 's1' });
+    const [a, b] = await Promise.all([
+      TicketRepository.cloneToStores(original.id, ['k1', 'k2']),
+      TicketRepository.cloneToStores(original.id, ['k3', 'k4'])
+    ]);
+    const serials = [...a.created, ...b.created].map((x) => x.serial_number).sort();
+    assert.deepStrictEqual(serials, ['A', 'B', 'C', 'D'].map((l) => `${original.serial_number}${l}`));
+    const siguiente = await TicketRepository.create({ name: 'nuevo', store_id: 's1' });
+    assert.strictEqual(
+      parseInt(siguiente.serial_number.split('-')[2], 10),
+      parseInt(original.serial_number.split('-')[2], 10) + 1
+    );
+  });
+
   await db.destroy();
 });

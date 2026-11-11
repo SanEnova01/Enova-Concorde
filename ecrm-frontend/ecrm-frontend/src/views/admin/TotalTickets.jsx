@@ -350,9 +350,22 @@ function TotalTickets() {
     }
 
     try {
-      const response = await crmApi.post('/tickets', formData);
+      const { extra_store_ids: extraStores = [], ...ticketPayload } = formData;
+      const response = await crmApi.post('/tickets', ticketPayload);
       if (response.data.success || response.status === 201) {
-        alert('Ticket creado exitosamente');
+        const created = response.data?.data;
+        // Mismo pedido para otras tiendas: se clona como SOP-…A, B, C…
+        let clonedMsg = '';
+        if (created?.id && extraStores.length > 0) {
+          try {
+            const cloneRes = await crmApi.post(`/tickets/${created.id}/clone`, { store_ids: extraStores });
+            const copies = cloneRes.data?.data?.created || [];
+            clonedMsg = `\nTambién se creó para ${copies.length} tienda(s): ${copies.map((t) => t.serial_number).join(', ')}`;
+          } catch {
+            clonedMsg = '\n⚠️ El ticket principal se creó, pero no se pudo clonar a las otras tiendas.';
+          }
+        }
+        alert(`Ticket ${created?.serial_number || ''} creado exitosamente${clonedMsg}`);
         setShowCreateModal(false);
         setFormData(prev => ({
           ...prev,
@@ -360,7 +373,8 @@ function TotalTickets() {
           description: '',
           priority: 'MEDIUM',
           task_type: 'CONSULTA',
-          assigned_to: ''
+          assigned_to: '',
+          extra_store_ids: []
         }));
         refreshData();
       }

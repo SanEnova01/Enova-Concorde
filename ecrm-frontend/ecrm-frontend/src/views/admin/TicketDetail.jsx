@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import crmApi from '../../api/crmApi';
+import CloneTicketModal from '../../components/CloneTicketModal';
 
 function TicketDetail() {
   const { ticketId } = useParams();
@@ -11,6 +12,7 @@ function TicketDetail() {
   const [userName, setUserName] = useState('');
 
   const [ticket, setTicket] = useState(null);
+  const [isCloneOpen, setIsCloneOpen] = useState(false);
   const [storesList, setStoresList] = useState([]);
   const [associatedStore, setAssociatedStore] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -447,6 +449,9 @@ function TicketDetail() {
               <button onClick={() => setIsEditing(!isEditing)} className="crm-btn-black">
                 {isEditing ? 'Cancelar Edición' : 'Editar / Clasificar Ticket'}
               </button>
+              <button onClick={() => setIsCloneOpen(true)} className="crm-btn-border" title="Crear una copia de este ticket para otras tiendas (A, B, C…)">
+                🔁 Clonar a otras tiendas
+              </button>
               <button onClick={handleDeleteTicket} className="crm-btn-border" style={{ color: '#d9534f', borderColor: '#d9534f', fontWeight: 'bold' }}>
                 Eliminar Ticket
               </button>
@@ -626,6 +631,9 @@ function TicketDetail() {
         <div style={{ margin: 0, fontSize: '15px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: ticket.description || 'No se han ingresado notas adicionales.' }} />
       </div>
 
+      {isCloneOpen && userRole !== 'client' && (
+        <CloneTicketModal ticket={ticket} stores={storesList} onClose={() => setIsCloneOpen(false)} />
+      )}
     </div>
   );
 }

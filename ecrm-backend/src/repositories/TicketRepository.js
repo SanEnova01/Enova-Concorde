@@ -32,6 +32,21 @@ const sanitizeTaskType = (t) => {
 
 const VALID_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
+// Sufijos de clones: 0 → A, 25 → Z, 26 → AA, 27 → AB...
+const toLetters = (n) => {
+  let out = '';
+  let x = n + 1;
+  while (x > 0) {
+    const r = (x - 1) % 26;
+    out = String.fromCharCode(65 + r) + out;
+    x = Math.floor((x - 1) / 26);
+  }
+  return out;
+};
+const fromLetters = (str) => [...str].reduce((acc, ch) => acc * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
+// Número base de un ticket: SOP-2026-2008B → SOP-2026-2008
+const baseSerial = (serial) => String(serial || '').replace(/(\d)[A-Z]+$/, '$1');
+
 class TicketRepository {
   // 🌟 AHORA DETERMINA EL PREFIJO DEPENDIENDO SI ES B2B (SOP) O B2C (HUB)
   // Debe llamarse DENTRO de una transacción (conn = trx): toma un candado de Postgres por
@@ -56,7 +71,77 @@ class TicketRepository {
     return `${prefix}-${year}-${paddedNumber}`;
   }
 
-  static async create(ticketData) {
+  /**
+   * Clona un ticket a otras tiendas (ej. Kuna Perú, Chile, WW, USA): crea un ticket
+   * independiente por tienda, con su propio número, copiando asunto, descripción,
+   * prioridad, tipo y responsables. Cada copia nace OPEN y referencia al original.
+   * Devuelve { source, created: [...], skipped: [{ store_id, reason }] }.
+   */
+  static async cloneToStores(sourceId, storeIds) {
+    const source = await db('tickets').where({ id: sourceId }).first();
+    if (!source) {
+      const err = new Error('Ticket no encontrado.');
+      err.status = 404;
+      throw err;
+    }
+
+    const wanted = [...new Set((storeIds || []).map((s) => String(s).trim()).filter(Boolean))];
+    const existing = wanted.length ? await db('stores').whereIn('id', wanted).select('id', 'name') : [];
+    const existingIds = new Set(existing.map((s) => String(s.id)));
+
+    const skipped = [];
+    const targets = [];
+    for (const id of wanted) {
+      if (id === String(source.store_id)) skipped.push({ store_id: id, reason: 'Es la tienda del ticket original' });
+      else if (!existingIds.has(id)) skipped.push({ store_id: id, reason: 'La tienda no existe' });
+      else targets.push(id);
+    }
+
+    const sourceStore = await db('stores').where({ id: source.store_id }).first();
+    const origin = `${source.serial_number || `#${source.id}`}${sourceStore?.name ? ` (${sourceStore.name})` : ''}`;
+    // Se quita la marca de Gmail para que las copias no se enlacen al mismo correo
+    const baseDescription = String(source.description || '').replace(/\[GMAIL_ID:[^\]]*\]/g, '').trim();
+
+    const created = [];
+    const base = baseSerial(source.serial_number);
+    if (targets.length === 0) return { source, created, skipped };
+
+    // Las copias llevan el número del original + letra (SOP-2026-2008A, B, C...).
+    // Candado por número base: dos clonaciones simultáneas del mismo ticket no repiten letra.
+    await db.transaction(async (trx) => {
+      let next = 0;
+      if (base) {
+        await trx.raw('SELECT pg_advisory_xact_lock(hashtext(?))', [`ticket_clone:${base}`]);
+        const siblings = await trx('tickets').where('serial_number', 'like', `${base}%`).select('serial_number');
+        siblings.forEach(({ serial_number: sn }) => {
+          const value = String(sn || '');
+          if (!value.startsWith(base)) return;
+          const suffix = value.slice(base.length);
+          if (/^[A-Z]+$/.test(suffix)) next = Math.max(next, fromLetters(suffix) + 1);
+        });
+      }
+
+      for (const storeId of targets) {
+        const serialNumber = base ? `${base}${toLetters(next++)}` : undefined;
+        created.push(await this.create({
+          name: source.name,
+          description: `🔁 Clonado de ${origin}
+
+${baseDescription}`.trim(),
+          store_id: storeId,
+          priority: source.priority,
+          task_type: source.task_type,
+          assigned_to: source.assigned_to,
+          is_b2c: source.is_b2c,
+          status: 'OPEN'
+        }, { serialNumber }));
+      }
+    });
+    return { source, created, skipped };
+  }
+
+  // options.serialNumber: solo para uso interno (clones); nunca viene del cuerpo de la petición
+  static async create(ticketData, options = {}) {
     try {
       const isB2C = !!ticketData.is_b2c;
       
@@ -76,7 +161,7 @@ class TicketRepository {
 
       const newTicket = await db.transaction(async (trx) => {
         // 👈 Genera el serial (B2B SOP / B2C HUB) con candado, dentro de la transacción
-        const serial_number = await this.generateSerialNumber(isB2C, trx);
+        const serial_number = options.serialNumber || await this.generateSerialNumber(isB2C, trx);
 
         const [insertedTicket] = await trx('tickets').insert({
           serial_number,

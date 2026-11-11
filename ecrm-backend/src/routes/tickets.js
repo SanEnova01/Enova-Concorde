@@ -197,6 +197,33 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// POST: Clonar un ticket a otras tiendas (un ticket independiente por tienda)
+router.post('/:id/clone', async (req, res) => {
+  try {
+    const storeIds = Array.isArray(req.body?.store_ids) ? req.body.store_ids : [];
+    if (storeIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'Elige al menos una tienda.' });
+    }
+    if (storeIds.length > 30) {
+      return res.status(400).json({ success: false, error: 'Máximo 30 tiendas por clonación.' });
+    }
+
+    const { source, created, skipped } = await TicketRepository.cloneToStores(req.params.id, storeIds);
+
+    if (req.logActivity && created.length) {
+      req.logActivity(
+        'CLONAR_TICKET',
+        `Ticket ${source.serial_number || source.id} clonado a: ${created.map((t) => `${t.store_id} (${t.serial_number})`).join(', ')}`
+      );
+    }
+    res.status(201).json({ success: true, data: { created, skipped } });
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ success: false, error: error.message });
+    console.error('[TICKETS] Error clonando:', error.message);
+    res.status(500).json({ success: false, error: 'No se pudo clonar el ticket.' });
+  }
+});
+
 // DELETE: Borrar ticket (Con Auditoría)
 router.delete('/:id', async (req, res) => {
   try {

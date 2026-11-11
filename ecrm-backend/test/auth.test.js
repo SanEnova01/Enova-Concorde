@@ -113,6 +113,11 @@ test('403 por permiso trae code FORBIDDEN; token vencido trae SESSION_EXPIRED', 
   assert.strictEqual(body.code, 'SESSION_EXPIRED');
 });
 
+test('clonar tickets: solo el equipo (cliente bloqueado)', async () => {
+  await expect({ method: 'POST', url: '/api/tickets/t1/clone', auth: ana, body: { store_ids: ['s2'] } }, 403);
+  await expect({ method: 'POST', url: '/api/tickets/t1/clone', auth: admin, body: { store_ids: ['s2'] } }, 'ALLOW');
+});
+
 test('mascota (/api/pet): cliente bloqueado; admin pasa el guardián', async () => {
   await expect({ url: '/api/pet/config', auth: ana }, 403);
   await expect({ method: 'POST', url: '/api/pet/talk', auth: ana, body: { message: 'hola' } }, 403);
