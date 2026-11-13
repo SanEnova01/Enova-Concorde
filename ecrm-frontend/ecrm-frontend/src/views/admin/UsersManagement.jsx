@@ -9,6 +9,17 @@ const FormInput = ({ label, type = "text", value, onChange, placeholder, require
   </div>
 );
 
+// stores.assigned_to guarda nombres separados por coma: "Ana, Luis"
+const splitAssignees = (value) => String(value || '').split(',').map((s) => s.trim()).filter(Boolean);
+const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+const ASSIGN_FILTERS = [
+  { id: 'ALL', label: 'Todas' },
+  { id: 'FREE', label: 'Libres' },
+  { id: 'MINE', label: 'De este usuario' },
+  { id: 'OTHERS', label: 'De otros' },
+];
+
 function UsersManagement() {
   const [users, setUsers] = useState([]);
   const [allStores, setAllStores] = useState([]);
@@ -28,6 +39,8 @@ function UsersManagement() {
 
   // BÚSQUEDA PREDICTIVA DE TIENDAS
   const [storeSearch, setStoreSearch] = useState('');
+  const [assignFilter, setAssignFilter] = useState('ALL');
+  const [showUnassigned, setShowUnassigned] = useState(false);
 
   // 🌟 ESTADOS PARA HISTORIAL DE LOGS (AUDITORÍA)
   const [auditLogs, setAuditLogs] = useState([]);
@@ -107,17 +120,62 @@ function UsersManagement() {
     return r === 'client';
   });
 
-  // FILTRADO PREDICTIVO DE TIENDAS EN EL MODAL DE ASIGNACIÓN
-  const filteredStoresToAssign = useMemo(() => {
+  // Quién tiene cada tienda: conteo por persona y tiendas sin responsable
+  const storeOwnership = useMemo(() => {
+    const byUser = {};
+    const unassigned = [];
+    allStores.forEach((store) => {
+      const owners = splitAssignees(store.assigned_to);
+      if (owners.length === 0) unassigned.push(store);
+      owners.forEach((name) => { byUser[name.toLowerCase()] = (byUser[name.toLowerCase()] || 0) + 1; });
+    });
+    return { byUser, unassigned };
+  }, [allStores]);
+
+  // Clasifica una tienda respecto al usuario abierto: MINE, OTHERS (de otro) o FREE
+  const ownershipOf = (store) => {
+    const owners = splitAssignees(store.assigned_to);
+    const mine = currentUser ? owners.some((o) => sameName(o, currentUser.name)) : false;
+    const others = currentUser ? owners.filter((o) => !sameName(o, currentUser.name)) : owners;
+    return { mine, others, free: owners.length === 0 };
+  };
+
+  // FILTRADO PREDICTIVO DE TIENDAS EN EL MODAL DE ASIGNACIÓN (búsqueda + filtro de dueño)
+  const searchedStores = useMemo(() => {
     const query = storeSearch.toLowerCase().trim();
     if (!query) return allStores;
     return allStores.filter(store => {
       const nameMatch = store.name && store.name.toLowerCase().includes(query);
       const idMatch = store.id && String(store.id).toLowerCase().includes(query);
       const planMatch = store.plan_type && store.plan_type.toLowerCase().includes(query);
-      return nameMatch || idMatch || planMatch;
+      const ownerMatch = store.assigned_to && store.assigned_to.toLowerCase().includes(query);
+      return nameMatch || idMatch || planMatch || ownerMatch;
     });
   }, [allStores, storeSearch]);
+
+  const assignCounts = useMemo(() => {
+    const counts = { ALL: searchedStores.length, FREE: 0, MINE: 0, OTHERS: 0 };
+    searchedStores.forEach((store) => {
+      const owners = splitAssignees(store.assigned_to);
+      const mine = currentUser && owners.some((o) => sameName(o, currentUser.name));
+      if (owners.length === 0) counts.FREE++;
+      if (mine) counts.MINE++;
+      if (owners.some((o) => !currentUser || !sameName(o, currentUser.name))) counts.OTHERS++;
+    });
+    return counts;
+  }, [searchedStores, currentUser]);
+
+  const filteredStoresToAssign = useMemo(() => searchedStores.filter((store) => {
+    if (assignFilter === 'ALL') return true;
+    const owners = splitAssignees(store.assigned_to);
+    const mine = currentUser && owners.some((o) => sameName(o, currentUser.name));
+    if (assignFilter === 'FREE') return owners.length === 0;
+    if (assignFilter === 'MINE') return mine;
+    return owners.some((o) => !currentUser || !sameName(o, currentUser.name)); // OTHERS
+  }), [searchedStores, assignFilter, currentUser]);
+
+  const visibleFree = filteredStoresToAssign.filter((s) => splitAssignees(s.assigned_to).length === 0);
+  const visibleMine = filteredStoresToAssign.filter((s) => currentUser && splitAssignees(s.assigned_to).some((o) => sameName(o, currentUser.name)));
 
   // 🌟 BÚSQUEDA Y FILTRADO PREDICTIVO EN TABLA DE LOGS
   const filteredAuditLogs = useMemo(() => {
@@ -149,6 +207,7 @@ function UsersManagement() {
   const handleOpenStats = async (user) => {
     setCurrentUser(user);
     setStoreSearch('');
+    setAssignFilter('ALL');
     setShowStatsModal(true);
     setLoadingStats(true);
     try {
@@ -181,6 +240,10 @@ function UsersManagement() {
     if (isAssigned) {
       newAssignees = currentAssignees.filter(a => a.toLowerCase() !== userName.toLowerCase());
     } else {
+      // Si ya la tiene otra persona, se confirma antes de compartirla
+      if (currentAssignees.length > 0 && !window.confirm(
+        `"${store.name}" ya está asignada a ${currentAssignees.join(', ')}.\n\n¿Asignarla también a ${userName} (quedará compartida)?`
+      )) return;
       newAssignees = [...currentAssignees, userName];
     }
 
@@ -334,6 +397,32 @@ function UsersManagement() {
       </div>
 
       {/* PESTAÑAS DE USUARIOS Y CLIENTES */}
+      {activeTab === 'TEAM' && allStores.length > 0 && (
+        <div className="crm-card-paper" style={{ padding: '12px 16px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '13px' }}>
+            <b>{allStores.length} tiendas</b>
+            <span style={{ color: '#166534' }}>● {allStores.length - storeOwnership.unassigned.length} con responsable</span>
+            <span style={{ color: storeOwnership.unassigned.length ? '#b45309' : '#6b7280', fontWeight: storeOwnership.unassigned.length ? 700 : 400 }}>
+              ● {storeOwnership.unassigned.length} sin responsable
+            </span>
+            {storeOwnership.unassigned.length > 0 && (
+              <button type="button" className="crm-btn-border" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setShowUnassigned((v) => !v)}>
+                {showUnassigned ? 'Ocultar' : 'Ver cuáles'}
+              </button>
+            )}
+          </div>
+          {showUnassigned && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {storeOwnership.unassigned.map((s) => (
+                <span key={s.id} style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '999px', background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>
+                  {s.name} <span style={{ opacity: 0.7 }}>({s.plan_type || 'sin plan'})</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab !== 'LOGS' ? (
         <div className="crm-card-paper crm-table-container">
           <table className="crm-table-data">
@@ -343,6 +432,7 @@ function UsersManagement() {
                 <th>Nombre Completo</th>
                 <th>Correo Electrónico</th>
                 <th>Nivel de Acceso</th>
+                {activeTab === 'TEAM' && <th>Tiendas</th>}
                 <th>Fecha de Creación</th>
                 <th style={{ textAlign: 'right' }}>Acciones</th>
               </tr>
@@ -350,7 +440,7 @@ function UsersManagement() {
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: '#666' }}>No hay usuarios en esta categoría.</td>
+                  <td colSpan={activeTab === 'TEAM' ? 7 : 6} style={{ textAlign: 'center', padding: '30px', color: '#666' }}>No hay usuarios en esta categoría.</td>
                 </tr>
               ) : (
                 filteredUsers.map(u => (
@@ -366,6 +456,11 @@ function UsersManagement() {
                         {String(u.role).toUpperCase()}
                       </span>
                     </td>
+                    {activeTab === 'TEAM' && (
+                      <td>
+                        <span style={{ fontWeight: 900, fontSize: '14px' }}>{storeOwnership.byUser[String(u.name || '').trim().toLowerCase()] || 0}</span>
+                      </td>
+                    )}
                     <td style={{ fontSize: '12px', color: '#666' }}>
                       {u.created_at ? new Date(u.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'No registrada'}
                     </td>
@@ -562,9 +657,15 @@ function UsersManagement() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px', maxHeight: '120px', overflowY: 'auto', paddingRight: '4px' }}>
-                      {userStats.myStores.map(store => (
-                        <span key={store.id} style={{ padding: '6px 12px', backgroundColor: '#111', color: '#FFD700', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      {userStats.myStores.map(store => {
+                        const live = allStores.find((s) => s.id === store.id) || store;
+                        const sharedWith = splitAssignees(live.assigned_to).filter((o) => !sameName(o, currentUser.name));
+                        return (
+                        <span key={store.id} title={sharedWith.length ? `Compartida con ${sharedWith.join(', ')}` : 'Solo de este usuario'} style={{ padding: '6px 12px', backgroundColor: '#111', color: '#FFD700', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           🏢 {store.name}
+                          {sharedWith.length > 0 && (
+                            <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 600 }}>+ {sharedWith.join(', ')}</span>
+                          )}
                           <button 
                             onClick={() => handleToggleStoreAssignment(store)} 
                             disabled={isSubmitting}
@@ -574,78 +675,118 @@ function UsersManagement() {
                             ×
                           </button>
                         </span>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
                   <div style={{ backgroundColor: '#f9fafb', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                      <label className="crm-stat-label" style={{ fontWeight: 'bold', margin: 0 }}>
-                        ➕ Buscar y Asignar Tiendas ({allStores.length} en catálogo):
-                      </label>
+                    <label className="crm-stat-label" style={{ fontWeight: 'bold', margin: '0 0 8px 0', display: 'block' }}>
+                      ➕ Asignar tiendas a {currentUser.name}
+                    </label>
 
-                      {filteredStoresToAssign.length > 0 && (
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => handleBulkAssign(filteredStoresToAssign, true)}
-                            style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#111', color: '#FFD700', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                            title="Asignar todas las tiendas visibles"
-                          >
-                            + Asignar {filteredStoresToAssign.length} visibles
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => handleBulkAssign(filteredStoresToAssign, false)}
-                            style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                            title="Desasignar todas las tiendas visibles"
-                          >
-                            - Quitar {filteredStoresToAssign.length} visibles
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <input 
+                    <input
                       type="text"
-                      placeholder="🔍 Escribe para buscar tienda por nombre, ID o plan..."
+                      placeholder="🔍 Buscar por tienda, ID, plan o responsable…"
                       value={storeSearch}
                       onChange={(e) => setStoreSearch(e.target.value)}
                       className="crm-input-text"
-                      style={{ marginBottom: '10px', width: '100%', boxSizing: 'border-box' }}
+                      style={{ marginBottom: '8px', width: '100%', boxSizing: 'border-box' }}
                     />
 
-                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {/* Filtro por dueño: se ve de un vistazo qué está libre y qué ya tiene otra persona */}
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                      {ASSIGN_FILTERS.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => setAssignFilter(f.id)}
+                          style={{
+                            fontSize: '11px', padding: '4px 10px', borderRadius: '999px', cursor: 'pointer', fontWeight: 700,
+                            border: '1px solid #111',
+                            background: assignFilter === f.id ? '#111' : '#fff',
+                            color: assignFilter === f.id ? '#FFD700' : '#111',
+                          }}
+                        >
+                          {f.label} ({assignCounts[f.id]})
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Acciones masivas: asignar solo toma las LIBRES, para no pisar a otra persona */}
+                    {(visibleFree.length > 0 || visibleMine.length > 0) && (
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        {visibleFree.length > 0 && (
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => handleBulkAssign(visibleFree, true)}
+                            style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#111', color: '#FFD700', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            title="Asigna solo las tiendas visibles que no tienen responsable"
+                          >
+                            + Asignar {visibleFree.length} libres visibles
+                          </button>
+                        )}
+                        {visibleMine.length > 0 && (
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => handleBulkAssign(visibleMine, false)}
+                            style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            title={`Quita a ${currentUser.name} de las tiendas visibles`}
+                          >
+                            − Quitar {visibleMine.length} de {currentUser.name}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
                       {filteredStoresToAssign.length === 0 ? (
                         <span style={{ fontSize: '12px', color: '#9ca3af', padding: '12px', textAlign: 'center' }}>
-                          No se encontraron tiendas que coincidan con "{storeSearch}"
+                          No hay tiendas en este filtro{storeSearch ? ` que coincidan con "${storeSearch}"` : ''}.
                         </span>
                       ) : (
-                        filteredStoresToAssign.slice(0, 100).map(store => {
-                          const isAssigned = (store.assigned_to || '')
-                            .split(',')
-                            .map(s => s.trim().toLowerCase())
-                            .includes(currentUser.name.toLowerCase());
-
+                        filteredStoresToAssign.slice(0, 150).map(store => {
+                          const { mine, others, free } = ownershipOf(store);
                           return (
-                            <label key={store.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', backgroundColor: isAssigned ? '#edf2f7' : 'transparent' }}>
-                              <input 
+                            <label key={store.id} style={{
+                              display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer', padding: '6px 8px',
+                              borderBottom: '1px solid #f3f4f6',
+                              backgroundColor: mine ? '#fefce8' : 'transparent',
+                            }}>
+                              <input
                                 type="checkbox"
-                                checked={isAssigned}
+                                checked={mine}
                                 disabled={isSubmitting}
                                 onChange={() => handleToggleStoreAssignment(store)}
-                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
                               />
-                              <span style={{ fontWeight: isAssigned ? 'bold' : 'normal', color: isAssigned ? '#111' : '#4b5563' }}>
-                                {store.name} <span style={{ fontSize: '10px', color: '#6b7280' }}>({store.id} • {store.plan_type || 'SIN PLAN'})</span>
+                              <span style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontWeight: mine ? 800 : 500, color: '#111' }}>{store.name}</span>{' '}
+                                <span style={{ fontSize: '10px', color: '#9ca3af' }}>{store.id} • {store.plan_type || 'sin plan'}</span>
+                              </span>
+                              <span style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                {free && (
+                                  <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '999px', background: '#dcfce7', color: '#166534', fontWeight: 700 }}>Libre</span>
+                                )}
+                                {mine && (
+                                  <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '999px', background: '#111', color: '#FFD700', fontWeight: 700 }}>{currentUser.name}</span>
+                                )}
+                                {others.map((o) => (
+                                  <span key={o} title="Ya asignada a otra persona" style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '999px', background: '#ffedd5', color: '#9a3412', fontWeight: 700 }}>
+                                    👤 {o}
+                                  </span>
+                                ))}
                               </span>
                             </label>
                           );
                         })
                       )}
                     </div>
+                    {filteredStoresToAssign.length > 150 && (
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px' }}>Mostrando 150 de {filteredStoresToAssign.length}. Usa el buscador para acotar.</div>
+                    )}
                   </div>
                 </div>
               </>
