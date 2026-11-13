@@ -127,6 +127,7 @@ app.use('/api/ai', verificarToken, require('./routes/ai'));
 app.use('/api/quotes', verificarToken, require('./routes/quotes'));
 app.use('/api/settings', verificarToken, requireSuperAdmin, require('./routes/settings'));
 app.use('/api/pet', verificarToken, requireStaff, require('./routes/pet'));
+app.use('/api/productivity', verificarToken, requireStaff, require('./routes/productivity'));
 
 // Estado de plataformas externas → routes/external.js
 app.use('/api/external', require('./routes/external'));

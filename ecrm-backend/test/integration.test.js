@@ -82,5 +82,58 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     );
   });
 
+  await t.test('productividad: conteos, tiempos y días en hora de Lima', async () => {
+    const Productivity = require('../src/repositories/ProductivityRepository');
+    await db.raw('DROP TABLE IF EXISTS store_daily_reviews, audit_logs CASCADE');
+    await db.raw('CREATE TABLE store_daily_reviews (id serial PRIMARY KEY, store_id text, review_date date, reviewer_name text)');
+    await db.raw(`CREATE TABLE audit_logs (id serial PRIMARY KEY, user_name text, user_email text, action text,
+      details text, ip_address text, created_at timestamptz DEFAULT now())`);
+    // Octubre 2026 (no choca con los tickets "de hoy" de las pruebas anteriores). Lima = UTC-5.
+    await db('tickets').insert([
+      { name: 'p1', store_id: 'ps', assigned_to: 'Pia, Rodo', status: 'RESOLVED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T19:00:00Z' },
+      { name: 'p2', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-02T15:00:00Z' },
+      { name: 'p3', store_id: 'ps', assigned_to: 'Pia', status: 'OPEN', priority: 'HIGH', created_at: '2026-10-02T15:00:00Z' },
+      // 22:00 del 3 en Lima (ya es 4 en UTC): se crea dentro del rango; se cierra el 4 en Lima, fuera
+      { name: 'p4', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-04T03:00:00Z', closed_at: '2026-10-04T06:00:00Z' },
+      // El ticket diario del bot no cuenta
+      { name: DailyTicketService.DAILY_TICKET_NAME, store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T16:00:00Z' }
+    ]);
+    await db('store_daily_reviews').insert([
+      { store_id: 's1', review_date: '2026-10-01', reviewer_name: 'Pia' },
+      { store_id: 's2', review_date: '2026-10-01', reviewer_name: 'Pia' },
+      { store_id: 's1', review_date: '2026-10-03', reviewer_name: ' Pia ' },
+      { store_id: 's1', review_date: '2026-10-04', reviewer_name: 'Pia' }
+    ]);
+    await db('audit_logs').insert([
+      { user_name: 'Pia', action: 'LOGIN', created_at: '2026-10-02T12:00:00Z' },
+      { user_name: 'Pia', action: 'LOGIN', created_at: '2026-10-02T13:00:00Z' },
+      { user_name: 'Pia', action: 'TICKET', created_at: '2026-10-04T04:00:00Z' }, // 23:00 del 3 en Lima
+      { user_name: 'Pia', action: 'TICKET', created_at: '2026-10-04T05:30:00Z' } // 00:30 del 4 en Lima
+    ]);
+
+    const r = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03', assignee: 'pia' });
+    assert.deepStrictEqual(r.warnings, []);
+    assert.deepStrictEqual(r.resumen, { creados: 4, resueltos: 2, pendientes: 1, horas_promedio: 14 });
+    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 2, cerrados: 1, horas_promedio: 14, horas_mediana: 14 }]);
+    assert.strictEqual(r.carga.length, 1);
+    assert.strictEqual(r.carga[0].pendientes, 1);
+    assert.strictEqual(r.carga[0].alta_prioridad, 1);
+    assert.deepStrictEqual(r.tiendas, [{ store_id: 'ps', creados: 4, cerrados: 2, activos: 1 }]);
+    assert.deepStrictEqual(r.tendencia, [
+      { dia: '2026-10-01', creados: 2, cerrados: 1 },
+      { dia: '2026-10-02', creados: 1, cerrados: 1 },
+      { dia: '2026-10-03', creados: 1, cerrados: 0 }
+    ]);
+    assert.deepStrictEqual(r.revisiones, [{ revisor: 'Pia', revisiones: 3, tiendas: 2, dias: 2 }]);
+    assert.strictEqual(r.actividad[0].total, 3);
+    assert.deepStrictEqual(r.actividad[0].acciones[0], { accion: 'LOGIN', n: 2 });
+
+    // Sin filtro de responsable: un ticket con dos responsables cuenta para ambos
+    const todos = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03' });
+    const rodo = todos.resueltos.find((x) => x.responsable === 'Rodo');
+    assert.deepStrictEqual(rodo, { responsable: 'Rodo', resueltos: 1, cerrados: 0, horas_promedio: 4, horas_mediana: 4 });
+    assert.ok(todos.carga.some((x) => x.responsable === 'Sin asignar'), 'los tickets sin responsable aparecen como "Sin asignar"');
+  });
+
   await db.destroy();
 });

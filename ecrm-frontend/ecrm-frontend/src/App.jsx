@@ -34,6 +34,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import crmApi from './api/crmApi';
 const ImageExtractorView = lazy(() => import('./views/admin/ImageExtractorView'));
 const QuoteGenerator = lazy(() => import('./views/admin/QuoteGenerator'));
+const ProductivityView = lazy(() => import('./views/admin/ProductivityView'));
 function AdminLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -113,7 +114,8 @@ function AdminLayout({ children }) {
         { path: '/admin/reportes', label: 'Reporte Tecnico Mensual' },
         { path: '/admin/analisis-reportes', label: 'Reporte Analytics' },
         { path: '/admin/extractor', label: 'Extractor de Imágenes' },
-        { path: '/admin/knowledge', label: 'Base de Conocimiento IA' }
+        { path: '/admin/knowledge', label: 'Base de Conocimiento IA' },
+        { path: '/admin/productividad', label: 'Productividad del Equipo' }
       ]
     },
 
@@ -478,6 +480,11 @@ function App() {
         <Route path="/admin/cotizaciones/nueva" element={
           <ProtectedRoute allowedRoles={['super admin']}>
             <AdminLayout><QuoteGenerator /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/productividad" element={
+          <ProtectedRoute allowedRoles={['super admin', 'admin']}>
+            <AdminLayout><ProductivityView /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/reportes" element={
