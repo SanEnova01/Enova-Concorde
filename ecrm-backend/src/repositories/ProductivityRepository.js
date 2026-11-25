@@ -1,11 +1,10 @@
 const db = require('../config/db');
-const { DAILY_TICKET_NAME } = require('../services/DailyTicketService');
 
 // Productividad del equipo (Concorde Tools). Todo se calcula en Postgres.
 // - Fechas: los días del filtro son días de Lima; los timestamptz se comparan contra
 //   el inicio/fin de ese día en America/Lima.
 // - assigned_to es una lista separada por comas: un ticket cuenta para cada responsable.
-// - Los tickets automáticos "Revisión técnica Status diario" del bot no cuentan.
+// - Los tickets diarios "Revisión técnica Status diario" SÍ cuentan: cada uno implica una revisión manual.
 
 const TZ = 'America/Lima';
 const UNASSIGNED_LABEL = 'Sin asignar';
@@ -53,7 +52,7 @@ function assigneeClause(f) {
   return { sql: ` AND EXISTS (SELECT 1 FROM (${NAMES_OF('t')}) n WHERE lower(n.nombre) = lower(?))`, bindings: [f.assignee] };
 }
 
-// Tickets con un renglón por responsable, ya filtrados (ticket diario fuera, responsable si aplica)
+// Tickets con un renglón por responsable (filtrados por responsable si aplica)
 function ticketsByPerson(f) {
   const a = assigneeClause(f);
   const personFilter = f.assignee
@@ -66,9 +65,9 @@ function ticketsByPerson(f) {
                t.created_at, t.closed_at, COALESCE(n.nombre, '${UNASSIGNED_LABEL}') AS responsable
         FROM tickets t
         LEFT JOIN LATERAL (${NAMES_OF('t')}) n ON true
-        WHERE t.name IS DISTINCT FROM ?${a.sql}
+        WHERE true${a.sql}
       ) tp${personFilter}`,
-    bindings: [DAILY_TICKET_NAME, ...a.bindings, ...(f.assignee ? [f.assignee] : [])]
+    bindings: [...a.bindings, ...(f.assignee ? [f.assignee] : [])]
   };
 }
 
@@ -131,13 +130,13 @@ async function getStores(f) {
            SUM(CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')} THEN 1 ELSE 0 END)::int AS cerrados,
            SUM(CASE WHEN ${STATUS} NOT IN ${DONE} THEN 1 ELSE 0 END)::int AS activos
     FROM tickets t
-    WHERE t.store_id IS NOT NULL AND t.name IS DISTINCT FROM ?${a.sql}
+    WHERE t.store_id IS NOT NULL${a.sql}
     GROUP BY t.store_id
     HAVING SUM(CASE WHEN ${inRange('t.created_at')} THEN 1 ELSE 0 END) > 0
         OR SUM(CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')} THEN 1 ELSE 0 END) > 0
         OR SUM(CASE WHEN ${STATUS} NOT IN ${DONE} THEN 1 ELSE 0 END) > 0
     ORDER BY activos DESC, creados DESC, t.store_id`,
-  [...rangeBindings(f), ...rangeBindings(f), DAILY_TICKET_NAME, ...a.bindings, ...rangeBindings(f), ...rangeBindings(f)]);
+  [...rangeBindings(f), ...rangeBindings(f), ...a.bindings, ...rangeBindings(f), ...rangeBindings(f)]);
   return rowsOf(r).map((x) => ({ store_id: x.store_id, creados: num(x.creados), cerrados: num(x.cerrados), activos: num(x.activos) }));
 }
 
@@ -152,13 +151,13 @@ async function getTrend(f) {
       SELECT (t.created_at AT TIME ZONE '${TZ}')::date AS creado,
              CASE WHEN ${STATUS} IN ${DONE} THEN (t.closed_at AT TIME ZONE '${TZ}')::date END AS cerrado
       FROM tickets t
-      WHERE t.name IS DISTINCT FROM ?${a.sql}
+      WHERE true${a.sql}
     )
     SELECT to_char(d.dia, 'YYYY-MM-DD') AS dia,
            (SELECT COUNT(*) FROM base b WHERE b.creado = d.dia)::int AS creados,
            (SELECT COUNT(*) FROM base b WHERE b.cerrado = d.dia)::int AS cerrados
     FROM dias d
-    ORDER BY d.dia`, [f.from, f.to, DAILY_TICKET_NAME, ...a.bindings]);
+    ORDER BY d.dia`, [f.from, f.to, ...a.bindings]);
   return rowsOf(r).map((x) => ({ dia: x.dia, creados: num(x.creados), cerrados: num(x.cerrados) }));
 }
 
@@ -209,8 +208,8 @@ async function getSummary(f) {
       AVG(CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')}
                THEN EXTRACT(EPOCH FROM (t.closed_at - t.created_at)) / 3600 END) AS horas_promedio
     FROM tickets t
-    WHERE t.name IS DISTINCT FROM ?${a.sql}`,
-  [...rangeBindings(f), ...rangeBindings(f), ...rangeBindings(f), DAILY_TICKET_NAME, ...a.bindings]);
+    WHERE true${a.sql}`,
+  [...rangeBindings(f), ...rangeBindings(f), ...rangeBindings(f), ...a.bindings]);
   const x = rowsOf(r)[0] || {};
   return {
     creados: num(x.creados) || 0,

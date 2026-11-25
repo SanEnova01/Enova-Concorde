@@ -95,7 +95,7 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
       { name: 'p3', store_id: 'ps', assigned_to: 'Pia', status: 'OPEN', priority: 'HIGH', created_at: '2026-10-02T15:00:00Z' },
       // 22:00 del 3 en Lima (ya es 4 en UTC): se crea dentro del rango; se cierra el 4 en Lima, fuera
       { name: 'p4', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-04T03:00:00Z', closed_at: '2026-10-04T06:00:00Z' },
-      // El ticket diario del bot no cuenta
+      // El ticket diario también cuenta (implica una revisión manual): 1 h
       { name: DailyTicketService.DAILY_TICKET_NAME, store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T16:00:00Z' }
     ]);
     await db('store_daily_reviews').insert([
@@ -113,14 +113,14 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
 
     const r = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03', assignee: 'pia' });
     assert.deepStrictEqual(r.warnings, []);
-    assert.deepStrictEqual(r.resumen, { creados: 4, resueltos: 2, pendientes: 1, horas_promedio: 14 });
-    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 2, cerrados: 1, horas_promedio: 14, horas_mediana: 14 }]);
+    assert.deepStrictEqual(r.resumen, { creados: 5, resueltos: 3, pendientes: 1, horas_promedio: 9.7 });
+    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 3, cerrados: 2, horas_promedio: 9.7, horas_mediana: 4 }]);
     assert.strictEqual(r.carga.length, 1);
     assert.strictEqual(r.carga[0].pendientes, 1);
     assert.strictEqual(r.carga[0].alta_prioridad, 1);
-    assert.deepStrictEqual(r.tiendas, [{ store_id: 'ps', creados: 4, cerrados: 2, activos: 1 }]);
+    assert.deepStrictEqual(r.tiendas, [{ store_id: 'ps', creados: 5, cerrados: 3, activos: 1 }]);
     assert.deepStrictEqual(r.tendencia, [
-      { dia: '2026-10-01', creados: 2, cerrados: 1 },
+      { dia: '2026-10-01', creados: 3, cerrados: 2 },
       { dia: '2026-10-02', creados: 1, cerrados: 1 },
       { dia: '2026-10-03', creados: 1, cerrados: 0 }
     ]);

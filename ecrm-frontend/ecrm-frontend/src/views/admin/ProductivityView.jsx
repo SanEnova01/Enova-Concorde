@@ -190,7 +190,7 @@ export default function ProductivityView() {
       <div style={{ marginBottom: '16px' }}>
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Productividad del equipo</h1>
         <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
-          Tickets resueltos, tiempos, carga y actividad. Días en hora de Lima. No incluye los tickets automáticos de revisión diaria del bot.
+          Tickets resueltos, tiempos, carga y actividad. Días en hora de Lima. Incluye los tickets de revisión diaria (cada uno implica una revisión manual).
         </p>
       </div>
 

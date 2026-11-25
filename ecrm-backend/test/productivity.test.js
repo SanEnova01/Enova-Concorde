@@ -87,7 +87,7 @@ test('respuesta: números convertidos, redondeo a 1 decimal y top 5 de acciones'
   assert.deepStrictEqual(d.warnings, []);
 });
 
-test('SQL: fechas en hora de Lima, excluye el ticket diario y bindings completos', async () => {
+test('SQL: fechas en hora de Lima, incluye el ticket diario y bindings completos', async () => {
   db.log.raw.length = 0;
   await get('?from=2026-11-01&to=2026-11-10&assignee=Ana');
   assert.strictEqual(db.log.raw.length, 7);
@@ -95,7 +95,8 @@ test('SQL: fechas en hora de Lima, excluye el ticket diario y bindings completos
     const marks = (sql.match(/\?/g) || []).length;
     assert.strictEqual(marks, bindings.length, `placeholders vs bindings en: ${sql.slice(0, 80)}`);
     if (sql.includes('FROM tickets')) {
-      assert.ok(bindings.includes('Revisión técnica Status diario'), 'excluye ticket diario');
+      assert.ok(!bindings.includes('Revisión técnica Status diario'), 'no excluye el ticket diario');
+      assert.doesNotMatch(sql, /IS DISTINCT FROM/);
       assert.ok(bindings.includes('Ana'), 'filtra por responsable');
     }
   }
