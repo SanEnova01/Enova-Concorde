@@ -175,5 +175,6 @@ test('arranque: agrega in_progress_at y la rellena desde audit_logs', async () =
   assert.match(db.log.raw[0].sql, /ADD COLUMN IF NOT EXISTS in_progress_at timestamptz/);
   assert.match(db.log.raw[1].sql, /SET in_progress_at = l\.first_at/);
   assert.match(db.log.raw[1].sql, /MIN\(created_at\)/);
+  assert.ok(db.log.raw[1].sql.includes("'^Ticket ID ([^ ]+) '"), 'acepta ids numéricos o UUID');
   assert.match(db.log.raw[1].sql, /in_progress_at IS NULL/, 'no pisa los valores ya guardados');
 });

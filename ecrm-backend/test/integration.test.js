@@ -199,6 +199,10 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     await ensureTicketTimeline();
     const relleno = await db('tickets').where({ id: viejo.id }).first();
     assert.strictEqual(new Date(relleno.in_progress_at).toISOString(), '2026-09-02T15:00:00.000Z');
+    // Si el id del ticket es texto/UUID, también se reconoce
+    const uuid = await db.raw("SELECT substring('Ticket ID 3f2a9c1e-77aa-4b1c-9d0e-123456789abc (SOP-2026-0001) cambió a estado [IN_PROGRESS]' from '^Ticket ID ([^ ]+) ') AS id");
+    assert.strictEqual(uuid.rows[0].id, '3f2a9c1e-77aa-4b1c-9d0e-123456789abc');
+    assert.ok(ensureTicketTimeline.BACKFILL_SQL.includes("'^Ticket ID ([^ ]+) '"));
 
     // Al pasar a En progreso por el Kanban se guarda la hora una sola vez (la primera)
     const nuevo = await TicketRepository.create({ name: 'kanban', store_id: 'ps' });
