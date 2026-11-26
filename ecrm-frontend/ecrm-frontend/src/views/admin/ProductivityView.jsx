@@ -6,7 +6,10 @@ import crmApi from '../../api/crmApi';
 
 const COLOR_CREADOS = '#2a78d6';
 const COLOR_CERRADOS = '#eb6834';
+// El backend usa 'Sin asignar' (también como valor del filtro); en pantalla se muestra como el equipo
 const UNASSIGNED = 'Sin asignar';
+const UNASSIGNED_DISPLAY = 'Enova Team';
+const displayName = (n) => (n === UNASSIGNED ? UNASSIGNED_DISPLAY : n);
 
 const limaToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
 const shiftDays = (ymd, n) => {
@@ -207,7 +210,7 @@ export default function ProductivityView() {
           <select value={assignee} onChange={(e) => setAssignee(e.target.value)} style={{ ...input, minWidth: '180px' }}>
             <option value="">Todo el equipo</option>
             {people.map((p) => <option key={p} value={p}>{p}</option>)}
-            <option value={UNASSIGNED}>{UNASSIGNED}</option>
+            <option value={UNASSIGNED}>{UNASSIGNED_DISPLAY}</option>
           </select>
         </label>
         <button type="submit" disabled={loading} style={{ ...input, background: '#111', color: '#FFD700', fontWeight: 900, cursor: 'pointer' }}>
@@ -251,7 +254,7 @@ export default function ProductivityView() {
             <Section title="Resueltos por responsable" hint="Un ticket con varios responsables cuenta para cada uno.">
               <Table
                 columns={[
-                  { key: 'responsable', label: 'Responsable' },
+                  { key: 'responsable', label: 'Responsable', render: (x) => displayName(x.responsable) },
                   { key: 'resueltos', label: 'Resueltos', num: true },
                   { key: 'cerrados', label: 'De ellos cerrados', num: true },
                   { key: 'horas_promedio', label: 'Promedio', num: true, render: (x) => fmtHours(x.horas_promedio) },
@@ -264,7 +267,7 @@ export default function ProductivityView() {
             <Section title="Carga actual" hint="Foto de hoy: no depende del rango de fechas.">
               <Table
                 columns={[
-                  { key: 'responsable', label: 'Responsable' },
+                  { key: 'responsable', label: 'Responsable', render: (x) => displayName(x.responsable) },
                   { key: 'pendientes', label: 'Pendientes', num: true },
                   { key: 'en_progreso', label: 'En progreso', num: true },
                   { key: 'alta_prioridad', label: 'Alta/crítica', num: true },
@@ -291,7 +294,7 @@ export default function ProductivityView() {
               {data.revisiones === null ? <p style={{ fontSize: '13px', color: '#666', margin: 0 }}>No disponible.</p> : (
                 <Table
                   columns={[
-                    { key: 'revisor', label: 'Revisor' },
+                    { key: 'revisor', label: 'Revisor', render: (x) => displayName(x.revisor) },
                     { key: 'revisiones', label: 'Revisiones', num: true },
                     { key: 'tiendas', label: 'Tiendas', num: true },
                     { key: 'dias', label: 'Días', num: true }
