@@ -18,10 +18,12 @@ const shiftDays = (ymd, n) => {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+// Tiempos de resolución en horas HÁBILES (L-V 9:00-19:00 Lima): 1 día hábil = 10 h
+const WORK_HOURS_PER_DAY = 10;
 const fmtHours = (h) => {
   if (h === null || h === undefined) return '—';
-  if (h < 48) return `${h} h`;
-  return `${Math.round((h / 24) * 10) / 10} d`;
+  if (h < 2 * WORK_HOURS_PER_DAY) return `${h} h`;
+  return `${Math.round((h / WORK_HOURS_PER_DAY) * 10) / 10} d`;
 };
 
 const card = {
@@ -73,7 +75,7 @@ function Table({ columns, rows, empty = 'Sin datos en este período.' }) {
 // ── Semáforo de rendimiento ─────────────────────────────────────────────
 // Umbrales en un solo lugar para ajustarlos fácil.
 const THRESHOLDS = {
-  horas: { good: 24, warn: 72 },        // tiempo de resolución: ≤24 h bien, ≤72 h atención, más = crítico
+  horas: { good: 10, warn: 30 },        // resolución en horas hábiles: ≤1 día hábil (10 h) bien, ≤3 días hábiles (30 h) atención
   diasPendiente: { good: 3, warn: 7 },  // pendiente más antiguo: ≤3 d bien, ≤7 d atención, más = crítico
   balance: { good: 1, warn: 0.8 }       // resueltos ÷ creados: ≥100 % bien, ≥80 % atención, menos = crítico
 };
@@ -105,8 +107,8 @@ function SignalLegend() {
   );
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: '12px', color: '#444' }}>
-      {item('good', `resolución ≤ ${THRESHOLDS.horas.good} h · pendiente ≤ ${THRESHOLDS.diasPendiente.good} d · resueltos ≥ ${THRESHOLDS.balance.good * 100}% de creados`)}
-      {item('warn', `≤ ${THRESHOLDS.horas.warn} h · ≤ ${THRESHOLDS.diasPendiente.warn} d · ≥ ${THRESHOLDS.balance.warn * 100}%`)}
+      {item('good', `resolución ≤ ${THRESHOLDS.horas.good} h hábiles · pendiente ≤ ${THRESHOLDS.diasPendiente.good} d · resueltos ≥ ${THRESHOLDS.balance.good * 100}% de creados`)}
+      {item('warn', `≤ ${THRESHOLDS.horas.warn} h hábiles · ≤ ${THRESHOLDS.diasPendiente.warn} d · ≥ ${THRESHOLDS.balance.warn * 100}%`)}
       {item('bad', 'por encima / por debajo de eso')}
     </div>
   );
@@ -324,9 +326,9 @@ export default function ProductivityView() {
             <StatTile
               label="Tiempo promedio"
               value={fmtHours(r.horas_promedio)}
-              sub="de creación a cierre"
+              sub="horas hábiles, L-V 9:00-19:00 (1 d = 10 h)"
               level={lowerIsBetter(r.horas_promedio, THRESHOLDS.horas)}
-              why={`Bien ≤ ${THRESHOLDS.horas.good} h, atención ≤ ${THRESHOLDS.horas.warn} h`}
+              why={`En horas hábiles: bien ≤ ${THRESHOLDS.horas.good} h, atención ≤ ${THRESHOLDS.horas.warn} h`}
             />
             <StatTile
               label="Pendientes hoy"
@@ -343,14 +345,14 @@ export default function ProductivityView() {
           </Section>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
-            <Section title="Resueltos por responsable" hint="Un ticket con varios responsables cuenta para cada uno.">
+            <Section title="Resueltos por responsable" hint="Tiempos en horas hábiles (L-V 9:00-19:00, 1 d = 10 h). Un ticket con varios responsables cuenta para cada uno.">
               <Table
                 columns={[
                   { key: 'responsable', label: 'Responsable', render: (x) => displayName(x.responsable) },
                   { key: 'resueltos', label: 'Resueltos', num: true },
                   { key: 'cerrados', label: 'De ellos cerrados', num: true },
-                  { key: 'horas_promedio', label: 'Promedio', num: true, render: (x) => <Signal level={lowerIsBetter(x.horas_promedio, THRESHOLDS.horas)} why="tiempo promedio de resolución">{fmtHours(x.horas_promedio)}</Signal> },
-                  { key: 'horas_mediana', label: 'Mediana', num: true, render: (x) => fmtHours(x.horas_mediana) }
+                  { key: 'horas_promedio', label: 'Promedio hábil', num: true, render: (x) => <Signal level={lowerIsBetter(x.horas_promedio, THRESHOLDS.horas)} why="tiempo promedio de resolución">{fmtHours(x.horas_promedio)}</Signal> },
+                  { key: 'horas_mediana', label: 'Mediana hábil', num: true, render: (x) => fmtHours(x.horas_mediana) }
                 ]}
                 rows={data.resueltos}
               />

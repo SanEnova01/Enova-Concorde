@@ -12,7 +12,7 @@ const rawResponder = (sql) => {
   if (failTables.some((t) => sql.includes(t))) throw new Error(`relation "${failTables[0]}" does not exist`);
   if (sql.includes('percentile_cont')) return { rows: [{ responsable: 'Ana', resueltos: '3', cerrados: '1', horas_promedio: '5.04', horas_mediana: '4.46' }] };
   if (sql.includes('dias_mas_antiguo')) return { rows: [{ responsable: 'Sin asignar', pendientes: 2, en_progreso: 0, alta_prioridad: 1, mas_antiguo: '2026-01-01T00:00:00Z', dias_mas_antiguo: '10' }] };
-  if (sql.includes('generate_series')) return { rows: [{ dia: '2026-11-01', creados: '2', cerrados: '1' }] };
+  if (sql.includes('WITH dias AS')) return { rows: [{ dia: '2026-11-01', creados: '2', cerrados: '1' }] };
   if (sql.includes('store_daily_reviews')) return { rows: [{ revisor: 'Luis', revisiones: '4', tiendas: '2', dias: '3' }] };
   if (sql.includes('audit_logs')) return { rows: [{ usuario: 'Ana', total: '7', acciones: JSON.stringify([{ accion: 'LOGIN', n: 4 }, { accion: 'A', n: 1 }, { accion: 'B', n: 1 }, { accion: 'C', n: 1 }, { accion: 'D', n: 0 }, { accion: 'E', n: 0 }]) }] };
   if (sql.includes('GROUP BY t.store_id')) return { rows: [{ store_id: 's1', creados: '2', cerrados: '1', activos: '3' }] };
@@ -111,6 +111,19 @@ test('"Sin asignar" filtra tickets sin responsable (sin binding de nombre en tic
   const store = db.log.raw.find((r) => r.sql.includes('GROUP BY t.store_id'));
   assert.match(store.sql, /NOT EXISTS/);
   assert.ok(!store.bindings.includes('Sin asignar'));
+});
+
+test('tiempo de resolución en horas hábiles: L-V 9:00-19:00 hora de Lima', async () => {
+  db.log.raw.length = 0;
+  const { body } = await get();
+  assert.deepStrictEqual(body.data.horario, { dias: 'lunes a viernes', desde: '09:00', hasta: '19:00', horas_por_dia: 10 });
+  for (const key of ['percentile_cont', 'AS pendientes,']) {
+    const q = db.log.raw.find((r) => r.sql.includes(key));
+    assert.match(q.sql, /ISODOW/);
+    assert.match(q.sql, /time '09:00'/);
+    assert.match(q.sql, /time '19:00'/);
+    assert.doesNotMatch(q.sql, /EXTRACT\(EPOCH FROM \((t\.)?closed_at - /);
+  }
 });
 
 test('excluir Enova Team: solo tickets con responsable y revisores con nombre', async () => {

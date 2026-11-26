@@ -74,6 +74,21 @@ function ticketsByPerson(f) {
   };
 }
 
+// Horario laboral: lunes a viernes de 9:00 a 19:00 en hora de Lima (no descuenta feriados).
+// Horas hábiles entre dos timestamptz: por cada día laboral se suma el tramo que cae dentro
+// de 9:00-19:00. Lima no tiene horario de verano, así que cada día dura igual.
+const WORK_START = '09:00';
+const WORK_END = '19:00';
+const WORK_HOURS_PER_DAY = 10;
+const businessHours = (start, end) => `(
+  SELECT COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
+    LEAST((${end}) AT TIME ZONE '${TZ}', g.d::date + time '${WORK_END}')
+    - GREATEST((${start}) AT TIME ZONE '${TZ}', g.d::date + time '${WORK_START}')
+  )))), 0) / 3600
+  FROM generate_series(((${start}) AT TIME ZONE '${TZ}')::date, ((${end}) AT TIME ZONE '${TZ}')::date, interval '1 day') AS g(d)
+  WHERE EXTRACT(ISODOW FROM g.d) < 6
+)`;
+
 const rowsOf = (r) => (r && Array.isArray(r.rows) ? r.rows : []);
 const num = (v) => (v === null || v === undefined ? null : Number(v));
 const round1 = (v) => (v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10);
@@ -85,10 +100,13 @@ async function getResolved(f) {
     SELECT responsable,
            COUNT(*)::int AS resueltos,
            SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END)::int AS cerrados,
-           AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600) AS horas_promedio,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600) AS horas_mediana
-    FROM (${tp.sql}) tp
-    WHERE status IN ${DONE} AND closed_at IS NOT NULL AND ${inRange('closed_at')}
+           AVG(horas) AS horas_promedio,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY horas) AS horas_mediana
+    FROM (
+      SELECT tp.responsable, tp.status, ${businessHours('tp.created_at', 'tp.closed_at')} AS horas
+      FROM (${tp.sql}) tp
+      WHERE tp.status IN ${DONE} AND tp.closed_at IS NOT NULL AND ${inRange('tp.closed_at')}
+    ) r
     GROUP BY responsable
     ORDER BY resueltos DESC, responsable`, [...tp.bindings, ...rangeBindings(f)]);
   return rowsOf(r).map((x) => ({
@@ -210,7 +228,7 @@ async function getSummary(f) {
       SUM(CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')} THEN 1 ELSE 0 END)::int AS resueltos,
       SUM(CASE WHEN ${STATUS} NOT IN ${DONE} THEN 1 ELSE 0 END)::int AS pendientes,
       AVG(CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')}
-               THEN EXTRACT(EPOCH FROM (t.closed_at - t.created_at)) / 3600 END) AS horas_promedio
+               THEN ${businessHours('t.created_at', 't.closed_at')} END) AS horas_promedio
     FROM tickets t
     WHERE true${a.sql}`,
   [...rangeBindings(f), ...rangeBindings(f), ...rangeBindings(f), ...a.bindings]);
@@ -246,6 +264,7 @@ async function getReport(query) {
     optional(getActivity, f, warnings, 'Actividad (audit_logs)')
   ]);
   return {
+    horario: { dias: 'lunes a viernes', desde: WORK_START, hasta: WORK_END, horas_por_dia: WORK_HOURS_PER_DAY },
     filtros: { from: f.from, to: f.to, dias: f.days, assignee: f.assignee, excluir_enova_team: f.excludeTeam, zona_horaria: TZ },
     resumen, resueltos, carga, tiendas, tendencia, revisiones, actividad, warnings
   };

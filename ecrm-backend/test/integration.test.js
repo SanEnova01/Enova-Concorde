@@ -89,6 +89,8 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     await db.raw(`CREATE TABLE audit_logs (id serial PRIMARY KEY, user_name text, user_email text, action text,
       details text, ip_address text, created_at timestamptz DEFAULT now())`);
     // Octubre 2026 (no choca con los tickets "de hoy" de las pruebas anteriores). Lima = UTC-5.
+    // El 1 es jueves y el 2 viernes. Tiempos en horas hábiles (L-V 9:00-19:00 Lima):
+    // p1 10:00→14:00 = 4 h; p2 jue 10:00→vie 10:00 = 9 h + 1 h = 10 h; diario 10:00→11:00 = 1 h.
     await db('tickets').insert([
       { name: 'p1', store_id: 'ps', assigned_to: 'Pia, Rodo', status: 'RESOLVED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T19:00:00Z' },
       { name: 'p2', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-02T15:00:00Z' },
@@ -113,8 +115,8 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
 
     const r = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03', assignee: 'pia' });
     assert.deepStrictEqual(r.warnings, []);
-    assert.deepStrictEqual(r.resumen, { creados: 5, resueltos: 3, pendientes: 1, horas_promedio: 9.7 });
-    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 3, cerrados: 2, horas_promedio: 9.7, horas_mediana: 4 }]);
+    assert.deepStrictEqual(r.resumen, { creados: 5, resueltos: 3, pendientes: 1, horas_promedio: 5 });
+    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 3, cerrados: 2, horas_promedio: 5, horas_mediana: 4 }]);
     assert.strictEqual(r.carga.length, 1);
     assert.strictEqual(r.carga[0].pendientes, 1);
     assert.strictEqual(r.carga[0].alta_prioridad, 1);
@@ -144,6 +146,20 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     assert.ok(!sin.carga.some((x) => x.responsable === 'Sin asignar'));
     assert.ok(!sin.revisiones.some((x) => x.revisor === 'Sin asignar'));
     assert.strictEqual(con.resumen.resueltos - sin.resumen.resueltos, 1);
+
+    // Fin de semana y fuera de horario no cuentan
+    await db('tickets').insert([
+      // vie 2/10 18:00 → lun 5/10 10:00 (Lima): 1 h el viernes + 1 h el lunes = 2 h
+      { name: 'finde', store_id: 'ps', assigned_to: 'Wkd', status: 'CLOSED', created_at: '2026-10-02T23:00:00Z', closed_at: '2026-10-05T15:00:00Z' },
+      // sáb 3/10 → dom 4/10: 0 h
+      { name: 'sabado', store_id: 'ps', assigned_to: 'Wkd2', status: 'CLOSED', created_at: '2026-10-03T15:00:00Z', closed_at: '2026-10-04T20:00:00Z' },
+      // lun 5/10 7:00 → 20:00 (Lima): solo cuenta 9:00-19:00 = 10 h
+      { name: 'largo', store_id: 'ps', assigned_to: 'Wkd3', status: 'CLOSED', created_at: '2026-10-05T12:00:00Z', closed_at: '2026-10-06T01:00:00Z' }
+    ]);
+    const horas = async (who) => (await Productivity.getReport({ from: '2026-10-01', to: '2026-10-06', assignee: who })).resueltos[0].horas_promedio;
+    assert.strictEqual(await horas('Wkd'), 2);
+    assert.strictEqual(await horas('Wkd2'), 0);
+    assert.strictEqual(await horas('Wkd3'), 10);
   });
 
   await db.destroy();
