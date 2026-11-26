@@ -76,8 +76,8 @@ test('respuesta: números convertidos, redondeo a 1 decimal y top 5 de acciones'
   assert.strictEqual(status, 200);
   const d = body.data;
   assert.deepStrictEqual(d.filtros, { from: '2026-11-01', to: '2026-11-10', dias: 10, assignee: null, excluir_enova_team: false, zona_horaria: 'America/Lima' });
-  assert.deepStrictEqual(d.resumen, { creados: 5, resueltos: 3, pendientes: 4, horas_promedio: 12.3 });
-  assert.deepStrictEqual(d.resueltos[0], { responsable: 'Ana', resueltos: 3, cerrados: 1, horas_promedio: 5, horas_mediana: 4.5 });
+  assert.deepStrictEqual(d.resumen, { creados: 5, resueltos: 3, pendientes: 4, horas_promedio: 12.3, largos: 0 });
+  assert.deepStrictEqual(d.resueltos[0], { responsable: 'Ana', resueltos: 3, cerrados: 1, horas_promedio: 5, horas_mediana: 4.5, largos: 0 });
   assert.strictEqual(d.carga[0].dias_mas_antiguo, 10);
   assert.deepStrictEqual(d.tiendas[0], { store_id: 's1', creados: 2, cerrados: 1, activos: 3 });
   assert.deepStrictEqual(d.tendencia[0], { dia: '2026-11-01', creados: 2, cerrados: 1 });
@@ -116,12 +116,14 @@ test('"Sin asignar" filtra tickets sin responsable (sin binding de nombre en tic
 test('tiempo de resolución en horas hábiles: L-V 9:00-19:00 hora de Lima', async () => {
   db.log.raw.length = 0;
   const { body } = await get();
-  assert.deepStrictEqual(body.data.horario, { dias: 'lunes a viernes', desde: '09:00', hasta: '19:00', horas_por_dia: 10 });
+  assert.deepStrictEqual(body.data.horario, { dias: 'lunes a viernes', desde: '09:00', hasta: '19:00', horas_por_dia: 10, max_horas_promedio: 30 });
   for (const key of ['percentile_cont', 'AS pendientes,']) {
     const q = db.log.raw.find((r) => r.sql.includes(key));
     assert.match(q.sql, /ISODOW/);
     assert.match(q.sql, /time '09:00'/);
     assert.match(q.sql, /time '19:00'/);
+    assert.ok(q.sql.includes('FILTER (WHERE horas <= 30)'), 'los tickets de más de 3 días hábiles no entran al promedio');
+    assert.ok(q.sql.includes('FILTER (WHERE horas > 30)'), 'y se cuentan aparte');
     assert.doesNotMatch(q.sql, /EXTRACT\(EPOCH FROM \((t\.)?closed_at - /);
   }
 });

@@ -80,6 +80,10 @@ function ticketsByPerson(f) {
 const WORK_START = '09:00';
 const WORK_END = '19:00';
 const WORK_HOURS_PER_DAY = 10;
+// Tickets que pasan de 3 días hábiles (30 h) no entran al promedio ni a la mediana de resolución:
+// son desarrollos cotizados, reabiertos, etc. Se siguen contando como resueltos y se reportan aparte.
+const LONG_TICKET_DAYS = 3;
+const LONG_TICKET_HOURS = LONG_TICKET_DAYS * WORK_HOURS_PER_DAY;
 const businessHours = (start, end) => `(
   SELECT COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
     LEAST((${end}) AT TIME ZONE '${TZ}', g.d::date + time '${WORK_END}')
@@ -100,8 +104,9 @@ async function getResolved(f) {
     SELECT responsable,
            COUNT(*)::int AS resueltos,
            SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END)::int AS cerrados,
-           AVG(horas) AS horas_promedio,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY horas) AS horas_mediana
+           AVG(horas) FILTER (WHERE horas <= ${LONG_TICKET_HOURS}) AS horas_promedio,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY horas) FILTER (WHERE horas <= ${LONG_TICKET_HOURS}) AS horas_mediana,
+           COUNT(*) FILTER (WHERE horas > ${LONG_TICKET_HOURS})::int AS largos
     FROM (
       SELECT tp.responsable, tp.status, ${businessHours('tp.created_at', 'tp.closed_at')} AS horas
       FROM (${tp.sql}) tp
@@ -114,7 +119,8 @@ async function getResolved(f) {
     resueltos: num(x.resueltos),
     cerrados: num(x.cerrados),
     horas_promedio: round1(x.horas_promedio),
-    horas_mediana: round1(x.horas_mediana)
+    horas_mediana: round1(x.horas_mediana),
+    largos: num(x.largos) || 0
   }));
 }
 
@@ -222,22 +228,30 @@ async function getActivity(f) {
 // Totales del período (cada ticket una vez, aunque tenga varios responsables)
 async function getSummary(f) {
   const a = assigneeClause(f);
+  // horas = horas hábiles de los tickets resueltos en el período (NULL para el resto)
   const r = await db.raw(`
+    WITH base AS (
+      SELECT t.created_at, ${STATUS} AS st,
+             CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')}
+                  THEN ${businessHours('t.created_at', 't.closed_at')} END AS horas
+      FROM tickets t
+      WHERE true${a.sql}
+    )
     SELECT
-      SUM(CASE WHEN ${inRange('t.created_at')} THEN 1 ELSE 0 END)::int AS creados,
-      SUM(CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')} THEN 1 ELSE 0 END)::int AS resueltos,
-      SUM(CASE WHEN ${STATUS} NOT IN ${DONE} THEN 1 ELSE 0 END)::int AS pendientes,
-      AVG(CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')}
-               THEN ${businessHours('t.created_at', 't.closed_at')} END) AS horas_promedio
-    FROM tickets t
-    WHERE true${a.sql}`,
-  [...rangeBindings(f), ...rangeBindings(f), ...rangeBindings(f), ...a.bindings]);
+      SUM(CASE WHEN ${inRange('created_at')} THEN 1 ELSE 0 END)::int AS creados,
+      COUNT(horas)::int AS resueltos,
+      SUM(CASE WHEN st NOT IN ${DONE} THEN 1 ELSE 0 END)::int AS pendientes,
+      AVG(horas) FILTER (WHERE horas <= ${LONG_TICKET_HOURS}) AS horas_promedio,
+      COUNT(*) FILTER (WHERE horas > ${LONG_TICKET_HOURS})::int AS largos
+    FROM base`,
+  [...rangeBindings(f), ...a.bindings, ...rangeBindings(f)]);
   const x = rowsOf(r)[0] || {};
   return {
     creados: num(x.creados) || 0,
     resueltos: num(x.resueltos) || 0,
     pendientes: num(x.pendientes) || 0,
-    horas_promedio: round1(x.horas_promedio)
+    horas_promedio: round1(x.horas_promedio),
+    largos: num(x.largos) || 0
   };
 }
 
@@ -264,7 +278,7 @@ async function getReport(query) {
     optional(getActivity, f, warnings, 'Actividad (audit_logs)')
   ]);
   return {
-    horario: { dias: 'lunes a viernes', desde: WORK_START, hasta: WORK_END, horas_por_dia: WORK_HOURS_PER_DAY },
+    horario: { dias: 'lunes a viernes', desde: WORK_START, hasta: WORK_END, horas_por_dia: WORK_HOURS_PER_DAY, max_horas_promedio: LONG_TICKET_HOURS },
     filtros: { from: f.from, to: f.to, dias: f.days, assignee: f.assignee, excluir_enova_team: f.excludeTeam, zona_horaria: TZ },
     resumen, resueltos, carga, tiendas, tendencia, revisiones, actividad, warnings
   };

@@ -75,7 +75,9 @@ function Table({ columns, rows, empty = 'Sin datos en este período.' }) {
 // ── Semáforo de rendimiento ─────────────────────────────────────────────
 // Umbrales en un solo lugar para ajustarlos fácil.
 const THRESHOLDS = {
-  horas: { good: 10, warn: 30 },        // resolución en horas hábiles: ≤1 día hábil (10 h) bien, ≤3 días hábiles (30 h) atención
+  // Resolución en horas hábiles. Los tickets de más de 3 días hábiles (30 h) no entran al promedio
+  // (los excluye el backend), así que el promedio nunca pasa de 30 h: ≤1 día hábil bien, ≤2 días atención.
+  horas: { good: 10, warn: 20 },
   diasPendiente: { good: 3, warn: 7 },  // pendiente más antiguo: ≤3 d bien, ≤7 d atención, más = crítico
   balance: { good: 1, warn: 0.8 }       // resueltos ÷ creados: ≥100 % bien, ≥80 % atención, menos = crítico
 };
@@ -326,7 +328,7 @@ export default function ProductivityView() {
             <StatTile
               label="Tiempo promedio"
               value={fmtHours(r.horas_promedio)}
-              sub="horas hábiles, L-V 9:00-19:00 (1 d = 10 h)"
+              sub={`horas hábiles, L-V 9:00-19:00 (1 d = 10 h)${r.largos ? ` · ${r.largos} ticket${r.largos === 1 ? '' : 's'} de más de 3 d fuera del promedio` : ''}`}
               level={lowerIsBetter(r.horas_promedio, THRESHOLDS.horas)}
               why={`En horas hábiles: bien ≤ ${THRESHOLDS.horas.good} h, atención ≤ ${THRESHOLDS.horas.warn} h`}
             />
@@ -345,14 +347,15 @@ export default function ProductivityView() {
           </Section>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
-            <Section title="Resueltos por responsable" hint="Tiempos en horas hábiles (L-V 9:00-19:00, 1 d = 10 h). Un ticket con varios responsables cuenta para cada uno.">
+            <Section title="Resueltos por responsable" hint="Tiempos en horas hábiles (L-V 9:00-19:00, 1 d = 10 h). Promedio y mediana sin los tickets de más de 3 días hábiles (cotizados, reabiertos…), que se cuentan en «Largos». Un ticket con varios responsables cuenta para cada uno.">
               <Table
                 columns={[
                   { key: 'responsable', label: 'Responsable', render: (x) => displayName(x.responsable) },
                   { key: 'resueltos', label: 'Resueltos', num: true },
                   { key: 'cerrados', label: 'De ellos cerrados', num: true },
                   { key: 'horas_promedio', label: 'Promedio hábil', num: true, render: (x) => <Signal level={lowerIsBetter(x.horas_promedio, THRESHOLDS.horas)} why="tiempo promedio de resolución">{fmtHours(x.horas_promedio)}</Signal> },
-                  { key: 'horas_mediana', label: 'Mediana hábil', num: true, render: (x) => fmtHours(x.horas_mediana) }
+                  { key: 'horas_mediana', label: 'Mediana hábil', num: true, render: (x) => fmtHours(x.horas_mediana) },
+                  { key: 'largos', label: 'Largos (>3 d)', num: true }
                 ]}
                 rows={data.resueltos}
               />

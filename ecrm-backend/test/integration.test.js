@@ -115,8 +115,8 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
 
     const r = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03', assignee: 'pia' });
     assert.deepStrictEqual(r.warnings, []);
-    assert.deepStrictEqual(r.resumen, { creados: 5, resueltos: 3, pendientes: 1, horas_promedio: 5 });
-    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 3, cerrados: 2, horas_promedio: 5, horas_mediana: 4 }]);
+    assert.deepStrictEqual(r.resumen, { creados: 5, resueltos: 3, pendientes: 1, horas_promedio: 5, largos: 0 });
+    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 3, cerrados: 2, horas_promedio: 5, horas_mediana: 4, largos: 0 }]);
     assert.strictEqual(r.carga.length, 1);
     assert.strictEqual(r.carga[0].pendientes, 1);
     assert.strictEqual(r.carga[0].alta_prioridad, 1);
@@ -133,7 +133,7 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     // Sin filtro de responsable: un ticket con dos responsables cuenta para ambos
     const todos = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03' });
     const rodo = todos.resueltos.find((x) => x.responsable === 'Rodo');
-    assert.deepStrictEqual(rodo, { responsable: 'Rodo', resueltos: 1, cerrados: 0, horas_promedio: 4, horas_mediana: 4 });
+    assert.deepStrictEqual(rodo, { responsable: 'Rodo', resueltos: 1, cerrados: 0, horas_promedio: 4, horas_mediana: 4, largos: 0 });
     assert.ok(todos.carga.some((x) => x.responsable === 'Sin asignar'), 'los tickets sin responsable aparecen como "Sin asignar"');
 
     // Excluir Enova Team: fuera los tickets sin responsable y las revisiones sin revisor
@@ -160,6 +160,17 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     assert.strictEqual(await horas('Wkd'), 2);
     assert.strictEqual(await horas('Wkd2'), 0);
     assert.strictEqual(await horas('Wkd3'), 10);
+
+    // Más de 3 días hábiles (30 h): cuenta como resuelto pero no entra al promedio ni a la mediana
+    await db('tickets').insert([
+      { name: 'corto', store_id: 'ps', assigned_to: 'Lng', status: 'CLOSED', created_at: '2026-10-05T15:00:00Z', closed_at: '2026-10-05T19:00:00Z' }, // 4 h
+      { name: 'cotizado', store_id: 'ps', assigned_to: 'Lng', status: 'CLOSED', created_at: '2026-10-05T14:00:00Z', closed_at: '2026-10-09T00:00:00Z' } // lun 9:00 → jue 19:00 = 40 h
+    ]);
+    const lng = await Productivity.getReport({ from: '2026-10-05', to: '2026-10-09', assignee: 'Lng' });
+    assert.deepStrictEqual(lng.resueltos, [{ responsable: 'Lng', resueltos: 2, cerrados: 2, horas_promedio: 4, horas_mediana: 4, largos: 1 }]);
+    assert.strictEqual(lng.resumen.resueltos, 2);
+    assert.strictEqual(lng.resumen.horas_promedio, 4);
+    assert.strictEqual(lng.resumen.largos, 1);
   });
 
   await db.destroy();
