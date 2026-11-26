@@ -328,7 +328,11 @@ export default function ProductivityView() {
             <StatTile
               label="Tiempo promedio"
               value={fmtHours(r.horas_promedio)}
-              sub={`horas hábiles, L-V 9:00-19:00 (1 d = 10 h)${r.largos ? ` · ${r.largos} ticket${r.largos === 1 ? '' : 's'} de más de 3 d fuera del promedio` : ''}`}
+              sub={[
+                'de En progreso a cerrado, horas hábiles L-V 9:00-19:00 (1 d = 10 h)',
+                r.largos ? `${r.largos} de más de 3 d fuera del promedio` : null,
+                r.sin_inicio ? `${r.sin_inicio} cerrado${r.sin_inicio === 1 ? '' : 's'} sin pasar por En progreso (sin tiempo)` : null
+              ].filter(Boolean).join(' · ')}
               level={lowerIsBetter(r.horas_promedio, THRESHOLDS.horas)}
               why={`En horas hábiles: bien ≤ ${THRESHOLDS.horas.good} h, atención ≤ ${THRESHOLDS.horas.warn} h`}
             />
@@ -347,7 +351,7 @@ export default function ProductivityView() {
           </Section>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
-            <Section title="Resueltos por responsable" hint="Tiempos en horas hábiles (L-V 9:00-19:00, 1 d = 10 h). Promedio y mediana sin los tickets de más de 3 días hábiles (cotizados, reabiertos…), que se cuentan en «Largos». Un ticket con varios responsables cuenta para cada uno.">
+            <Section title="Resueltos por responsable" hint="Tiempo desde que el ticket pasa a En progreso hasta que se cierra, en horas hábiles (L-V 9:00-19:00, 1 d = 10 h); el tiempo en OPEN no cuenta. Promedio y mediana sin los tickets de más de 3 días hábiles («Largos») ni los cerrados sin pasar por En progreso («Sin inicio»). Un ticket con varios responsables cuenta para cada uno.">
               <Table
                 columns={[
                   { key: 'responsable', label: 'Responsable', render: (x) => displayName(x.responsable) },
@@ -355,7 +359,8 @@ export default function ProductivityView() {
                   { key: 'cerrados', label: 'De ellos cerrados', num: true },
                   { key: 'horas_promedio', label: 'Promedio hábil', num: true, render: (x) => <Signal level={lowerIsBetter(x.horas_promedio, THRESHOLDS.horas)} why="tiempo promedio de resolución">{fmtHours(x.horas_promedio)}</Signal> },
                   { key: 'horas_mediana', label: 'Mediana hábil', num: true, render: (x) => fmtHours(x.horas_mediana) },
-                  { key: 'largos', label: 'Largos (>3 d)', num: true }
+                  { key: 'largos', label: 'Largos (>3 d)', num: true },
+                  { key: 'sin_inicio', label: 'Sin inicio', num: true }
                 ]}
                 rows={data.resueltos}
               />

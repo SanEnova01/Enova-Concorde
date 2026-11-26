@@ -65,7 +65,7 @@ function ticketsByPerson(f) {
     sql: `
       SELECT * FROM (
         SELECT t.id, t.store_id, ${STATUS} AS status, UPPER(COALESCE(t.priority, 'MEDIUM')) AS priority,
-               t.created_at, t.closed_at, COALESCE(n.nombre, '${UNASSIGNED_LABEL}') AS responsable
+               t.created_at, t.in_progress_at, t.closed_at, COALESCE(n.nombre, '${UNASSIGNED_LABEL}') AS responsable
         FROM tickets t
         LEFT JOIN LATERAL (${NAMES_OF('t')}) n ON true
         WHERE true${a.sql}
@@ -74,6 +74,9 @@ function ticketsByPerson(f) {
   };
 }
 
+// Tiempo de resolución = horas hábiles desde que el ticket pasa a IN_PROGRESS (in_progress_at) hasta
+// closed_at. OPEN solo significa creado. Los resueltos que nunca pasaron por En progreso no tienen
+// tiempo medible: cuentan como resueltos y se reportan como sin_inicio.
 // Horario laboral: lunes a viernes de 9:00 a 19:00 en hora de Lima (no descuenta feriados).
 // Horas hábiles entre dos timestamptz: por cada día laboral se suma el tramo que cae dentro
 // de 9:00-19:00. Lima no tiene horario de verano, así que cada día dura igual.
@@ -106,9 +109,11 @@ async function getResolved(f) {
            SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END)::int AS cerrados,
            AVG(horas) FILTER (WHERE horas <= ${LONG_TICKET_HOURS}) AS horas_promedio,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY horas) FILTER (WHERE horas <= ${LONG_TICKET_HOURS}) AS horas_mediana,
-           COUNT(*) FILTER (WHERE horas > ${LONG_TICKET_HOURS})::int AS largos
+           COUNT(*) FILTER (WHERE horas > ${LONG_TICKET_HOURS})::int AS largos,
+           COUNT(*) FILTER (WHERE horas IS NULL)::int AS sin_inicio
     FROM (
-      SELECT tp.responsable, tp.status, ${businessHours('tp.created_at', 'tp.closed_at')} AS horas
+      SELECT tp.responsable, tp.status,
+             CASE WHEN tp.in_progress_at IS NOT NULL THEN ${businessHours('tp.in_progress_at', 'tp.closed_at')} END AS horas
       FROM (${tp.sql}) tp
       WHERE tp.status IN ${DONE} AND tp.closed_at IS NOT NULL AND ${inRange('tp.closed_at')}
     ) r
@@ -120,7 +125,8 @@ async function getResolved(f) {
     cerrados: num(x.cerrados),
     horas_promedio: round1(x.horas_promedio),
     horas_mediana: round1(x.horas_mediana),
-    largos: num(x.largos) || 0
+    largos: num(x.largos) || 0,
+    sin_inicio: num(x.sin_inicio) || 0
   }));
 }
 
@@ -228,21 +234,23 @@ async function getActivity(f) {
 // Totales del período (cada ticket una vez, aunque tenga varios responsables)
 async function getSummary(f) {
   const a = assigneeClause(f);
-  // horas = horas hábiles de los tickets resueltos en el período (NULL para el resto)
+  // resuelto = cerrado en el período; horas = horas hábiles de En progreso a cierre (NULL si nunca pasó por En progreso)
   const r = await db.raw(`
     WITH base AS (
-      SELECT t.created_at, ${STATUS} AS st,
-             CASE WHEN ${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')}
-                  THEN ${businessHours('t.created_at', 't.closed_at')} END AS horas
+      SELECT t.created_at, ${STATUS} AS st, x.resuelto,
+             CASE WHEN x.resuelto AND t.in_progress_at IS NOT NULL
+                  THEN ${businessHours('t.in_progress_at', 't.closed_at')} END AS horas
       FROM tickets t
+      CROSS JOIN LATERAL (SELECT (${STATUS} IN ${DONE} AND t.closed_at IS NOT NULL AND ${inRange('t.closed_at')}) AS resuelto) x
       WHERE true${a.sql}
     )
     SELECT
       SUM(CASE WHEN ${inRange('created_at')} THEN 1 ELSE 0 END)::int AS creados,
-      COUNT(horas)::int AS resueltos,
+      COUNT(*) FILTER (WHERE resuelto)::int AS resueltos,
       SUM(CASE WHEN st NOT IN ${DONE} THEN 1 ELSE 0 END)::int AS pendientes,
       AVG(horas) FILTER (WHERE horas <= ${LONG_TICKET_HOURS}) AS horas_promedio,
-      COUNT(*) FILTER (WHERE horas > ${LONG_TICKET_HOURS})::int AS largos
+      COUNT(*) FILTER (WHERE horas > ${LONG_TICKET_HOURS})::int AS largos,
+      COUNT(*) FILTER (WHERE resuelto AND horas IS NULL)::int AS sin_inicio
     FROM base`,
   [...rangeBindings(f), ...a.bindings, ...rangeBindings(f)]);
   const x = rowsOf(r)[0] || {};
@@ -251,7 +259,8 @@ async function getSummary(f) {
     resueltos: num(x.resueltos) || 0,
     pendientes: num(x.pendientes) || 0,
     horas_promedio: round1(x.horas_promedio),
-    largos: num(x.largos) || 0
+    largos: num(x.largos) || 0,
+    sin_inicio: num(x.sin_inicio) || 0
   };
 }
 

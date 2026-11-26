@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const HubSyncService = require('../services/HubSyncService');
+const ticketTimeline = require('../db/ensureTicketTimeline');
 
 // Listado paginado de tickets
 const TICKET_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
@@ -172,6 +173,7 @@ ${baseDescription}`.trim(),
           task_type: validTaskType,
           status,
           ...(status === 'CLOSED' || status === 'RESOLVED' ? { closed_at: db.fn.now() } : {}),
+          ...(status === 'IN_PROGRESS' && ticketTimeline.isReady() ? { in_progress_at: db.fn.now() } : {}),
           assigned_to: ticketData.assigned_to || null,
           is_b2c: isB2C
         }).returning('*');
@@ -337,6 +339,10 @@ ${baseDescription}`.trim(),
         updateData.closed_at = db.fn.now();
       } else {
         updateData.closed_at = null;
+      }
+      // Primera vez que pasa a En progreso: desde aquí se mide el tiempo de resolución
+      if (status === 'IN_PROGRESS' && ticketTimeline.isReady()) {
+        updateData.in_progress_at = db.raw('COALESCE(in_progress_at, now())');
       }
 
       if (assigned_to !== undefined) {

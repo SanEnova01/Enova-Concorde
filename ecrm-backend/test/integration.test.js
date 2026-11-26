@@ -88,17 +88,21 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     await db.raw('CREATE TABLE store_daily_reviews (id serial PRIMARY KEY, store_id text, review_date date, reviewer_name text)');
     await db.raw(`CREATE TABLE audit_logs (id serial PRIMARY KEY, user_name text, user_email text, action text,
       details text, ip_address text, created_at timestamptz DEFAULT now())`);
+    // Columna in_progress_at (la agrega el arranque del servidor)
+    const ensureTicketTimeline = require('../src/db/ensureTicketTimeline');
+    await ensureTicketTimeline();
+    assert.strictEqual(ensureTicketTimeline.isReady(), true);
     // Octubre 2026 (no choca con los tickets "de hoy" de las pruebas anteriores). Lima = UTC-5.
     // El 1 es jueves y el 2 viernes. Tiempos en horas hábiles (L-V 9:00-19:00 Lima):
     // p1 10:00→14:00 = 4 h; p2 jue 10:00→vie 10:00 = 9 h + 1 h = 10 h; diario 10:00→11:00 = 1 h.
     await db('tickets').insert([
-      { name: 'p1', store_id: 'ps', assigned_to: 'Pia, Rodo', status: 'RESOLVED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T19:00:00Z' },
-      { name: 'p2', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-02T15:00:00Z' },
+      { name: 'p1', store_id: 'ps', assigned_to: 'Pia, Rodo', status: 'RESOLVED', created_at: '2026-10-01T15:00:00Z', in_progress_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T19:00:00Z' },
+      { name: 'p2', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', in_progress_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-02T15:00:00Z' },
       { name: 'p3', store_id: 'ps', assigned_to: 'Pia', status: 'OPEN', priority: 'HIGH', created_at: '2026-10-02T15:00:00Z' },
       // 22:00 del 3 en Lima (ya es 4 en UTC): se crea dentro del rango; se cierra el 4 en Lima, fuera
-      { name: 'p4', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-04T03:00:00Z', closed_at: '2026-10-04T06:00:00Z' },
+      { name: 'p4', store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-04T03:00:00Z', in_progress_at: '2026-10-04T03:00:00Z', closed_at: '2026-10-04T06:00:00Z' },
       // El ticket diario también cuenta (implica una revisión manual): 1 h
-      { name: DailyTicketService.DAILY_TICKET_NAME, store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T16:00:00Z' }
+      { name: DailyTicketService.DAILY_TICKET_NAME, store_id: 'ps', assigned_to: 'Pia', status: 'CLOSED', created_at: '2026-10-01T15:00:00Z', in_progress_at: '2026-10-01T15:00:00Z', closed_at: '2026-10-01T16:00:00Z' }
     ]);
     await db('store_daily_reviews').insert([
       { store_id: 's1', review_date: '2026-10-01', reviewer_name: 'Pia' },
@@ -115,8 +119,8 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
 
     const r = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03', assignee: 'pia' });
     assert.deepStrictEqual(r.warnings, []);
-    assert.deepStrictEqual(r.resumen, { creados: 5, resueltos: 3, pendientes: 1, horas_promedio: 5, largos: 0 });
-    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 3, cerrados: 2, horas_promedio: 5, horas_mediana: 4, largos: 0 }]);
+    assert.deepStrictEqual(r.resumen, { creados: 5, resueltos: 3, pendientes: 1, horas_promedio: 5, largos: 0, sin_inicio: 0 });
+    assert.deepStrictEqual(r.resueltos, [{ responsable: 'Pia', resueltos: 3, cerrados: 2, horas_promedio: 5, horas_mediana: 4, largos: 0, sin_inicio: 0 }]);
     assert.strictEqual(r.carga.length, 1);
     assert.strictEqual(r.carga[0].pendientes, 1);
     assert.strictEqual(r.carga[0].alta_prioridad, 1);
@@ -133,7 +137,7 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     // Sin filtro de responsable: un ticket con dos responsables cuenta para ambos
     const todos = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03' });
     const rodo = todos.resueltos.find((x) => x.responsable === 'Rodo');
-    assert.deepStrictEqual(rodo, { responsable: 'Rodo', resueltos: 1, cerrados: 0, horas_promedio: 4, horas_mediana: 4, largos: 0 });
+    assert.deepStrictEqual(rodo, { responsable: 'Rodo', resueltos: 1, cerrados: 0, horas_promedio: 4, horas_mediana: 4, largos: 0, sin_inicio: 0 });
     assert.ok(todos.carga.some((x) => x.responsable === 'Sin asignar'), 'los tickets sin responsable aparecen como "Sin asignar"');
 
     // Excluir Enova Team: fuera los tickets sin responsable y las revisiones sin revisor
@@ -150,11 +154,11 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     // Fin de semana y fuera de horario no cuentan
     await db('tickets').insert([
       // vie 2/10 18:00 → lun 5/10 10:00 (Lima): 1 h el viernes + 1 h el lunes = 2 h
-      { name: 'finde', store_id: 'ps', assigned_to: 'Wkd', status: 'CLOSED', created_at: '2026-10-02T23:00:00Z', closed_at: '2026-10-05T15:00:00Z' },
+      { name: 'finde', store_id: 'ps', assigned_to: 'Wkd', status: 'CLOSED', created_at: '2026-10-02T23:00:00Z', in_progress_at: '2026-10-02T23:00:00Z', closed_at: '2026-10-05T15:00:00Z' },
       // sáb 3/10 → dom 4/10: 0 h
-      { name: 'sabado', store_id: 'ps', assigned_to: 'Wkd2', status: 'CLOSED', created_at: '2026-10-03T15:00:00Z', closed_at: '2026-10-04T20:00:00Z' },
+      { name: 'sabado', store_id: 'ps', assigned_to: 'Wkd2', status: 'CLOSED', created_at: '2026-10-03T15:00:00Z', in_progress_at: '2026-10-03T15:00:00Z', closed_at: '2026-10-04T20:00:00Z' },
       // lun 5/10 7:00 → 20:00 (Lima): solo cuenta 9:00-19:00 = 10 h
-      { name: 'largo', store_id: 'ps', assigned_to: 'Wkd3', status: 'CLOSED', created_at: '2026-10-05T12:00:00Z', closed_at: '2026-10-06T01:00:00Z' }
+      { name: 'largo', store_id: 'ps', assigned_to: 'Wkd3', status: 'CLOSED', created_at: '2026-10-05T12:00:00Z', in_progress_at: '2026-10-05T12:00:00Z', closed_at: '2026-10-06T01:00:00Z' }
     ]);
     const horas = async (who) => (await Productivity.getReport({ from: '2026-10-01', to: '2026-10-06', assignee: who })).resueltos[0].horas_promedio;
     assert.strictEqual(await horas('Wkd'), 2);
@@ -163,14 +167,47 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
 
     // Más de 3 días hábiles (30 h): cuenta como resuelto pero no entra al promedio ni a la mediana
     await db('tickets').insert([
-      { name: 'corto', store_id: 'ps', assigned_to: 'Lng', status: 'CLOSED', created_at: '2026-10-05T15:00:00Z', closed_at: '2026-10-05T19:00:00Z' }, // 4 h
-      { name: 'cotizado', store_id: 'ps', assigned_to: 'Lng', status: 'CLOSED', created_at: '2026-10-05T14:00:00Z', closed_at: '2026-10-09T00:00:00Z' } // lun 9:00 → jue 19:00 = 40 h
+      { name: 'corto', store_id: 'ps', assigned_to: 'Lng', status: 'CLOSED', created_at: '2026-10-05T15:00:00Z', in_progress_at: '2026-10-05T15:00:00Z', closed_at: '2026-10-05T19:00:00Z' }, // 4 h
+      { name: 'cotizado', store_id: 'ps', assigned_to: 'Lng', status: 'CLOSED', created_at: '2026-10-05T14:00:00Z', in_progress_at: '2026-10-05T14:00:00Z', closed_at: '2026-10-09T00:00:00Z' } // lun 9:00 → jue 19:00 = 40 h
     ]);
     const lng = await Productivity.getReport({ from: '2026-10-05', to: '2026-10-09', assignee: 'Lng' });
-    assert.deepStrictEqual(lng.resueltos, [{ responsable: 'Lng', resueltos: 2, cerrados: 2, horas_promedio: 4, horas_mediana: 4, largos: 1 }]);
+    assert.deepStrictEqual(lng.resueltos, [{ responsable: 'Lng', resueltos: 2, cerrados: 2, horas_promedio: 4, horas_mediana: 4, largos: 1, sin_inicio: 0 }]);
     assert.strictEqual(lng.resumen.resueltos, 2);
     assert.strictEqual(lng.resumen.horas_promedio, 4);
     assert.strictEqual(lng.resumen.largos, 1);
+
+    // El tiempo se mide desde En progreso, no desde la creación (OPEN = solo creado)
+    await db('tickets').insert([
+      // creado lun 5/10 9:00, en progreso mar 6/10 9:00, cerrado mar 12:00 (Lima) → 3 h, no 13 h
+      { name: 'espera', store_id: 'ps', assigned_to: 'Ipg', status: 'CLOSED', created_at: '2026-10-05T14:00:00Z', in_progress_at: '2026-10-06T14:00:00Z', closed_at: '2026-10-06T17:00:00Z' },
+      // cerrado directo desde OPEN: cuenta como resuelto pero sin tiempo medible
+      { name: 'directo', store_id: 'ps', assigned_to: 'Ipg', status: 'CLOSED', created_at: '2026-10-05T14:00:00Z', closed_at: '2026-10-05T15:00:00Z' }
+    ]);
+    const ipg = await Productivity.getReport({ from: '2026-10-05', to: '2026-10-09', assignee: 'Ipg' });
+    assert.deepStrictEqual(ipg.resueltos, [{ responsable: 'Ipg', resueltos: 2, cerrados: 2, horas_promedio: 3, horas_mediana: 3, largos: 0, sin_inicio: 1 }]);
+    assert.strictEqual(ipg.resumen.resueltos, 2);
+    assert.strictEqual(ipg.resumen.horas_promedio, 3);
+    assert.strictEqual(ipg.resumen.sin_inicio, 1);
+
+    // Tickets antiguos: in_progress_at sale del PRIMER cambio a [IN_PROGRESS] en audit_logs
+    const [viejo] = await db('tickets').insert({ name: 'viejo', store_id: 'ps', status: 'CLOSED', created_at: '2026-09-01T14:00:00Z', closed_at: '2026-09-03T14:00:00Z' }).returning('*');
+    await db('audit_logs').insert([
+      { user_name: 'Pia', action: 'CAMBIAR_ESTADO_TICKET', details: `Ticket ID ${viejo.id} (SOP-X) cambió a estado [IN_PROGRESS]`, created_at: '2026-09-02T15:00:00Z' },
+      { user_name: 'Pia', action: 'CAMBIAR_ESTADO_TICKET', details: `Ticket ID ${viejo.id} (SOP-X) cambió a estado [IN_PROGRESS]`, created_at: '2026-09-02T18:00:00Z' },
+      { user_name: 'Pia', action: 'CAMBIAR_ESTADO_TICKET', details: `Ticket ID ${viejo.id}0 (SOP-Y) cambió a estado [IN_PROGRESS]`, created_at: '2026-09-01T15:00:00Z' }
+    ]);
+    await ensureTicketTimeline();
+    const relleno = await db('tickets').where({ id: viejo.id }).first();
+    assert.strictEqual(new Date(relleno.in_progress_at).toISOString(), '2026-09-02T15:00:00.000Z');
+
+    // Al pasar a En progreso por el Kanban se guarda la hora una sola vez (la primera)
+    const nuevo = await TicketRepository.create({ name: 'kanban', store_id: 'ps' });
+    assert.strictEqual(nuevo.in_progress_at, null);
+    const enCurso = await TicketRepository.updateStatus(nuevo.id, 'IN_PROGRESS');
+    assert.ok(enCurso.in_progress_at);
+    await TicketRepository.updateStatus(nuevo.id, 'OPEN');
+    const otraVez = await TicketRepository.updateStatus(nuevo.id, 'IN_PROGRESS');
+    assert.strictEqual(new Date(otraVez.in_progress_at).getTime(), new Date(enCurso.in_progress_at).getTime());
   });
 
   await db.destroy();

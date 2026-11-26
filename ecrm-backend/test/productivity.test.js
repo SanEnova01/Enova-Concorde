@@ -76,8 +76,8 @@ test('respuesta: números convertidos, redondeo a 1 decimal y top 5 de acciones'
   assert.strictEqual(status, 200);
   const d = body.data;
   assert.deepStrictEqual(d.filtros, { from: '2026-11-01', to: '2026-11-10', dias: 10, assignee: null, excluir_enova_team: false, zona_horaria: 'America/Lima' });
-  assert.deepStrictEqual(d.resumen, { creados: 5, resueltos: 3, pendientes: 4, horas_promedio: 12.3, largos: 0 });
-  assert.deepStrictEqual(d.resueltos[0], { responsable: 'Ana', resueltos: 3, cerrados: 1, horas_promedio: 5, horas_mediana: 4.5, largos: 0 });
+  assert.deepStrictEqual(d.resumen, { creados: 5, resueltos: 3, pendientes: 4, horas_promedio: 12.3, largos: 0, sin_inicio: 0 });
+  assert.deepStrictEqual(d.resueltos[0], { responsable: 'Ana', resueltos: 3, cerrados: 1, horas_promedio: 5, horas_mediana: 4.5, largos: 0, sin_inicio: 0 });
   assert.strictEqual(d.carga[0].dias_mas_antiguo, 10);
   assert.deepStrictEqual(d.tiendas[0], { store_id: 's1', creados: 2, cerrados: 1, activos: 3 });
   assert.deepStrictEqual(d.tendencia[0], { dia: '2026-11-01', creados: 2, cerrados: 1 });
@@ -124,6 +124,7 @@ test('tiempo de resolución en horas hábiles: L-V 9:00-19:00 hora de Lima', asy
     assert.match(q.sql, /time '19:00'/);
     assert.ok(q.sql.includes('FILTER (WHERE horas <= 30)'), 'los tickets de más de 3 días hábiles no entran al promedio');
     assert.ok(q.sql.includes('FILTER (WHERE horas > 30)'), 'y se cuentan aparte');
+    assert.ok(q.sql.includes("in_progress_at"), 'se mide desde En progreso');
     assert.doesNotMatch(q.sql, /EXTRACT\(EPOCH FROM \((t\.)?closed_at - /);
   }
 });
@@ -164,4 +165,15 @@ test('si falla una consulta de tickets responde 500 sin filtrar detalles', async
   } finally {
     failTables = [];
   }
+});
+
+test('arranque: agrega in_progress_at y la rellena desde audit_logs', async () => {
+  const ensureTicketTimeline = require('../src/db/ensureTicketTimeline');
+  db.log.raw.length = 0;
+  await ensureTicketTimeline();
+  assert.strictEqual(ensureTicketTimeline.isReady(), true);
+  assert.match(db.log.raw[0].sql, /ADD COLUMN IF NOT EXISTS in_progress_at timestamptz/);
+  assert.match(db.log.raw[1].sql, /SET in_progress_at = l\.first_at/);
+  assert.match(db.log.raw[1].sql, /MIN\(created_at\)/);
+  assert.match(db.log.raw[1].sql, /in_progress_at IS NULL/, 'no pisa los valores ya guardados');
 });

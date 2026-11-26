@@ -9,6 +9,7 @@ const { verificarToken, requireSuperAdmin, requireStaff } = require('./middlewar
 const app = express();
 
 require('./db/ensureIndexes')().catch((err) => console.error('[DB] Error verificando índices:', err.message));
+require('./db/ensureTicketTimeline')().catch((err) => console.error('[DB] Error preparando in_progress_at:', err.message));
 
 // Registro de auditoría (tabla audit_logs y helper) → services/AuditLogService.js
 const { logActivity } = require('./services/AuditLogService');
