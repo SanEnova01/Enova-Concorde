@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import crmApi from '../../api/crmApi';
 
 // Productividad del equipo (Concorde Tools). Todos los cálculos vienen hechos del backend
@@ -69,10 +70,60 @@ function Table({ columns, rows, empty = 'Sin datos en este período.' }) {
   );
 }
 
-function StatTile({ label, value, sub }) {
+// ── Semáforo de rendimiento ─────────────────────────────────────────────
+// Umbrales en un solo lugar para ajustarlos fácil.
+const THRESHOLDS = {
+  horas: { good: 24, warn: 72 },        // tiempo de resolución: ≤24 h bien, ≤72 h atención, más = crítico
+  diasPendiente: { good: 3, warn: 7 },  // pendiente más antiguo: ≤3 d bien, ≤7 d atención, más = crítico
+  balance: { good: 1, warn: 0.8 }       // resueltos ÷ creados: ≥100 % bien, ≥80 % atención, menos = crítico
+};
+const LEVELS = {
+  good: { color: '#1a7f37', Icon: CheckCircle2, label: 'Bien' },
+  warn: { color: '#c99400', Icon: AlertTriangle, label: 'Atención' },
+  bad: { color: '#c62828', Icon: XCircle, label: 'Crítico' }
+};
+const lowerIsBetter = (v, t) => (v === null || v === undefined ? null : v <= t.good ? 'good' : v <= t.warn ? 'warn' : 'bad');
+const higherIsBetter = (v, t) => (v === null || v === undefined ? null : v >= t.good ? 'good' : v >= t.warn ? 'warn' : 'bad');
+
+// Ícono de color + texto (el color nunca va solo: el ícono cambia y el tooltip lo dice)
+function Signal({ level, why, children }) {
+  if (!level) return children ?? null;
+  const { color, Icon, label } = LEVELS[level];
   return (
-    <div style={{ ...card, padding: '12px 16px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555' }}>{label}</div>
+    <span title={`${label}${why ? ` · ${why}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
+      <Icon size={15} color={color} strokeWidth={2.5} aria-label={label} />
+      {children}
+    </span>
+  );
+}
+
+function SignalLegend() {
+  const item = (level, text) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+      <Signal level={level} /> <strong>{LEVELS[level].label}</strong> {text}
+    </span>
+  );
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: '12px', color: '#444' }}>
+      {item('good', `resolución ≤ ${THRESHOLDS.horas.good} h · pendiente ≤ ${THRESHOLDS.diasPendiente.good} d · resueltos ≥ ${THRESHOLDS.balance.good * 100}% de creados`)}
+      {item('warn', `≤ ${THRESHOLDS.horas.warn} h · ≤ ${THRESHOLDS.diasPendiente.warn} d · ≥ ${THRESHOLDS.balance.warn * 100}%`)}
+      {item('bad', 'por encima / por debajo de eso')}
+    </div>
+  );
+}
+
+function StatTile({ label, value, sub, level, why }) {
+  const lv = level ? LEVELS[level] : null;
+  return (
+    <div style={{ ...card, padding: '12px 16px', borderTop: lv ? `6px solid ${lv.color}` : card.border }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '4px 8px' }}>
+        <span style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555' }}>{label}</span>
+        {lv && (
+          <span title={why} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, color: '#333', whiteSpace: 'nowrap' }}>
+            <lv.Icon size={16} color={lv.color} strokeWidth={2.5} aria-hidden="true" />{lv.label}
+          </span>
+        )}
+      </div>
       <div style={{ fontSize: '28px', fontWeight: 900, color: '#111', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       {sub && <div style={{ fontSize: '11px', color: '#666' }}>{sub}</div>}
     </div>
@@ -146,6 +197,7 @@ export default function ProductivityView() {
   const [from, setFrom] = useState(() => shiftDays(limaToday(), -29));
   const [to, setTo] = useState(() => limaToday());
   const [assignee, setAssignee] = useState('');
+  const [excludeTeam, setExcludeTeam] = useState(false);
   const [people, setPeople] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -173,20 +225,34 @@ export default function ProductivityView() {
     fetchReport({ from: shiftDays(limaToday(), -29), to: limaToday() });
   }, [fetchReport]);
 
+  const buildParams = (f, t, a, ex) => ({ from: f, to: t, ...(a ? { assignee: a } : {}), ...(ex ? { exclude_team: 1 } : {}) });
+
   const apply = (e) => {
     e?.preventDefault();
-    load({ from, to, ...(assignee ? { assignee } : {}) });
+    load(buildParams(from, to, assignee, excludeTeam));
   };
 
-  const preset = (days) => {
-    const end = limaToday();
-    const start = shiftDays(end, -(days - 1));
+  const setRange = (start, end) => {
     setFrom(start);
     setTo(end);
-    load({ from: start, to: end, ...(assignee ? { assignee } : {}) });
+    load(buildParams(start, end, assignee, excludeTeam));
+  };
+  const preset = (days) => {
+    const end = limaToday();
+    setRange(shiftDays(end, -(days - 1)), end);
+  };
+  const thisMonth = () => {
+    const end = limaToday();
+    setRange(`${end.slice(0, 8)}01`, end);
+  };
+  const toggleTeam = (checked) => {
+    setExcludeTeam(checked);
+    load(buildParams(from, to, assignee, checked));
   };
 
   const r = data?.resumen;
+  const balance = r && r.creados > 0 ? r.resueltos / r.creados : null;
+  const oldestDays = data?.carga?.length ? Math.max(...data.carga.map((c) => c.dias_mas_antiguo ?? 0)) : null;
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
@@ -216,13 +282,20 @@ export default function ProductivityView() {
         <button type="submit" disabled={loading} style={{ ...input, background: '#111', color: '#FFD700', fontWeight: 900, cursor: 'pointer' }}>
           {loading ? 'Cargando…' : 'Aplicar'}
         </button>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <button type="button" onClick={thisMonth} disabled={loading} style={{ ...input, cursor: 'pointer', fontWeight: 700 }}>
+            Este mes
+          </button>
           {[7, 30, 90].map((d) => (
             <button key={d} type="button" onClick={() => preset(d)} disabled={loading} style={{ ...input, cursor: 'pointer', fontWeight: 700 }}>
               {d} días
             </button>
           ))}
         </div>
+        <label style={{ ...input, display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700, cursor: 'pointer', userSelect: 'none' }}>
+          <input type="checkbox" checked={excludeTeam} disabled={loading} onChange={(e) => toggleTeam(e.target.checked)} />
+          Excluir {UNASSIGNED_DISPLAY} (automáticos)
+        </label>
       </form>
 
       {error && (
@@ -240,11 +313,30 @@ export default function ProductivityView() {
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-            <StatTile label="Creados" value={r.creados} sub={`${data.filtros.from} → ${data.filtros.to}`} />
-            <StatTile label="Resueltos/cerrados" value={r.resueltos} sub="cerrados en el período" />
-            <StatTile label="Tiempo promedio" value={fmtHours(r.horas_promedio)} sub="de creación a cierre" />
-            <StatTile label="Pendientes hoy" value={r.pendientes} sub="abiertos o en progreso" />
+            <StatTile label="Creados" value={r.creados} sub={`${data.filtros.from} → ${data.filtros.to}${data.filtros.excluir_enova_team ? ` · sin ${UNASSIGNED_DISPLAY}` : ''}`} />
+            <StatTile
+              label="Resueltos/cerrados"
+              value={r.resueltos}
+              sub={balance === null ? 'cerrados en el período' : `${Math.round(balance * 100)}% de lo creado en el período`}
+              level={higherIsBetter(balance, THRESHOLDS.balance)}
+              why="Resueltos ÷ creados en el período"
+            />
+            <StatTile
+              label="Tiempo promedio"
+              value={fmtHours(r.horas_promedio)}
+              sub="de creación a cierre"
+              level={lowerIsBetter(r.horas_promedio, THRESHOLDS.horas)}
+              why={`Bien ≤ ${THRESHOLDS.horas.good} h, atención ≤ ${THRESHOLDS.horas.warn} h`}
+            />
+            <StatTile
+              label="Pendientes hoy"
+              value={r.pendientes}
+              sub={oldestDays === null ? 'abiertos o en progreso' : `el más antiguo lleva ${oldestDays} d`}
+              level={lowerIsBetter(oldestDays, THRESHOLDS.diasPendiente)}
+              why={`Según el pendiente más antiguo: bien ≤ ${THRESHOLDS.diasPendiente.good} d, atención ≤ ${THRESHOLDS.diasPendiente.warn} d`}
+            />
           </div>
+          <SignalLegend />
 
           <Section title="Creados vs resueltos por día">
             <TrendChart data={data.tendencia} />
@@ -257,7 +349,7 @@ export default function ProductivityView() {
                   { key: 'responsable', label: 'Responsable', render: (x) => displayName(x.responsable) },
                   { key: 'resueltos', label: 'Resueltos', num: true },
                   { key: 'cerrados', label: 'De ellos cerrados', num: true },
-                  { key: 'horas_promedio', label: 'Promedio', num: true, render: (x) => fmtHours(x.horas_promedio) },
+                  { key: 'horas_promedio', label: 'Promedio', num: true, render: (x) => <Signal level={lowerIsBetter(x.horas_promedio, THRESHOLDS.horas)} why="tiempo promedio de resolución">{fmtHours(x.horas_promedio)}</Signal> },
                   { key: 'horas_mediana', label: 'Mediana', num: true, render: (x) => fmtHours(x.horas_mediana) }
                 ]}
                 rows={data.resueltos}
@@ -271,7 +363,7 @@ export default function ProductivityView() {
                   { key: 'pendientes', label: 'Pendientes', num: true },
                   { key: 'en_progreso', label: 'En progreso', num: true },
                   { key: 'alta_prioridad', label: 'Alta/crítica', num: true },
-                  { key: 'dias_mas_antiguo', label: 'Más antiguo', num: true, render: (x) => `${x.dias_mas_antiguo} d` }
+                  { key: 'dias_mas_antiguo', label: 'Más antiguo', num: true, render: (x) => <Signal level={lowerIsBetter(x.dias_mas_antiguo, THRESHOLDS.diasPendiente)} why="días del pendiente más antiguo">{`${x.dias_mas_antiguo} d`}</Signal> }
                 ]}
                 rows={data.carga}
                 empty="Nadie tiene tickets pendientes."

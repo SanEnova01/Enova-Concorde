@@ -75,7 +75,7 @@ test('respuesta: números convertidos, redondeo a 1 decimal y top 5 de acciones'
   const { status, body } = await get('?from=2026-11-01&to=2026-11-10');
   assert.strictEqual(status, 200);
   const d = body.data;
-  assert.deepStrictEqual(d.filtros, { from: '2026-11-01', to: '2026-11-10', dias: 10, assignee: null, zona_horaria: 'America/Lima' });
+  assert.deepStrictEqual(d.filtros, { from: '2026-11-01', to: '2026-11-10', dias: 10, assignee: null, excluir_enova_team: false, zona_horaria: 'America/Lima' });
   assert.deepStrictEqual(d.resumen, { creados: 5, resueltos: 3, pendientes: 4, horas_promedio: 12.3 });
   assert.deepStrictEqual(d.resueltos[0], { responsable: 'Ana', resueltos: 3, cerrados: 1, horas_promedio: 5, horas_mediana: 4.5 });
   assert.strictEqual(d.carga[0].dias_mas_antiguo, 10);
@@ -111,6 +111,20 @@ test('"Sin asignar" filtra tickets sin responsable (sin binding de nombre en tic
   const store = db.log.raw.find((r) => r.sql.includes('GROUP BY t.store_id'));
   assert.match(store.sql, /NOT EXISTS/);
   assert.ok(!store.bindings.includes('Sin asignar'));
+});
+
+test('excluir Enova Team: solo tickets con responsable y revisores con nombre', async () => {
+  assert.strictEqual(Repo.parseFilters({ exclude_team: '1' }).excludeTeam, true);
+  assert.strictEqual(Repo.parseFilters({ exclude_team: '0' }).excludeTeam, false);
+  db.log.raw.length = 0;
+  const { status, body } = await get('?exclude_team=1');
+  assert.strictEqual(status, 200);
+  assert.strictEqual(body.data.filtros.excluir_enova_team, true);
+  for (const { sql } of db.log.raw.filter((r) => r.sql.includes('FROM tickets'))) {
+    assert.match(sql, /AND EXISTS \(SELECT DISTINCT btrim/);
+  }
+  const reviews = db.log.raw.find((r) => r.sql.includes('store_daily_reviews'));
+  assert.match(reviews.sql, /IS NOT NULL/);
 });
 
 test('si falta la tabla de revisiones o auditoría, el resto sigue y se avisa', async () => {

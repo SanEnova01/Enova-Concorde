@@ -133,6 +133,17 @@ test('integración con Postgres', { skip: !enabled && 'sin DB_HOST/RUN_DB_TESTS 
     const rodo = todos.resueltos.find((x) => x.responsable === 'Rodo');
     assert.deepStrictEqual(rodo, { responsable: 'Rodo', resueltos: 1, cerrados: 0, horas_promedio: 4, horas_mediana: 4 });
     assert.ok(todos.carga.some((x) => x.responsable === 'Sin asignar'), 'los tickets sin responsable aparecen como "Sin asignar"');
+
+    // Excluir Enova Team: fuera los tickets sin responsable y las revisiones sin revisor
+    await db('tickets').insert({ name: 'auto', store_id: 'ps', status: 'CLOSED', created_at: '2026-10-02T15:00:00Z', closed_at: '2026-10-02T16:00:00Z' });
+    await db('store_daily_reviews').insert({ store_id: 's1', review_date: '2026-10-02', reviewer_name: '' });
+    const con = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03' });
+    const sin = await Productivity.getReport({ from: '2026-10-01', to: '2026-10-03', exclude_team: '1' });
+    assert.ok(con.resueltos.some((x) => x.responsable === 'Sin asignar'));
+    assert.ok(!sin.resueltos.some((x) => x.responsable === 'Sin asignar'));
+    assert.ok(!sin.carga.some((x) => x.responsable === 'Sin asignar'));
+    assert.ok(!sin.revisiones.some((x) => x.revisor === 'Sin asignar'));
+    assert.strictEqual(con.resumen.resueltos - sin.resumen.resueltos, 1);
   });
 
   await db.destroy();

@@ -24,7 +24,8 @@ const isYmd = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) && !Number.isNa
 
 class FilterError extends Error {}
 
-// Valida y completa los filtros de la query (?from=YYYY-MM-DD&to=YYYY-MM-DD&assignee=Nombre)
+// Valida y completa los filtros de la query (?from=YYYY-MM-DD&to=YYYY-MM-DD&assignee=Nombre&exclude_team=1)
+// exclude_team: deja fuera los tickets sin responsable ("Enova Team" en pantalla, los automáticos del bot)
 function parseFilters(query = {}) {
   const to = query.to ? String(query.to) : limaToday();
   const from = query.from ? String(query.from) : addDays(to, -(DEFAULT_RANGE_DAYS - 1));
@@ -33,7 +34,8 @@ function parseFilters(query = {}) {
   const days = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
   if (days > MAX_RANGE_DAYS) throw new FilterError(`El rango máximo es de ${MAX_RANGE_DAYS} días.`);
   const assignee = String(query.assignee || '').trim().slice(0, 120) || null;
-  return { from, to, days, assignee };
+  const excludeTeam = ['1', 'true', 'si', 'sí'].includes(String(query.exclude_team || '').trim().toLowerCase());
+  return { from, to, days, assignee, excludeTeam };
 }
 
 // "col está dentro de [from, to] en días de Lima"
@@ -43,13 +45,14 @@ const rangeBindings = (f) => [f.from, f.to];
 // Responsables de un ticket (sin vacíos ni repetidos)
 const NAMES_OF = (alias) => `SELECT DISTINCT btrim(x) AS nombre FROM unnest(string_to_array(${alias}.assigned_to, ',')) x WHERE btrim(x) <> ''`;
 
-// Filtro por responsable sobre la tabla tickets (alias t)
+// Filtro por responsable (y exclusión de los tickets sin responsable) sobre la tabla tickets (alias t)
 function assigneeClause(f) {
-  if (!f.assignee) return { sql: '', bindings: [] };
+  const team = f.excludeTeam ? ` AND EXISTS (${NAMES_OF('t')})` : '';
+  if (!f.assignee) return { sql: team, bindings: [] };
   if (f.assignee.toLowerCase() === UNASSIGNED_LABEL.toLowerCase()) {
-    return { sql: ` AND NOT EXISTS (${NAMES_OF('t')})`, bindings: [] };
+    return { sql: ` AND NOT EXISTS (${NAMES_OF('t')})${team}`, bindings: [] };
   }
-  return { sql: ` AND EXISTS (SELECT 1 FROM (${NAMES_OF('t')}) n WHERE lower(n.nombre) = lower(?))`, bindings: [f.assignee] };
+  return { sql: ` AND EXISTS (SELECT 1 FROM (${NAMES_OF('t')}) n WHERE lower(n.nombre) = lower(?))${team}`, bindings: [f.assignee] };
 }
 
 // Tickets con un renglón por responsable (filtrados por responsable si aplica)
@@ -163,7 +166,8 @@ async function getTrend(f) {
 
 // 5) Revisiones diarias de tiendas por revisor (review_date ya es un día)
 async function getReviews(f) {
-  const who = f.assignee ? ' AND lower(btrim(reviewer_name)) = lower(?)' : '';
+  const who = (f.assignee ? ' AND lower(btrim(reviewer_name)) = lower(?)' : '')
+    + (f.excludeTeam ? " AND NULLIF(btrim(reviewer_name), '') IS NOT NULL" : '');
   const r = await db.raw(`
     SELECT COALESCE(NULLIF(btrim(reviewer_name), ''), '${UNASSIGNED_LABEL}') AS revisor,
            COUNT(*)::int AS revisiones,
@@ -242,7 +246,7 @@ async function getReport(query) {
     optional(getActivity, f, warnings, 'Actividad (audit_logs)')
   ]);
   return {
-    filtros: { from: f.from, to: f.to, dias: f.days, assignee: f.assignee, zona_horaria: TZ },
+    filtros: { from: f.from, to: f.to, dias: f.days, assignee: f.assignee, excluir_enova_team: f.excludeTeam, zona_horaria: TZ },
     resumen, resueltos, carga, tiendas, tendencia, revisiones, actividad, warnings
   };
 }
