@@ -449,12 +449,12 @@ function ClientDetail() {
       )}
 
       {/* CONTROLES ADMINISTRATIVOS */}
-      <div className="crm-actions-bar" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+      <div className="crm-actions-bar cd-toolbar" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         {userRole !== 'client' ? (
-          <button onClick={() => navigate('/admin/clientes')} className="crm-btn-border">Volver a Clientes</button>
+          <button onClick={() => navigate('/admin/clientes')} className="crm-btn-border cd-back">Volver a Clientes</button>
         ) : <div />}
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="cd-actions m-scroll-x" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
 
           {/* 🌟 NUEVAS FLECHAS DE NAVEGACIÓN ENTRE TIENDAS 🌟 */}
           {authorizedStores.length > 1 && (

@@ -49,7 +49,7 @@ function TextField({ setting, disabled, onSave }) {
   const [draft, setDraft] = useState(setting.value || '');
   const changed = draft !== (setting.value || '');
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '320px', maxWidth: '100%' }}>
+    <div className="m-full" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '320px', maxWidth: '100%' }}>
       <textarea
         className="crm-input-text" rows={3} maxLength={setting.maxLength} value={draft} disabled={disabled}
         onChange={(e) => setDraft(e.target.value)} style={{ resize: 'vertical' }}
@@ -69,7 +69,7 @@ function SettingControl({ setting, disabled, onSave }) {
   }
   if (setting.type === 'select') {
     return (
-      <select className="crm-select-dropdown" value={setting.value} disabled={disabled}
+      <select className="crm-select-dropdown m-full" value={setting.value} disabled={disabled}
         onChange={(e) => onSave(e.target.value)} style={{ minWidth: '220px' }}>
         {(setting.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -137,7 +137,7 @@ function SettingsView() {
           <h2 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 900 }}>{group}</h2>
           {items.map(s => (
             <div key={s.key} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap',
               padding: '12px 0', borderTop: '1px solid #eee'
             }}>
               <div>

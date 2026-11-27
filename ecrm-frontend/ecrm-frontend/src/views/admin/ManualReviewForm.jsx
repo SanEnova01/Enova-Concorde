@@ -352,7 +352,7 @@ const ManualReviewForm = () => {
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
       
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #111', paddingBottom: '12px', marginBottom: '16px' }}>
+      <div className="m-scroll-x" style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #111', paddingBottom: '12px', marginBottom: '16px' }}>
         <button 
           onClick={() => setActiveTab('FORM')}
           style={{ padding: '10px 20px', backgroundColor: activeTab === 'FORM' ? '#111' : 'transparent', color: activeTab === 'FORM' ? '#FFD700' : '#4b5563', border: activeTab === 'FORM' ? '2px solid #111' : '2px solid transparent', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}

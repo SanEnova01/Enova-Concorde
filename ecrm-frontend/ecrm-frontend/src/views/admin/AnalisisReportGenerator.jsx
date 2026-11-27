@@ -332,7 +332,7 @@ function AnalisisReportGenerator() {
       {/* PANEL DE CONFIGURACIÓN */}
       <div className="arg-controls-panel no-print">
         <h2>⚙️ Configuración y Carga de CSVs</h2>
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+        <div className="m-stack" style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
           <div className="arg-control-group" style={{ flex: 2 }}>
             <label>Tienda / Cliente:</label>
             <input type="text" value={storeName} onChange={e => setStoreName(e.target.value)} />

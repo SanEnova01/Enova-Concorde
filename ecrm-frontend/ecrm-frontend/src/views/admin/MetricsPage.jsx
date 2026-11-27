@@ -197,14 +197,14 @@ export default function HubMonitorGeneral() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#f9fafb', overflow: 'hidden', fontFamily: 'inherit' }}>
+    <div className="mp-root" style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#f9fafb', overflow: 'hidden', fontFamily: 'inherit' }}>
       
       <MonitorHeader botStatus={botStatus} onSync={fetchData} />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="mp-body" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
         {/* PANEL PRINCIPAL DE CARDS */}
-        <div style={{ flex: '1', padding: '20px 24px', overflowY: 'auto', backgroundColor: '#f3f4f6' }}>
+        <div className="mp-main" style={{ flex: '1', padding: '20px 24px', overflowY: 'auto', backgroundColor: '#f3f4f6' }}>
           
           <MonitorFilters
             count={filteredMonitors.length}
@@ -218,7 +218,7 @@ export default function HubMonitorGeneral() {
           />
 
           {/* GRID DE CARDS */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '16px' }}>
+          <div className="m-cols-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '16px' }}>
             {filteredMonitors.map(store => (
               <StoreCard
                 key={store.id}

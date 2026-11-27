@@ -102,11 +102,11 @@ const ServerConsole = () => {
   };
 
   return (
-    <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999 }}>
+    <div className="sc-root" style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999 }}>
       {/* Ventana de Consola */}
       {isOpen && (
         <div style={{
-          position: 'absolute', bottom: '10px', right: '10px', width: '600px', height: '400px',
+          position: 'absolute', bottom: '10px', right: '10px', width: 'min(600px, calc(100vw - 24px))', height: 'min(400px, 70dvh)',
           backgroundColor: 'rgba(0, 0, 0, 0.95)', border: '1px solid #333', borderRadius: '8px',
           display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
         }}>

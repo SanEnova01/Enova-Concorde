@@ -54,15 +54,23 @@ function Table({ columns, rows, empty = 'Sin datos en este período.' }) {
   if (!rows || rows.length === 0) return <p style={{ fontSize: '13px', color: '#666', margin: 0 }}>{empty}</p>;
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table className="crm-table-data m-cards pv-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>{columns.map((c) => <th key={c.key} style={c.num ? thNum : th}>{c.label}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              {columns.map((c) => (
-                <td key={c.key} style={c.num ? tdNum : td}>{c.render ? c.render(r) : (r[c.key] ?? '—')}</td>
+              {columns.map((c, ci) => (
+                // En mobile cada fila es una tarjeta: la primera columna es el título y los números van en dos columnas
+                <td
+                  key={c.key}
+                  data-label={ci === 0 ? '' : c.label}
+                  className={ci === 0 ? 'm-card-title' : (c.num ? 'm-card-half m-card-stacked' : '')}
+                  style={c.num ? tdNum : td}
+                >
+                  {c.render ? c.render(r) : (r[c.key] ?? '—')}
+                </td>
               ))}
             </tr>
           ))}
@@ -119,7 +127,7 @@ function SignalLegend() {
 function StatTile({ label, value, sub, level, why }) {
   const lv = level ? LEVELS[level] : null;
   return (
-    <div style={{ ...card, padding: '12px 16px', borderTop: lv ? `6px solid ${lv.color}` : card.border }}>
+    <div className="pv-tile" style={{ ...card, padding: '12px 16px', borderTop: lv ? `6px solid ${lv.color}` : card.border }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '4px 8px' }}>
         <span style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555' }}>{label}</span>
         {lv && (
@@ -259,7 +267,7 @@ export default function ProductivityView() {
   const oldestDays = data?.carga?.length ? Math.max(...data.carga.map((c) => c.dias_mas_antiguo ?? 0)) : null;
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+    <div className="pv-root" style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
       <div style={{ marginBottom: '16px' }}>
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Productividad del equipo</h1>
         <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>
@@ -268,7 +276,7 @@ export default function ProductivityView() {
       </div>
 
       {/* Filtros en una sola fila */}
-      <form onSubmit={apply} style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end', marginBottom: '20px' }}>
+      <form className="pv-filters" onSubmit={apply} style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end', marginBottom: '20px' }}>
         <label style={{ fontSize: '12px', fontWeight: 700 }}>
           Desde<br /><input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} style={input} />
         </label>
@@ -286,7 +294,7 @@ export default function ProductivityView() {
         <button type="submit" disabled={loading} style={{ ...input, background: '#111', color: '#FFD700', fontWeight: 900, cursor: 'pointer' }}>
           {loading ? 'Cargando…' : 'Aplicar'}
         </button>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <div className="pv-presets m-scroll-x" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <button type="button" onClick={thisMonth} disabled={loading} style={{ ...input, cursor: 'pointer', fontWeight: 700 }}>
             Este mes
           </button>
@@ -316,7 +324,7 @@ export default function ProductivityView() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+          <div className="pv-kpis m-cols-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
             <StatTile label="Creados" value={r.creados} sub={`${data.filtros.from} → ${data.filtros.to}${data.filtros.excluir_enova_team ? ` · sin ${UNASSIGNED_DISPLAY}` : ''}`} />
             <StatTile
               label="Resueltos/cerrados"
@@ -350,7 +358,7 @@ export default function ProductivityView() {
             <TrendChart data={data.tendencia} />
           </Section>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+          <div className="m-cols-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
             <Section title="Resueltos por responsable" hint="Tiempo desde que el ticket pasa a En progreso hasta que se cierra, en horas hábiles (L-V 9:00-19:00, 1 d = 10 h); el tiempo en OPEN no cuenta. Promedio y mediana sin los tickets de más de 3 días hábiles («Largos») ni los cerrados sin pasar por En progreso («Sin inicio»). Un ticket con varios responsables cuenta para cada uno.">
               <Table
                 columns={[

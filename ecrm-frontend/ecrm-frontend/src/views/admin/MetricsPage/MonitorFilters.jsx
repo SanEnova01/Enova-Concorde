@@ -3,7 +3,7 @@ import { Search, Filter, AlertTriangle } from 'lucide-react';
 
 // BARRA DE BÚSQUEDA Y FILTROS
 const MonitorFilters = ({ count, conteoUrgencia, searchTerm, setSearchTerm, planFilter, setPlanFilter, urgencyFilter, setUrgencyFilter }) => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', flexWrap: 'wrap', gap: '12px' }}>
+  <div className="mp-filters" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', flexWrap: 'wrap', gap: '12px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <span style={{ fontSize: '12px', fontWeight: '800', color: '#111827', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
         Tiendas Monitoreadas ({count})
@@ -20,8 +20,8 @@ const MonitorFilters = ({ count, conteoUrgencia, searchTerm, setSearchTerm, plan
       )}
     </div>
 
-    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-      <div style={{ position: 'relative' }}>
+    <div className="mp-filters-controls" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+      <div className="mp-search" style={{ position: 'relative' }}>
         <Search size={13} color="#9ca3af" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
         <input 
           type="text" 

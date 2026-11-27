@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Terminal } from 'lucide-react';
+import { ShieldCheck, Terminal, Home, Ticket, Store, Activity, Menu, BookOpen, X } from 'lucide-react';
 
 // Componentes Core y Vistas Administrativas
 // Pantallas cargadas bajo demanda: cada una se descarga recién cuando se visita
@@ -138,6 +138,34 @@ function AdminLayout({ children }) {
   
   const visibleNavItems = allNavItems.filter(item => item.allowed.includes(userRole));
 
+  // Título de la barra superior en mobile: la sección en la que estás
+  const sectionTitle = (() => {
+    const path = location.pathname;
+    if (path.startsWith('/admin/tickets/')) return 'Ticket';
+    if (path === '/admin/clientes/cuentacliente') return 'Mi Cuenta';
+    if (path.startsWith('/admin/clientes/')) return 'Tienda';
+    const flat = visibleNavItems.flatMap((it) => (it.subItems ? it.subItems : [it])).filter((it) => it.path && !it.external);
+    const match = flat.find((it) => it.path === path);
+    return match ? match.label : 'Concorde';
+  })();
+
+  // Barra de navegación inferior (solo mobile): accesos principales + "Más" abre el menú completo
+  const isStaff = userRole === 'admin' || userRole === 'super admin';
+  const bottomTabs = isStaff
+    ? [
+        { path: '/admin', label: 'Inicio', icon: Home, exact: true },
+        { path: '/admin/tickets', label: 'Tickets', icon: Ticket },
+        { path: '/admin/clientes', label: 'Tiendas', icon: Store },
+        { path: '/admin/metricas', label: 'Métricas', icon: Activity },
+      ]
+    : [
+        { path: '/admin/clientes/cuentacliente', label: 'Mi cuenta', icon: Store, exact: true },
+        { path: '/client/tickets', label: 'Tickets', icon: Ticket },
+        ...(hasCoopPilot ? [{ path: '/client/knowledge', label: 'Conocimiento', icon: BookOpen }] : []),
+      ];
+  const isTabActive = (tab) => (tab.exact ? location.pathname === tab.path : location.pathname.startsWith(tab.path))
+    && !(tab.path === '/admin/clientes' && location.pathname === '/admin/clientes/cuentacliente');
+
   const handleLogout = () => {
     localStorage.removeItem('crm_token');
     navigate('/login');
@@ -150,15 +178,35 @@ function AdminLayout({ children }) {
   return (
     <div className="crm-layout">
       
-      <div className="crm-mobile-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src="/favicon.svg" alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-          <h2 style={{ margin: 0, fontSize: '20px', color: '#111', letterSpacing: '1px', fontWeight: '900' }}>Concorde</h2>
+      <header className="crm-mobile-header">
+        <div className="crm-mobile-header__brand">
+          <img src="/favicon.svg" alt="" className="crm-mobile-header__logo" />
+          <div className="crm-mobile-header__titles">
+            <span className="crm-mobile-header__app">Concorde</span>
+            <h1 className="crm-mobile-header__title">{sectionTitle}</h1>
+          </div>
         </div>
-        <button className="crm-hamburger-btn" onClick={() => setIsMobileMenuOpen(true)}>
-          ☰
+        <button className="crm-hamburger-btn" onClick={() => setIsMobileMenuOpen(true)} aria-label="Abrir menú">
+          <Menu size={22} />
         </button>
-      </div>
+      </header>
+
+      <nav className="crm-bottom-nav" aria-label="Navegación principal">
+        {bottomTabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = isTabActive(tab);
+          return (
+            <Link key={tab.path} to={tab.path} className={`crm-bottom-nav__item${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>
+              <Icon size={21} strokeWidth={active ? 2.4 : 1.8} />
+              <span>{tab.label}</span>
+            </Link>
+          );
+        })}
+        <button type="button" className={`crm-bottom-nav__item${isMobileMenuOpen ? ' is-active' : ''}`} onClick={() => setIsMobileMenuOpen(true)}>
+          <Menu size={21} strokeWidth={1.8} />
+          <span>Más</span>
+        </button>
+      </nav>
 
       {isMobileMenuOpen && (
         <div className="crm-sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>
@@ -176,10 +224,11 @@ function AdminLayout({ children }) {
               />
               <h2 className="crm-logo-text desktop-only-logo" style={{ margin: 0 }}>Concorde</h2>
             </div>
-            <button className="crm-close-sidebar-btn" onClick={() => setIsMobileMenuOpen(false)}>✕</button>
+            <span className="crm-drawer-title">Menú</span>
+            <button className="crm-close-sidebar-btn" onClick={() => setIsMobileMenuOpen(false)} aria-label="Cerrar menú"><X size={20} /></button>
           </div>
 
-          <div style={{
+          <div className="crm-id-card" style={{
             backgroundColor: '#ffffff',
             border: '2px solid #111',
             borderRadius: '6px',
@@ -314,7 +363,7 @@ function AdminLayout({ children }) {
           </nav>
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px dashed #111111', display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#1c1c1c' }}>
+        <div className="crm-sidebar-footer" style={{ padding: '16px', borderTop: '1px dashed #111111', display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#1c1c1c' }}>
           {userRole === 'super admin' && (
             <button onClick={openTerminal} className="crm-btn-black" style={{ width: '100%', padding: '8px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Terminal size={14} /> System Console <span style={{opacity: 0.7, fontSize: '10px'}}>(Ctrl + \)</span>

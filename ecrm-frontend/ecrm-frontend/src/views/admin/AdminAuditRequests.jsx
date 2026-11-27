@@ -115,7 +115,7 @@ function AdminAuditRequests() {
             </div>
 
             <div className="crm-card-paper">
-                <table className="crm-table-data" style={{ width: '100%' }}>
+                <table className="crm-table-data m-cards" style={{ width: '100%' }}>
                     <thead>
                         <tr>
                             <th style={{ width: '40px', textAlign: 'center' }}>
@@ -136,11 +136,11 @@ function AdminAuditRequests() {
                     </thead>
                     <tbody>
                         {requests.length === 0 ? (
-                            <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>No hay solicitudes pendientes.</td></tr>
+                            <tr><td colSpan="7" className="m-card-empty" style={{ textAlign: 'center', padding: '20px' }}>No hay solicitudes pendientes.</td></tr>
                         ) : (
                             requests.map(req => (
                                 <tr key={req.id} style={{ backgroundColor: selectedIds.includes(req.id) ? '#fef3c7' : 'transparent' }}>
-                                    <td style={{ textAlign: 'center' }}>
+                                    <td className="m-card-select" style={{ textAlign: 'center' }}>
                                         <input 
                                             type="checkbox" 
                                             checked={selectedIds.includes(req.id)}
@@ -148,11 +148,11 @@ function AdminAuditRequests() {
                                             style={{ transform: 'scale(1.2)', cursor: 'pointer' }}
                                         />
                                     </td>
-                                    <td>{new Date(req.created_at).toLocaleDateString()}</td>
-                                    <td><strong>{req.company_name}</strong></td>
-                                    <td>{req.prospect_name}<br/><span style={{ fontSize: '12px', color: '#666' }}>{req.email}</span></td>
-                                    <td><a href={req.store_url} target="_blank" rel="noreferrer" style={{ color: '#111', fontWeight: 'bold' }}>Link</a></td>
-                                    <td>
+                                    <td className="m-card-kicker">{new Date(req.created_at).toLocaleDateString()}</td>
+                                    <td className="m-card-title"><strong>{req.company_name}</strong></td>
+                                    <td data-label="Contacto">{req.prospect_name}<br/><span style={{ fontSize: '12px', color: '#666' }}>{req.email}</span></td>
+                                    <td data-label="Tienda" className="m-card-half m-card-stacked"><a href={req.store_url} target="_blank" rel="noreferrer" style={{ color: '#111', fontWeight: 'bold' }}>Link</a></td>
+                                    <td data-label="Estado" className="m-card-half m-card-stacked">
                                         <span style={{ 
                                             backgroundColor: req.status === 'COMPLETED' ? '#e6f4ea' : '#fcf8e3', 
                                             color: req.status === 'COMPLETED' ? '#16a34a' : '#f97316', 
@@ -161,7 +161,7 @@ function AdminAuditRequests() {
                                             {req.status}
                                         </span>
                                     </td>
-                                    <td>
+                                    <td className="m-card-actions">
                                         <div style={{ display: 'flex', gap: '8px' }}>
                                             {req.status === 'PENDING' ? (
                                                 <button 

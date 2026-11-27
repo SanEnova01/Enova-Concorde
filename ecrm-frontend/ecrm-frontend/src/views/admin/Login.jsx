@@ -44,7 +44,7 @@ function Login() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f2f1ec', fontFamily: 'system-ui, sans-serif' }}>
+    <div className="login-root" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh', padding: '20px', boxSizing: 'border-box', backgroundColor: '#f2f1ec', fontFamily: 'system-ui, sans-serif' }}>
   <div className="crm-card-paper" style={{ width: '100%', maxWidth: '380px', padding: '32px', boxSizing: 'border-box', border: '2px solid #111111' }}>
     
     {/* LOGO CORPORATIVO ENOVA CONCORD */}

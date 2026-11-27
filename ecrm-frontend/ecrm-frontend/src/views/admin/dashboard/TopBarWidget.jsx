@@ -34,33 +34,33 @@ const TopBarWidget = () => {
   ];
 
   return (
-    <div style={{ 
+    <div className="tb-widget" style={{ 
       display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap',
       backgroundColor: '#ffffff', padding: '8px 16px', 
       borderRadius: '8px', border: '1px solid #c8c6c1', 
       boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontFamily: "'Nunito', system-ui, sans-serif" 
     }}>
-      <div style={{ display: 'flex', gap: '16px' }}>
+      <div className="tb-clocks" style={{ display: 'flex', gap: '16px' }}>
         {timeZones.map((z, i) => (
           <div key={i} style={{ textAlign: 'center', lineHeight: '1.2' }}>
             <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>{z.label}</span><br/>
             <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#111111' }}>
-              {time.toLocaleTimeString('es-PE', { timeZone: z.tz, hour: '2-digit', minute: '2-digit' })}
+              {time.toLocaleTimeString('es-PE', { timeZone: z.tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}
             </span>
           </div>
         ))}
       </div>
 
-      <div style={{ width: '1px', height: '28px', backgroundColor: '#e5e5e5' }}></div>
+      <div className="tb-sep" style={{ width: '1px', height: '28px', backgroundColor: '#e5e5e5' }}></div>
 
-      <div style={{ textAlign: 'center', lineHeight: '1.2' }}>
+      <div className="tb-date" style={{ textAlign: 'center', lineHeight: '1.2' }}>
         <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>FECHA</span><br/>
         <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#111111' }}>{dateString}</span>
       </div>
 
-      <div style={{ width: '1px', height: '28px', backgroundColor: '#e5e5e5' }}></div>
+      <div className="tb-sep" style={{ width: '1px', height: '28px', backgroundColor: '#e5e5e5' }}></div>
 
-      <div style={{ lineHeight: '1.2', textAlign: 'center' }}>
+      <div className="tb-weather" style={{ lineHeight: '1.2', textAlign: 'center' }}>
         <span style={{ fontSize: '9px', fontWeight: '900', color: '#666666', letterSpacing: '0.5px' }}>LIMA, PE</span><br/>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#111111' }}>{weather.temp}°C</span>

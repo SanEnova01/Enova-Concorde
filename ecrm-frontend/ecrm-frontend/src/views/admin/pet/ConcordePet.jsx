@@ -12,7 +12,10 @@ import PetAvatar from './PetAvatar';
  */
 const STORAGE_KEY = 'concorde-pixel-pet-v2'; // se conserva para no perder el progreso anterior
 const DAY_MS = 24 * 60 * 60 * 1000;
-const SIZE = 76;
+// Tamaño y márgenes según pantalla: en mobile la mascota es más chica y no tapa la barra inferior
+const isMobileViewport = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches;
+const petSize = () => (isMobileViewport() ? 58 : 76);
+const bottomGuard = () => (isMobileViewport() ? 64 + 34 : 40); // barra inferior + aire
 
 // Si el backend todavía no tiene /api/pet (o falla), la mascota funciona sin IA
 const FALLBACK_CONFIG = {
@@ -75,11 +78,12 @@ const TEMPLATES = {
 const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
   const [allowed] = useState(isStaffSession);
   const [config, setConfig] = useState(null);
+  const [isMobile, setIsMobile] = useState(isMobileViewport);
 
   // --- Posición y arrastre ---
   const [pos, setPos] = useState(() => ({
-    x: Math.max(12, window.innerWidth - 130),
-    y: Math.max(12, window.innerHeight - 170),
+    x: Math.max(12, window.innerWidth - petSize() - 20),
+    y: Math.max(12, window.innerHeight - petSize() - bottomGuard() - 30),
   }));
   const [isDragging, setIsDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
@@ -208,8 +212,8 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
 
   const moveRandom = useCallback((range = 160) => {
     setPos((prev) => ({
-      x: clamp(prev.x + (Math.random() * range * 2 - range), 8, Math.max(8, window.innerWidth - SIZE - 8)),
-      y: clamp(prev.y + (Math.random() * range - range / 2), 60, Math.max(60, window.innerHeight - SIZE - 40)),
+      x: clamp(prev.x + (Math.random() * range * 2 - range), 8, Math.max(8, window.innerWidth - petSize() - 8)),
+      y: clamp(prev.y + (Math.random() * range - range / 2), 70, Math.max(70, window.innerHeight - petSize() - bottomGuard())),
     }));
   }, []);
 
@@ -340,8 +344,8 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = null;
-        const cx = posRef.current.x + SIZE / 2;
-        const cy = posRef.current.y + SIZE / 2;
+        const cx = posRef.current.x + petSize() / 2;
+        const cy = posRef.current.y + petSize() / 2;
         const dx = last.clientX - cx;
         const dy = last.clientY - cy;
         const dist = Math.max(1, Math.hypot(dx, dy));
@@ -359,10 +363,13 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
   useEffect(() => () => window.clearTimeout(actionTimeoutRef.current), []);
 
   useEffect(() => {
-    const resize = () => setPos((prev) => ({
-      x: clamp(prev.x, 8, Math.max(8, window.innerWidth - SIZE - 8)),
-      y: clamp(prev.y, 8, Math.max(8, window.innerHeight - SIZE - 30)),
-    }));
+    const resize = () => {
+      setIsMobile(isMobileViewport());
+      setPos((prev) => ({
+        x: clamp(prev.x, 8, Math.max(8, window.innerWidth - petSize() - 8)),
+        y: clamp(prev.y, 8, Math.max(8, window.innerHeight - petSize() - bottomGuard())),
+      }));
+    };
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
   }, []);
@@ -484,6 +491,8 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
 
   if (!allowed || !config || !config.enabled) return null;
 
+  const onRight = pos.x + petSize() / 2 > window.innerWidth / 2;
+
   const displayMood = sleepMode ? 'sleep' : (thinking ? 'thinking' : mood);
   const animation = petData.reducedMotion ? 'none'
     : displayMood === 'panic' ? 'cpPanic .25s infinite'
@@ -522,6 +531,12 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
         @keyframes cpWingB { 0%,100% { transform: rotate(0); } 50% { transform: rotate(10deg); } }
         @keyframes cpFx { 0%,100% { transform: translateY(0); opacity: .7; } 50% { transform: translateY(-5px); opacity: 1; } }
         @keyframes cpDot { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+        @keyframes cpSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @media (max-width: 820px) {
+          .cp-panel .cp-tab { padding: 10px 4px; font-size: 12px; }
+          .cp-panel .cp-btn { padding: 12px 12px; font-size: 14px; min-height: 44px; }
+          .cp-panel .cp-sugg { padding: 7px 10px; font-size: 12px; }
+        }
         .pet-wing-front { animation: cpWingF .35s ease-in-out infinite; }
         .pet-wing-back { animation: cpWingB .35s ease-in-out infinite; }
         .pet-float-fx { animation: cpFx 1.4s ease-in-out infinite; }
@@ -538,19 +553,22 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
       `}</style>
 
       <div style={{
-        position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999,
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        transition: isDragging ? 'none' : 'left 1.4s cubic-bezier(.45,.05,.3,1), top 1.4s cubic-bezier(.45,.05,.3,1)',
+        // Anclado por abajo: la burbuja crece hacia arriba y la mascota no se mueve al hablar
+        position: 'fixed', bottom: Math.max(4, window.innerHeight - pos.y - petSize() - 8), zIndex: 900,
+        // Del lado derecho se ancla por la derecha: así la burbuja crece hacia adentro y no se sale
+        ...(onRight ? { right: Math.max(4, window.innerWidth - pos.x - petSize()) } : { left: pos.x }),
+        display: 'flex', flexDirection: 'column', alignItems: onRight ? 'flex-end' : 'flex-start',
+        transition: isDragging ? 'none' : 'left 1.4s cubic-bezier(.45,.05,.3,1), right 1.4s cubic-bezier(.45,.05,.3,1), bottom 1.4s cubic-bezier(.45,.05,.3,1)',
         touchAction: 'none', userSelect: 'none',
       }}>
         {dialog && !isMenuOpen && (
           <div className="cp-panel" style={{
             background: '#fff', border: '2px solid #111', padding: '7px 10px', fontSize: 12, color: '#111',
             marginBottom: 6, borderRadius: 12, boxShadow: '3px 3px 0 rgba(0,0,0,.15)', width: 'max-content',
-            maxWidth: 230, textAlign: 'center', position: 'relative', pointerEvents: 'none', lineHeight: 1.4,
+            maxWidth: isMobile ? 'min(220px, 70vw)' : 230, textAlign: 'center', position: 'relative', pointerEvents: 'none', lineHeight: 1.4,
           }}>
             {dialog}
-            <div style={{ position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 9, height: 9, background: '#fff', borderRight: '2px solid #111', borderBottom: '2px solid #111' }} />
+            <div style={{ position: 'absolute', bottom: -6, ...(onRight ? { right: petSize() / 2 - 5 } : { left: petSize() / 2 - 5 }), transform: 'rotate(45deg)', width: 9, height: 9, background: '#fff', borderRight: '2px solid #111', borderBottom: '2px solid #111' }} />
           </div>
         )}
 
@@ -575,8 +593,8 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
             if (Math.abs(e.clientX - pointerStart.current.x) + Math.abs(e.clientY - pointerStart.current.y) > 5) draggedRef.current = true;
             if (draggedRef.current) {
               setPos({
-                x: clamp(e.clientX - dragOffset.current.x, 4, Math.max(4, window.innerWidth - SIZE)),
-                y: clamp(e.clientY - dragOffset.current.y, 4, Math.max(4, window.innerHeight - SIZE)),
+                x: clamp(e.clientX - dragOffset.current.x, 4, Math.max(4, window.innerWidth - petSize())),
+                y: clamp(e.clientY - dragOffset.current.y, 4, Math.max(4, window.innerHeight - petSize() - bottomGuard() + 24)),
               });
             }
           }}
@@ -599,16 +617,26 @@ const ConcordePet = ({ ticketStatusStats = {}, myTickets = [] }) => {
             blink={blink}
             mouthOpen={mouthOpen}
             accessory={gamesOn ? petData.equipped : 'default'}
-            size={SIZE}
+            size={petSize()}
             reducedMotion={petData.reducedMotion}
           />
         </div>
-        <div style={{ width: 44, height: 6, background: 'rgba(0,0,0,.15)', borderRadius: '50%', marginTop: 2, pointerEvents: 'none' }} />
+        <div style={{ width: petSize() * 0.58, height: 6, background: 'rgba(0,0,0,.15)', borderRadius: '50%', marginTop: 2, pointerEvents: 'none', marginLeft: onRight ? 0 : petSize() * 0.21, marginRight: onRight ? petSize() * 0.21 : 0 }} />
         {toast && <div className="cp-panel" style={{ marginTop: 5, background: '#111', color: '#FFD700', padding: '4px 8px', borderRadius: 8, fontSize: 11, whiteSpace: 'nowrap' }}>{toast}</div>}
       </div>
 
+      {isMenuOpen && isMobile && (
+        <div onClick={() => setIsMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(17,17,17,.45)' }} />
+      )}
       {isMenuOpen && (
-        <div className="cp-panel" style={{
+        <div className="cp-panel" style={isMobile ? {
+          // Mobile: hoja que sube desde abajo, a todo el ancho
+          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10000,
+          background: '#fff', borderRadius: '20px 20px 0 0', width: '100%',
+          maxHeight: '82dvh', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 -10px 40px rgba(0,0,0,.2)', color: '#111', overflow: 'hidden',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)', animation: 'cpSheet .28s cubic-bezier(.32,.72,0,1)',
+        } : {
           position: 'fixed',
           top: clamp(pos.y - 120, 8, Math.max(8, window.innerHeight - 470)),
           left: clamp(pos.x - 270, 8, Math.max(8, window.innerWidth - 268)),

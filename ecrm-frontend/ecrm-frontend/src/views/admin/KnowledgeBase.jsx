@@ -207,7 +207,7 @@ function KnowledgeBase() {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div className="m-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '12px' }}>
         <div>
           <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Base de Conocimiento IA</h1>
           <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#666' }}>

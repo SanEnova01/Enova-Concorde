@@ -382,8 +382,8 @@ function ClientsList() {
           ))}
         </div>
       ) : (
-        <div style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+        <div className="m-card-wrap" style={{ backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflowX: 'auto' }}>
+          <table className="crm-table-data m-cards" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #111' }}>
               <tr>
                 <th style={{ padding: '14px', fontWeight: '900', color: '#111', borderRight: '1px solid #e5e7eb', width: '50px' }}>Logo</th>
@@ -404,7 +404,7 @@ function ClientsList() {
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                  <td className="m-card-select" style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <div style={{ width: '36px', height: '36px', backgroundColor: '#f2f1ec', border: '1px solid #111', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: '4px' }}>
                       {client.logo_url ? (
                         <img src={getLogoUrl(client.logo_url)} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -415,15 +415,15 @@ function ClientsList() {
                       )}
                     </div>
                   </td>
-                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                  <td className="m-card-title" style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <div style={{ fontWeight: 'bold', color: '#111', fontSize: '14px' }}>{client.name}</div>
                     <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px' }}>ID: {client.id}</div>
                   </td>
-                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                  <td data-label="Plan" className="m-card-half m-card-stacked" style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <span className="crm-badge">{client.plan_type}</span>
                   </td>
                   {/* 🌟 VISTA SOLO LECTURA DEL RESPONSABLE EN TABLA */}
-                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb', color: '#111', fontWeight: 'bold', fontSize: '12px' }}>
+                  <td data-label="Responsable" className="m-card-half m-card-stacked" style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb', color: '#111', fontWeight: 'bold', fontSize: '12px' }}>
                     {client.assigned_to ? (
                       <span style={{ backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: '4px' }}>
                         {client.assigned_to}
@@ -432,13 +432,13 @@ function ClientsList() {
                       <span style={{ color: '#9ca3af', fontWeight: 'normal' }}>Sin asignar</span>
                     )}
                   </td>
-                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                  <td data-label="Tecnología" className="m-card-half m-card-stacked" style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
                     <span style={getTechBadgeStyle(client.tecnologia)}>{client.tecnologia || 'No indicada'}</span>
                   </td>
-                  <td style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb', color: '#4b5563' }}>
+                  <td data-label="Web" style={{ padding: '10px 14px', borderRight: '1px solid #e5e7eb', color: '#4b5563', wordBreak: 'break-all' }}>
                     {client.web || '-'}
                   </td>
-                  <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 'bold', color: '#111' }}>
+                  <td data-label="Tickets" className="m-card-half m-card-stacked" style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 'bold', color: '#111' }}>
                     {client.ticket_count}
                   </td>
                 </tr>

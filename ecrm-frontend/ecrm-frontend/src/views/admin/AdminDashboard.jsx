@@ -228,7 +228,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', borderBottom: '1px solid #e5e5e5', paddingBottom: '16px', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
           
           {/* TARJETA DE IA - ESTILO GRIS CLARO Y MISMA ALTURA/DISENO QUE LOS WIDGETS */}
-          <div style={{ 
+          <div className="dash-ai-card" style={{ 
             flex: '1 1 400px', 
             minWidth: 0,
             backgroundColor: '#f8f9fa',
@@ -249,13 +249,13 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
             <h1 className="crm-main-title" style={{ border: 'none', margin: 0, padding: 0, fontSize: '14px', fontWeight: 'bold', color: '#111111', lineHeight: '1.2' }}>
               {aiBanner.headline}
             </h1>
-            <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#555555', lineHeight: '1.3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <p className="dash-ai-sub" style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#555555', lineHeight: '1.3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {aiBanner.subtext}
             </p>
           </div>
 
           {/* WIDGETS DERECHOS */}
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+          <div className="dash-status-row m-stack" style={{ display: 'flex', gap: '16px', alignItems: 'stretch', flexWrap: 'wrap' }}>
             <AnalyzerStatusWidget />
             <TopBarWidget />
           </div>
@@ -318,7 +318,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
               
               {/* 🌟 TABS DE FILTRADO DE TIENDAS */}
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="m-scroll-x" style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   onClick={() => { setShowMyStoresOnly(false); setCurrentPage(1); }}
                   style={{ padding: '6px 12px', backgroundColor: !showMyStoresOnly ? '#111' : '#f3f4f6', color: !showMyStoresOnly ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
@@ -341,12 +341,12 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }} 
-                className="crm-input-text"
+                className="crm-input-text m-full"
                 style={{ width: '250px' }}
               />
             </div>
             <div className="crm-table-container">
-              <table className="crm-table-data">
+              <table className="crm-table-data m-cards">
                 <thead>
                   <tr>
                     <th onClick={() => handleSort('name')} style={{ cursor: 'pointer', userSelect: 'none' }} title="Haz clic para ordenar por Nombre">
@@ -364,23 +364,23 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
                 <tbody>
                   {currentClients.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="crm-text-loading" style={{ textAlign: 'center', padding: '24px' }}>
+                      <td colSpan="4" className="crm-text-loading m-card-empty" style={{ textAlign: 'center', padding: '24px' }}>
                         No se encontraron clientes que coincidan con la búsqueda.
                       </td>
                     </tr>
                   ) : (
                     currentClients.map(client => (
                       <tr key={client.id} className="crm-table-row-interactive" onClick={() => navigate(`/admin/clientes/${client.id}`)} style={{ cursor: 'pointer' }}>
-                        <td>
+                        <td className="m-card-title">
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {/* 🌟 MANEJADOR DE LOGOS CON FALLBACK Y COMPATIBILIDAD CON RUTA BACKEND */}
                             <ClientLogo url={client.logo_url} name={client.name} />
                             <strong>{client.name}</strong>
                           </div>
                         </td>
-                        <td>{client.web || 'No asignada'}</td>
-                        <td><span className="crm-badge">{client.plan_type}</span></td>
-                        <td>
+                        <td data-label="Web" style={{ wordBreak: 'break-all' }}>{client.web || 'No asignada'}</td>
+                        <td data-label="Plan" className="m-card-half"><span className="crm-badge">{client.plan_type}</span></td>
+                        <td data-label="Tickets" className="m-card-half">
                           <strong>{client.real_ticket_count}</strong>
                         </td>
                       </tr>
@@ -391,7 +391,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
             </div>
 
             {/* CONTROLES DE PAGINACIÓN A 11 ELEMENTOS */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #eeeeee', paddingTop: '12px' }}>
+            <div className="m-pager" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #eeeeee', paddingTop: '12px', gap: '10px' }}>
               <span style={{ fontSize: '12px', color: '#666' }}>
                 Mostrando {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredClients.length)} de {filteredClients.length} clientes
               </span>
@@ -422,7 +422,7 @@ const [isMatrixMode, setIsMatrixMode] = useState(false);
         </div>
 
         {/* COLUMNA DERECHA: STATUS DE TECNOLOGÍAS */}
-        <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="dash-side" style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
           {/* 🌟 NUEVO WIDGET W95 */}
           <MyTicketsWidget myTickets={myTickets} navigate={navigate} />

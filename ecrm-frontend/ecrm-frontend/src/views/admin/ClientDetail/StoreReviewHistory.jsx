@@ -187,7 +187,7 @@ const StoreReviewHistory = ({ storeId }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {selectedDayQA.data.map(qa => (
                 <div key={qa.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', backgroundColor: '#f9fafb' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '16px' }}>
+                  <div className="srh-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontSize: '10px', color: '#666', fontWeight: 'bold' }}>HOME</span>
                       <span style={{ fontSize: '13px' }}>{renderIcon(qa.home_page)}</span>

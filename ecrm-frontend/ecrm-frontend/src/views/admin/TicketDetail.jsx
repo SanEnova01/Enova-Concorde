@@ -351,11 +351,11 @@ function TicketDetail() {
       )}
 
       {/* WIDGET FLOTANTE DE CHAT */}
-      <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+      <div className="td-chat" style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
         
         {/* Ventana del Chat */}
         {isChatOpen && (
-          <div style={{
+          <div className="td-chat-window" style={{
             width: '340px', height: '450px', backgroundColor: '#ffffff', border: '1px solid #111111', 
             borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', display: 'flex', 
             flexDirection: 'column', overflow: 'hidden', marginBottom: '16px',
@@ -414,6 +414,8 @@ function TicketDetail() {
 
         {/* Botón de la Burbuja */}
         <button
+          className="td-chat-fab"
+          aria-label={isChatOpen ? 'Cerrar chat del ticket' : 'Abrir chat del ticket'}
           onClick={() => setIsChatOpen(!isChatOpen)}
           style={{
             width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#111111', color: '#ffffff', 
@@ -441,7 +443,7 @@ function TicketDetail() {
       {/* INTERFAZ DEL DETALLE */}
       <div className="crm-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="crm-main-title" style={{ margin: 0, border: 'none' }}>Ticket: {ticket.serial_number}</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="td-actions" style={{ display: 'flex', gap: '10px' }}>
           
           {/* CINTURÓN DE SEGURIDAD: Solo Admin / Super Admin ven estos botones */}
           {userRole !== 'client' && (
@@ -465,7 +467,7 @@ function TicketDetail() {
       {isEditing && userRole !== 'client' ? (
         <form onSubmit={handleSaveTicketDetails} className="crm-card-paper" style={{ marginBottom: '24px' }}>
           <h3 className="crm-section-title" style={{ marginTop: 0 }}>Editar / Clasificar Datos del Ticket</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          <div className="m-cols-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Asunto / Nombre</label>
               <input type="text" className="crm-select-dropdown" style={{ width: '100%' }} value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />

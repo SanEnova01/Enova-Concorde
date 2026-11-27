@@ -7,9 +7,9 @@ const TicketsListView = ({
   sortConfig, handleSort, selectedIds, handleSelectAll, handleSelectOne,
   stores, handleSingleFieldChange, navigate
 }) => (
-  <div style={{ marginTop: '16px', opacity: listLoading ? 0.6 : 1, transition: 'opacity 0.15s', backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflow: 'hidden' }}>
+  <div className="tt-list-wrap" style={{ marginTop: '16px', opacity: listLoading ? 0.6 : 1, transition: 'opacity 0.15s', backgroundColor: '#fff', border: '2px solid #111', borderRadius: '8px', boxShadow: '4px 4px 0px #111', overflow: 'hidden' }}>
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+      <table className="crm-table-data m-cards tt-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
         <thead style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #111' }}>
           <tr>
             <th style={{ padding: '12px 16px', width: '40px', textAlign: 'center' }}>
@@ -52,7 +52,7 @@ const TicketsListView = ({
         <tbody>
           {tickets.length === 0 ? (
             <tr>
-              <td colSpan="10" style={{ padding: '24px', textAlign: 'center', color: '#9ca3af' }}>
+              <td colSpan="10" className="m-card-empty" style={{ padding: '24px', textAlign: 'center', color: '#9ca3af' }}>
                 No se encontraron tickets en esta vista.
               </td>
             </tr>
@@ -71,7 +71,7 @@ const TicketsListView = ({
                   onMouseEnter={e => { if(!isSelected) e.currentTarget.style.backgroundColor = '#f3f4f6'; }} 
                   onMouseLeave={e => { if(!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
                 >
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                  <td className="m-card-select" style={{ padding: '12px 16px', textAlign: 'center' }}>
                     <input 
                       type="checkbox"
                       checked={isSelected}
@@ -81,7 +81,7 @@ const TicketsListView = ({
                   </td>
 
                   {/* CELDA ID COMO ENLACE REAL */}
-                  <td style={{ padding: 0 }}>
+                  <td className="m-card-kicker" style={{ padding: 0 }}>
                     <a 
                       href={`/admin/tickets/${t.id}`}
                       onClick={e => { if(!e.ctrlKey && !e.metaKey && !e.shiftKey) { e.preventDefault(); navigate(`/admin/tickets/${t.id}`); } }}
@@ -92,7 +92,7 @@ const TicketsListView = ({
                   </td>
 
                   {/* CELDA ASUNTO COMO ENLACE REAL + BOTÓN GMAIL */}
-                  <td style={{ padding: 0 }}>
+                  <td className="m-card-title" style={{ padding: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px' }}>
                       <a 
                         href={`/admin/tickets/${t.id}`}
@@ -122,7 +122,7 @@ const TicketsListView = ({
                   </td>
 
                   {/* EDITAR STORE ID EN LÍNEA */}
-                  <td style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
+                  <td data-label="Tienda" className="m-card-stacked" style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
                     <select
                       value={t.store_id || ''}
                       onChange={(e) => handleSingleFieldChange(t.id, 'store_id', e.target.value)}
@@ -145,7 +145,7 @@ const TicketsListView = ({
                   </td>
 
                   {/* EDITAR ESTADO EN LÍNEA */}
-                  <td style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
+                  <td data-label="Estado" className="m-card-half m-card-stacked" style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
                     <select 
                       value={t.status || 'OPEN'}
                       onChange={(e) => handleSingleFieldChange(t.id, 'status', e.target.value)}
@@ -165,7 +165,7 @@ const TicketsListView = ({
                   </td>
 
                   {/* EDITAR PRIORIDAD EN LÍNEA */}
-                  <td style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
+                  <td data-label="Prioridad" className="m-card-half m-card-stacked" style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
                     <select 
                       value={t.priority || 'MEDIUM'}
                       onChange={(e) => handleSingleFieldChange(t.id, 'priority', e.target.value)}
@@ -185,7 +185,7 @@ const TicketsListView = ({
                   </td>
 
                   {/* EDITAR TIPO DE TAREA EN LÍNEA */}
-                  <td style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
+                  <td data-label="Tipo" className="m-card-half m-card-stacked" style={{ padding: '8px 12px' }} onClick={e => e.stopPropagation()}>
                     <select 
                       value={t.task_type || 'CONSULTA'}
                       onChange={(e) => handleSingleFieldChange(t.id, 'task_type', e.target.value)}
@@ -205,7 +205,7 @@ const TicketsListView = ({
                   </td>
 
                   {/* 🌟 CELDAS ESTÁTICAS DE SÓLO LECTURA */}
-                  <td style={{ padding: '12px 16px', fontSize: '12px', color: '#4b5563', fontWeight: '600' }}>
+                  <td data-label="Responsable" className="m-card-half m-card-stacked" style={{ padding: '12px 16px', fontSize: '12px', color: '#4b5563', fontWeight: '600' }}>
                     {t.assigned_to ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {t.assigned_to.split(',').filter(Boolean).map((name, idx) => (
@@ -219,7 +219,7 @@ const TicketsListView = ({
                     )}
                   </td>
 
-                  <td style={{ padding: '12px 16px', fontSize: '12px', textAlign: 'center' }}>
+                  <td data-label="Apolo" className="m-card-half" style={{ padding: '12px 16px', fontSize: '12px', textAlign: 'center' }}>
                     {t.is_apolo_sync ? (
                       <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px' }}>
                         ✓ Apolo
@@ -229,7 +229,7 @@ const TicketsListView = ({
                     )}
                   </td>
 
-                  <td style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>
+                  <td data-label="Fecha" className="m-card-half" style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280' }}>
                     {new Date(t.created_at).toLocaleDateString()}
                   </td>
                 </tr>
@@ -242,7 +242,7 @@ const TicketsListView = ({
 
     {/* CONTROLES DE PAGINACIÓN DE 10 EN 10 */}
     {total > 0 && (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '2px solid #111', backgroundColor: '#f9fafb', flexWrap: 'wrap', gap: '8px' }}>
+      <div className="m-pager" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '2px solid #111', backgroundColor: '#f9fafb', flexWrap: 'wrap', gap: '8px' }}>
         <span style={{ fontSize: '12px', color: '#4b5563', fontWeight: 'bold' }}>
           Mostrando {((listPage - 1) * listItemsPerPage) + 1} - {Math.min(listPage * listItemsPerPage, total)} de {total} tickets
         </span>

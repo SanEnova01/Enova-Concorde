@@ -184,7 +184,7 @@ const QuoteGenerator = () => {
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
       
       {/* 🌟 ENCABEZADO Y PESTAÑAS GLOBALES */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #111', paddingBottom: '16px', marginBottom: '24px' }}>
+      <div className="m-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #111', paddingBottom: '16px', marginBottom: '24px', gap: '12px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '28px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>
             Requerimientos Adicionales
@@ -194,7 +194,7 @@ const QuoteGenerator = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', backgroundColor: '#e5e5e5', padding: '4px', borderRadius: '8px' }}>
+        <div className="tt-segment m-full" style={{ display: 'flex', gap: '8px', backgroundColor: '#e5e5e5', padding: '4px', borderRadius: '8px' }}>
           <button 
             onClick={() => setActiveTab('list')}
             style={{

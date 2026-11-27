@@ -361,8 +361,8 @@ function UsersManagement() {
         </div>
 
         {/* PESTAÑAS DE NAVEGACIÓN */}
-        <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #e5e7eb', width: '100%', paddingBottom: '8px', flexWrap: 'wrap' }}>
-          <button 
+        <div className="m-scroll-x" style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #e5e7eb', width: '100%', paddingBottom: '8px', flexWrap: 'wrap' }}>
+          <button
             onClick={() => setActiveTab('TEAM')}
             style={{ padding: '8px 16px', backgroundColor: activeTab === 'TEAM' ? '#111' : '#f3f4f6', color: activeTab === 'TEAM' ? '#FFD700' : '#4b5563', border: '2px solid #111', borderRadius: '6px', fontWeight: '900', cursor: 'pointer' }}
           >
@@ -425,7 +425,7 @@ function UsersManagement() {
 
       {activeTab !== 'LOGS' ? (
         <div className="crm-card-paper crm-table-container">
-          <table className="crm-table-data">
+          <table className="crm-table-data m-cards">
             <thead style={{ backgroundColor: '#f9fafb' }}>
               <tr>
                 <th>ID</th>
@@ -440,15 +440,15 @@ function UsersManagement() {
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'TEAM' ? 7 : 6} style={{ textAlign: 'center', padding: '30px', color: '#666' }}>No hay usuarios en esta categoría.</td>
+                  <td colSpan={activeTab === 'TEAM' ? 7 : 6} className="m-card-empty" style={{ textAlign: 'center', padding: '30px', color: '#666' }}>No hay usuarios en esta categoría.</td>
                 </tr>
               ) : (
                 filteredUsers.map(u => (
                   <tr key={u.id} className="crm-table-row-interactive">
-                    <td style={{ fontWeight: 'bold' }}>{u.id}</td>
-                    <td style={{ fontWeight: 'bold', color: '#111' }}>{u.name}</td>
-                    <td style={{ color: '#4b5563' }}>{u.email}</td>
-                    <td>
+                    <td className="m-hide" style={{ fontWeight: 'bold' }}>{u.id}</td>
+                    <td className="m-card-title" style={{ fontWeight: 'bold', color: '#111' }}>{u.name}</td>
+                    <td data-label="" style={{ color: '#4b5563', wordBreak: 'break-all' }}>{u.email}</td>
+                    <td data-label="Acceso" className="m-card-half m-card-stacked">
                       <span className="crm-badge" style={{ 
                         backgroundColor: String(u.role).toLowerCase() === 'super admin' ? '#fee2e2' : String(u.role).toLowerCase() === 'admin' ? '#e0e7ff' : '#f3f4f6',
                         color: String(u.role).toLowerCase() === 'super admin' ? '#991b1b' : String(u.role).toLowerCase() === 'admin' ? '#3730a3' : '#1f2937'
@@ -457,14 +457,14 @@ function UsersManagement() {
                       </span>
                     </td>
                     {activeTab === 'TEAM' && (
-                      <td>
+                      <td data-label="Tiendas" className="m-card-half m-card-stacked">
                         <span style={{ fontWeight: 900, fontSize: '14px' }}>{storeOwnership.byUser[String(u.name || '').trim().toLowerCase()] || 0}</span>
                       </td>
                     )}
-                    <td style={{ fontSize: '12px', color: '#666' }}>
+                    <td data-label="Creado" className="m-hide" style={{ fontSize: '12px', color: '#666' }}>
                       {u.created_at ? new Date(u.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'No registrada'}
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td className="m-card-actions" style={{ textAlign: 'right' }}>
                       {activeTab === 'TEAM' && (
                         <button onClick={() => handleOpenStats(u)} className="crm-btn-border" style={{ padding: '6px 12px', marginRight: '8px', backgroundColor: '#fefce8', borderColor: '#fef08a' }}>
                           📊 Perfil / Stats
@@ -494,14 +494,14 @@ function UsersManagement() {
               </p>
             </div>
             
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input 
+            <div className="m-full" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
                 type="text"
                 placeholder="🔍 Buscar por usuario, correo, acción o IP..."
                 value={logSearch}
                 onChange={(e) => setLogSearch(e.target.value)}
                 className="crm-input-text"
-                style={{ width: '280px' }}
+                style={{ width: '280px', flex: '1 1 auto', minWidth: 0 }}
               />
               <button onClick={fetchAuditLogs} className="crm-btn-border" style={{ padding: '8px 12px', fontSize: '12px' }}>
                 🔄 Recargar
@@ -513,7 +513,7 @@ function UsersManagement() {
             <div className="crm-text-loading" style={{ padding: '40px' }}>Cargando registros de auditoría...</div>
           ) : (
             <div className="crm-table-container">
-              <table className="crm-table-data">
+              <table className="crm-table-data m-cards">
                 <thead style={{ backgroundColor: '#f9fafb' }}>
                   <tr>
                     <th>Fecha & Hora</th>
@@ -526,21 +526,21 @@ function UsersManagement() {
                 <tbody>
                   {filteredAuditLogs.length === 0 ? (
                     <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: '#666' }}>
+                      <td colSpan="5" className="m-card-empty" style={{ textAlign: 'center', padding: '30px', color: '#666' }}>
                         No se encontraron eventos de auditoría con los criterios ingresados.
                       </td>
                     </tr>
                   ) : (
                     filteredAuditLogs.map(log => (
                       <tr key={log.id} className="crm-table-row-interactive">
-                        <td style={{ fontSize: '12px', whiteSpace: 'nowrap', fontWeight: 'bold', color: '#374151' }}>
+                        <td className="m-card-kicker" style={{ fontSize: '12px', whiteSpace: 'nowrap', fontWeight: 'bold', color: '#374151' }}>
                           {new Date(log.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </td>
-                        <td>
+                        <td data-label="Usuario">
                           <div style={{ fontWeight: 'bold', color: '#111', fontSize: '13px' }}>{log.user_name || 'Desconocido'}</div>
                           <div style={{ fontSize: '11px', color: '#6b7280' }}>{log.user_email}</div>
                         </td>
-                        <td>
+                        <td className="m-card-title">
                           <span className="crm-badge" style={{
                             backgroundColor: log.action.includes('SESION') ? '#dcfce7' : log.action.includes('ELIMIN') || log.action.includes('BORRAR') ? '#fee2e2' : '#e0e7ff',
                             color: log.action.includes('SESION') ? '#166534' : log.action.includes('ELIMIN') || log.action.includes('BORRAR') ? '#991b1b' : '#3730a3',
@@ -550,10 +550,10 @@ function UsersManagement() {
                             {log.action}
                           </span>
                         </td>
-                        <td style={{ fontSize: '12px', color: '#4b5563', maxWidth: '300px', wordBreak: 'break-word' }}>
+                        <td data-label="Detalle" style={{ fontSize: '12px', color: '#4b5563', maxWidth: '300px', wordBreak: 'break-word' }}>
                           {log.details || '-'}
                         </td>
-                        <td style={{ fontSize: '12px', fontFamily: 'monospace', color: '#6b7280' }}>
+                        <td data-label="IP" style={{ fontSize: '12px', fontFamily: 'monospace', color: '#6b7280' }}>
                           {log.ip_address || '127.0.0.1'}
                         </td>
                       </tr>

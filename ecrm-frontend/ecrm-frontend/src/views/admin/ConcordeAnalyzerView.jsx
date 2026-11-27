@@ -171,7 +171,7 @@ const checkBotStatus = async () => {
             <select 
               value={selectedStore} 
               onChange={e => setSelectedStore(e.target.value)} 
-              className="crm-select-dropdown"
+              className="crm-select-dropdown m-full"
               style={{ width: '220px' }}
             >
               <option value="ALL">Todas las Tiendas</option>

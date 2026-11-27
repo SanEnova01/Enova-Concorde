@@ -3,7 +3,7 @@ import { Activity, AlertCircle, AlertTriangle, CheckCircle2, Terminal } from 'lu
 
 // PANEL LATERAL: HISTORIAL DE ALERTAS Y LOGS DE ESCANEO
 const FeedPanel = ({ feedFilter, setFeedFilter, timelineFeed, navigate, resolverAlerta, chatBottomRef }) => (
-    <div style={{ width: '420px', backgroundColor: '#ffffff', borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+    <div className="mp-feed" style={{ width: '420px', backgroundColor: '#ffffff', borderLeft: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
 
       <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#ffffff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -17,7 +17,7 @@ const FeedPanel = ({ feedFilter, setFeedFilter, timelineFeed, navigate, resolver
         </p>
 
         {/* FILTRO DE LOGS */}
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div className="m-scroll-x" style={{ display: 'flex', gap: '6px' }}>
           <button 
             onClick={() => setFeedFilter('ALL')}
             style={{ flex: 1, padding: '4px 8px', fontSize: '10px', fontWeight: '700', borderRadius: '4px', border: '1px solid #d1d5db', backgroundColor: feedFilter === 'ALL' ? '#111827' : '#ffffff', color: feedFilter === 'ALL' ? '#ffffff' : '#374151', cursor: 'pointer' }}
